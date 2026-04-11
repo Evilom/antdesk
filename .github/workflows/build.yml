@@ -1,0 +1,129 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # ── macOS: 打包 dmg ──────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_ENV
+
+      - name: Install Tauri CLI
+        run: |
+          cargo install tauri-cli@2 --locked
+          echo "$HOME/.cargo/bin" >> $GITHUB_ENV
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install frontend deps
+        run: yarn install --frozen-lockfile
+
+      - name: Build macOS app
+        run: tauri build --target universal2-apple-darwin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: antdesk-macos
+          path: src-tauri/target/universal2-apple-darwin/release/bundle/dmg/*.dmg
+          retention-days: 14
+
+  # ── Windows: 交叉编译 exe ────────────────────────────────────
+  build-windows:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (cross-compile toolchain)
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_ENV
+          rustup target add x86_64-pc-windows-gnu
+
+      - name: Install Tauri CLI
+        run: |
+          cargo install tauri-cli@2 --locked
+          echo "$HOME/.cargo/bin" >> $GITHUB_ENV
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install frontend deps
+        run: yarn install --frozen-lockfile
+
+      - name: Build Windows exe (NSIS installer)
+        run: tauri build --target x86_64-pc-windows-gnu
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: antdesk-windows
+          path: src-tauri/target/x86_64-pc-windows-gnu/release/bundle/nsis/*.exe
+          retention-days: 14
+
+  # ── Linux: AppImage ──────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_ENV
+
+      - name: Install Tauri CLI
+        run: |
+          cargo install tauri-cli@2 --locked
+          echo "$HOME/.cargo/bin" >> $GITHUB_ENV
+
+      - name: Install Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install frontend deps
+        run: yarn install --frozen-lockfile
+
+      - name: Build Linux AppImage
+        run: tauri build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: antdesk-linux
+          path: src-tauri/target/release/bundle/appimage/*.AppImage
+          retention-days: 14
