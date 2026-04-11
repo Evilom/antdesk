@@ -29,11 +29,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload macOS artifact
+      - name: Upload macOS dmg
         uses: actions/upload-artifact@v4
         with:
-          name: antdesk-macos
-          path: src-tauri/target
+          name: antdesk-macos-dmg
+          path: src-tauri/target/aarch64-apple-darwin/release/bundle/macos
           retention-days: 14
 
   build-windows:
@@ -59,17 +59,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Find bundle
-        run: |
-          echo "=== Build artifacts ==="
-          Get-ChildItem -Path src-tauri/target -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 20 FullName
-          Get-ChildItem -Path src-tauri/target -Directory -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'bundle' } | Select-Object -First 10 FullName
-
-      - name: Upload Windows artifact
+      - name: Upload Windows exe
         uses: actions/upload-artifact@v4
         with:
-          name: antdesk-windows
-          path: src-tauri/target
+          name: antdesk-windows-exe
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis
           retention-days: 14
 
   build-linux:
@@ -104,9 +98,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Linux artifact
+      - name: Upload Linux AppImage
         uses: actions/upload-artifact@v4
         with:
-          name: antdesk-linux
-          path: src-tauri/target
+          name: antdesk-linux-appimage
+          path: src-tauri/target/release/bundle/appimage
           retention-days: 14
