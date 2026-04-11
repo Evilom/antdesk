@@ -29,22 +29,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Find macOS output
-        run: |
-          Get-ChildItem -Path src-tauri/target -Directory -Recurse -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -eq 'bundle' -or $_.Name -like '*.app' } |
-            ForEach-Object {
-              Write-Host $_.FullName
-              Get-ChildItem $_.FullName -ErrorAction SilentlyContinue | Select-Object Name,Length | Format-Table
-            }
-
       - name: Upload macOS app
         uses: actions/upload-artifact@v4
         with:
           name: antdesk-macos
-          path: |
-            src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app
-            src-tauri/target/aarch64-apple-darwin/release/*.app
+          path: src-tauri/target/release/bundle/macos/AntDesk.app
           retention-days: 14
 
   build-windows:
@@ -70,21 +59,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Find Windows output
-        run: |
-          Get-ChildItem -Path src-tauri/target -Directory -Recurse -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -eq 'bundle' -or $_.Name -like '*.exe' } |
-            ForEach-Object {
-              Write-Host $_.FullName
-              Get-ChildItem $_.FullName -ErrorAction SilentlyContinue | Select-Object Name,Length | Format-Table
-            }
-
       - name: Upload Windows exe
         uses: actions/upload-artifact@v4
         with:
           name: antdesk-windows
-          path: |
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/*.exe
-            src-tauri/target/x86_64-pc-windows-msvc/release/*.exe
+          path: src-tauri/target/release/antdesk.exe
           retention-days: 14
