@@ -62,9 +62,8 @@ jobs:
       - name: Find bundle
         run: |
           echo "=== Build artifacts ==="
-          find src-tauri/target -name "*.exe" -type f 2>$null | head -20
-          find src-tauri/target -name "bundle" -type d 2>$null | head -10
-          ls -la src-tauri/target/x86_64-pc-windows-msvc/release/ 2>$null | head -20
+          Get-ChildItem -Path src-tauri/target -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 20 FullName
+          Get-ChildItem -Path src-tauri/target -Directory -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'bundle' } | Select-Object -First 10 FullName
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
