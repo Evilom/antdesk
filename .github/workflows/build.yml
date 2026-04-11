@@ -33,11 +33,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: antdesk-macos
-          path: src-tauri/target/universal2-apple-darwin/release/bundle/dmg/*.dmg
+          path: src-tauri/target/universal2-apple-darwin/release/bundle/**/*
           retention-days: 14
 
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 
@@ -63,7 +63,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: antdesk-windows
-          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*
           retention-days: 14
 
   build-linux:
@@ -98,5 +98,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: antdesk-linux
-          path: src-tauri/target/release/bundle/appimage/*.AppImage
+          path: src-tauri/target/release/bundle/**/*
           retention-days: 14
