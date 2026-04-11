@@ -48,8 +48,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: yarn
-          cache-dependency-path: yarn.lock
+          cache: yaml
+          cache-dependency-path: yaml.lock
 
       - name: Install deps
         run: yarn install
@@ -64,43 +64,4 @@ jobs:
         with:
           name: antdesk-windows-exe
           path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis
-          retention-days: 14
-
-  build-linux:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.0-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: yarn
-          cache-dependency-path: yarn.lock
-
-      - name: Install deps
-        run: yarn install
-
-      - name: Build Linux AppImage
-        run: npx tauri build
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Linux AppImage
-        uses: actions/upload-artifact@v4
-        with:
-          name: antdesk-linux-appimage
-          path: src-tauri/target/release/bundle/appimage
           retention-days: 14
