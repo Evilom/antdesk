@@ -33,7 +33,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: antdesk-macos
-          path: src-tauri/target/universal2-apple-darwin/release/bundle/**/*
+          path: src-tauri/target/aarch64-apple-darwin/release/bundle
           retention-days: 14
 
   build-windows:
@@ -63,7 +63,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: antdesk-windows
-          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle
           retention-days: 14
 
   build-linux:
@@ -77,7 +77,11 @@ jobs:
       - name: Install Linux deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y \
+            libwebkit2gtk-4.0-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
       - name: Install Node
         uses: actions/setup-node@v4
@@ -98,5 +102,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: antdesk-linux
-          path: src-tauri/target/release/bundle/**/*
+          path: src-tauri/target/release/bundle
           retention-days: 14
