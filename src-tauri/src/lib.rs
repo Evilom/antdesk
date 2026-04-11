@@ -93,15 +93,23 @@ async fn clear_token_cache() -> Result<(), String> {
 
 #[tauri::command]
 async fn fetch_notion(path: String, method: String, body: Option<String>, token: String) -> Result<String, String> {
+    // 获取代理地址（默认走 evilom.top:6039，通过 frpc 隧道访问家里 QClaw）
+    let proxy_base = std::env::var("NOTION_PROXY_URL")
+        .unwrap_or_else(|_| "http://evilom.top:6039".to_string());
+
+    let notion_api_url = format!("https://api.notion.com{}", path);
+
     let client = reqwest::Client::new();
+
     let mut req = match method.to_uppercase().as_str() {
-        "POST" => client.post(format!("https://api.notion.com{}", path)),
-        "PATCH" => client.patch(format!("https://api.notion.com{}", path)),
-        "DELETE" => client.delete(format!("https://api.notion.com{}", path)),
-        _ => client.get(format!("https://api.notion.com{}", path)),
+        "POST" => client.post(format!("{}/proxy/api", proxy_base)),
+        "PATCH" => client.patch(format!("{}/proxy/api", proxy_base)),
+        "DELETE" => client.delete(format!("{}/proxy/api", proxy_base)),
+        _ => client.get(format!("{}/proxy/api", proxy_base)),
     };
 
     req = req
+        .header("Remote-URL", &notion_api_url)       // 告诉代理转发到哪里
         .header("Authorization", format!("Bearer {}", token))
         .header("Notion-Version", "2025-09-03")
         .header("Content-Type", "application/json");
@@ -111,6 +119,7 @@ async fn fetch_notion(path: String, method: String, body: Option<String>, token:
     }
 
     let resp = req
+        .timeout(std::time::Duration::from_secs(30))
         .send()
         .await
         .map_err(|e| format!("请求失败: {}", e))?;
