@@ -979,8 +979,3 @@ zustand@^5.0.12:
   version "5.0.12"
   resolved "https://registry.npmmirror.com/zustand/-/zustand-5.0.12.tgz#ed36f647aa89965c4019b671dfc23ef6c6e3af8c"
   integrity sha512-i77ae3aZq4dhMlRhJVCYgMLKuSiZAaUPAct2AksxQ+gOtimhGMdXljRT21P5BNpeT4kXlLIckvkPM029OljD7g==
-
-"@tauri-apps/cli@^2":
-  version "2.10.0"
-  resolved "https://registry.npmmirror.com/@tauri-apps/cli/-/cli-2.10.0.tgz#2c1e2e1a80f99b3c7f0f1e6d5e5a7e7f3c8c3d5e1"
-  integrity sha512-ZqLmD5kHmTXuRr5eYonboarding
