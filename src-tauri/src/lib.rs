@@ -1,39 +1,86 @@
-use tauri::{Manager, AppHandle};
 use std::sync::Mutex;
+use tauri::{AppHandle, Manager};
+use serde::{Deserialize, Serialize};
 
 static TOKEN_CACHE: Mutex<Option<String>> = Mutex::new(None);
+
+#[derive(Debug, Serialize)]
+struct ProxyRequest {
+    platform: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProxyResponse {
+    ret: i32,
+    data: Option<ProxyData>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProxyData {
+    resp: Option<RespData>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RespData {
+    access_token: Option<String>,
+}
 
 #[tauri::command]
 async fn get_notion_token() -> Result<String, String> {
     // 先检查缓存
-    if let Ok(cache) = TOKEN_CACHE.lock() {
+    {
+        let cache = TOKEN_CACHE.lock().map_err(|e| e.to_string())?;
         if let Some(ref t) = *cache {
             return Ok(t.clone());
         }
     }
 
-    // 尝试从 QClaw 本地代理获取
+    // 生产环境：通过远程隧道访问 QClaw auth gateway (evilom.top:6039)
+    // 本地开发：通过 localhost 访问 QClaw
+    let base_url = std::env::var("QCLAW_AUTH_URL")
+        .unwrap_or_else(|_| "http://localhost:19000".to_string());
+
     let client = reqwest::Client::new();
-    if let Ok(resp) = client
-        .get("http://localhost:19000/api/v1/notion/token")
-        .timeout(std::time::Duration::from_secs(5))
+    let proxy_url = format!("{}/proxy/api", base_url);
+    let remote_url = "https://jprx.m.qq.com/data/4164/forward";
+
+    let body = ProxyRequest {
+        platform: "notion".to_string(),
+    };
+
+    let resp = client
+        .post(&proxy_url)
+        .header("Remote-URL", remote_url)
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(10))
         .send()
         .await
-    {
-        if resp.status().is_success() {
-            if let Ok(text) = resp.text().await {
-                let trimmed = text.trim().to_string();
-                if !trimmed.is_empty() {
-                    if let Ok(mut cache) = TOKEN_CACHE.lock() {
-                        *cache = Some(trimmed.clone());
-                    }
-                    return Ok(trimmed);
-                }
-            }
-        }
+        .map_err(|e| format!("网络请求失败: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("Auth gateway 返回错误: {}", resp.status()));
     }
 
-    Err("无法获取 Notion Token，请检查 QClaw 是否运行".to_string())
+    let data: ProxyResponse = resp
+        .json()
+        .await
+        .map_err(|e| format!("响应解析失败: {}", e))?;
+
+    if data.ret != 0 {
+        return Err(format!("Auth gateway ret={}，请检查 Notion 是否已授权", data.ret));
+    }
+
+    let token = data.data
+        .and_then(|d| d.resp)
+        .and_then(|r| r.access_token)
+        .ok_or_else(|| "未获取到 access_token，请先在 QClaw 集成面板完成 Notion 授权".to_string())?;
+
+    if let Ok(mut cache) = TOKEN_CACHE.lock() {
+        *cache = Some(token.clone());
+    }
+
+    Ok(token)
 }
 
 #[tauri::command]
@@ -53,28 +100,28 @@ async fn fetch_notion(path: String, method: String, body: Option<String>, token:
         "DELETE" => client.delete(format!("https://api.notion.com{}", path)),
         _ => client.get(format!("https://api.notion.com{}", path)),
     };
-    
+
     req = req
         .header("Authorization", format!("Bearer {}", token))
         .header("Notion-Version", "2025-09-03")
         .header("Content-Type", "application/json");
-    
+
     if let Some(b) = body {
         req = req.body(b);
     }
-    
+
     let resp = req
         .send()
         .await
         .map_err(|e| format!("请求失败: {}", e))?;
-    
+
     let status = resp.status();
     let text = resp.text().await.map_err(|e| format!("读取失败: {}", e))?;
-    
+
     if !status.is_success() {
         return Err(format!("Notion API 错误 {}: {}", status.as_u16(), &text[..text.len().min(200)]));
     }
-    
+
     Ok(text)
 }
 
@@ -93,8 +140,13 @@ async fn window_maximize(window: tauri::Window) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn window_close(window: tauri::Window) -> Result<(), String> {
-    window.close().map_err(|e| e.to_string())
+async fn window_close(app: AppHandle) -> Result<(), String> {
+    // 生产环境：真正关闭应用
+    if let Some(window) = app.get_webview_window("main") {
+        window.close().map_err(|e| e.to_string())?;
+    }
+    // 强制退出进程，确保窗口真正关闭
+    std::process::exit(0);
 }
 
 #[tauri::command]
