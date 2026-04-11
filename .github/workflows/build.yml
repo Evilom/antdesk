@@ -12,18 +12,18 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Rust
-        uses: tauri-apps/setup-rust@v1
+        uses: actions/setup-rust@v1
         with:
-          rust-version: stable
+          rust: stable
 
-      - name: Install Node.js
+      - name: Install Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: yarn
           cache-dependency-path: yarn.lock
 
-      - name: Install frontend deps
+      - name: Install deps
         run: yarn install --frozen-lockfile
 
       - name: Build macOS dmg
@@ -44,18 +44,18 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Rust
-        uses: tauri-apps/setup-rust@v1
+        uses: actions/setup-rust@v1
         with:
-          rust-version: stable
+          rust: stable
 
-      - name: Install Node.js
+      - name: Install Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: yarn
           cache-dependency-path: yarn.lock
 
-      - name: Install frontend deps
+      - name: Install deps
         run: yarn install --frozen-lockfile
 
       - name: Build Windows exe
@@ -76,11 +76,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Rust
-        uses: tauri-apps/setup-rust@v1
+        uses: actions/setup-rust@v1
         with:
-          rust-version: stable
+          rust: stable
 
-      - name: Install Linux build deps
+      - name: Install Linux deps
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -90,14 +90,14 @@ jobs:
             patchelf \
             libayatana-appindicator3-dev
 
-      - name: Install Node.js
+      - name: Install Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: yarn
           cache-dependency-path: yarn.lock
 
-      - name: Install frontend deps
+      - name: Install deps
         run: yarn install --frozen-lockfile
 
       - name: Build Linux AppImage
