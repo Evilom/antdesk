@@ -33,7 +33,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: antdesk-macos
-          path: src-tauri/target/aarch64-apple-darwin/release/bundle
+          path: src-tauri/target
           retention-days: 14
 
   build-windows:
@@ -59,11 +59,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Find bundle
+        run: |
+          echo "=== Build artifacts ==="
+          find src-tauri/target -name "*.exe" -type f 2>$null | head -20
+          find src-tauri/target -name "bundle" -type d 2>$null | head -10
+          ls -la src-tauri/target/x86_64-pc-windows-msvc/release/ 2>$null | head -20
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: antdesk-windows
-          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle
+          path: src-tauri/target
           retention-days: 14
 
   build-linux:
@@ -102,5 +109,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: antdesk-linux
-          path: src-tauri/target/release/bundle
+          path: src-tauri/target
           retention-days: 14
