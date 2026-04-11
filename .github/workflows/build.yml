@@ -13,8 +13,6 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          rust: stable
 
       - name: Install Node
         uses: actions/setup-node@v4
@@ -24,10 +22,10 @@ jobs:
           cache-dependency-path: yarn.lock
 
       - name: Install deps
-        run: yarn install --frozen-lockfile
+        run: yarn install
 
       - name: Build macOS dmg
-        run: yarn tauri build
+        run: npx tauri build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -45,8 +43,6 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          rust: stable
 
       - name: Install Node
         uses: actions/setup-node@v4
@@ -56,10 +52,10 @@ jobs:
           cache-dependency-path: yarn.lock
 
       - name: Install deps
-        run: yarn install --frozen-lockfile
+        run: yarn install
 
       - name: Build Windows exe
-        run: yarn tauri build
+        run: npx tauri build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -77,18 +73,11 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          rust: stable
 
       - name: Install Linux deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libayatana-appindicator3-dev
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Install Node
         uses: actions/setup-node@v4
@@ -98,10 +87,10 @@ jobs:
           cache-dependency-path: yarn.lock
 
       - name: Install deps
-        run: yarn install --frozen-lockfile
+        run: yarn install
 
       - name: Build Linux AppImage
-        run: yarn tauri build
+        run: npx tauri build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
