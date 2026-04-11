@@ -1,0 +1,55 @@
+{
+  "$schema": "https://v2.tauri.app/schemas/desktop.schema.json",
+  "productName": "AntDesk",
+  "version": "0.1.0",
+  "identifier": "com.evilom.antdesk",
+  "build": {
+    "beforeBuildCommand": "yarn build",
+    "beforeDevCommand": "",
+    "frontendDist": "../dist"
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../dist": ""
+    },
+    "category": "Productivity",
+    "shortDescription": "AI PM Desktop",
+    "longDescription": "AntDesk - Your AI PM floating desktop assistant"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "AntDesk",
+        "label": "main",
+        "width": 380,
+        "height": 560,
+        "x": 20,
+        "y": 60,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "transparent": false,
+        "resizable": true,
+        "skipTaskbar": false,
+        "shadow": true,
+        "visible": true,
+        "url": "tauri://localhost/index.html"
+      }
+    ],
+    "trayIcon": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true,
+      "tooltip": "AntDesk"
+    }
+  }
+}

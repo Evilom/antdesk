@@ -1,0 +1,39 @@
+.reports {
+  max-width: 900px;
+}
+
+.report-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.report-card {
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.report-card:hover {
+  border-color: var(--accent);
+}
+
+.report-name {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.report-date {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.empty {
+  text-align: center;
+  padding: 60px;
+  color: var(--text-secondary);
+}
