@@ -48,11 +48,7 @@
   flex-shrink: 0;
 }
 
-/* Keep the original .app styles for the expanded panel */
-.app {
-  width: 100vw;
-  height: 100vh;
-
+/* ===== AntDesk - Panel (expanded) ===== */
 .app {
   width: 100vw;
   height: 100vh;
