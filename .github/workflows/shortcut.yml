@@ -1,0 +1,114 @@
+name: VideoDL Shortcut
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  shortcut:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create plist
+        run: |
+          cat > VideoDL.plist << 'PLISTEOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>NSPersistentStoreTypeKey</key>
+            <string>Binary</string>
+            <key>WFWorkflowMinimumVersion</key>
+            <string>1344</string>
+            <key>WFWorkflowInputContentItemClasses</key>
+            <array>
+              <dict><key>Type</key><string>WFURLItem</string></dict>
+            </array>
+            <key>WFWorkflowOutputContentItemClasses</key>
+            <array>
+              <dict><key>Type</key><string>WFContentItem</string></dict>
+            </array>
+            <key>WFWorkflowActions</key>
+            <array>
+              <dict>
+                <key>WFWorkflowActionIdentifier</key>
+                <string>is.workflow.actions.ask</string>
+                <key>WFWorkflowActionParameters</key>
+                <dict>
+                  <key>WFAskActionPrompt</key>
+                  <string>📋 粘贴视频链接</string>
+                  <key>WFActionStatus</key>
+                  <dict>
+                    <key>StatusType</key>
+                    <string>NotStarted</string>
+                    <key>UUID</key>
+                    <string>5C928698-4299-44D9-99FD-964B81E96ADF</string>
+                  </dict>
+                </dict>
+              </dict>
+              <dict>
+                <key>WFWorkflowActionIdentifier</key>
+                <string>is.workflow.actions.geturlcontents</string>
+                <key>WFWorkflowActionParameters</key>
+                <dict>
+                  <key>WFURLActionURL</key>
+                  <string>http://evilom.top:6041/download</string>
+                  <key>WFHTTPMethod</key>
+                  <string>POST</string>
+                  <key>WFActionStatus</key>
+                  <dict>
+                    <key>StatusType</key>
+                    <string>NotStarted</string>
+                    <key>UUID</key>
+                    <string>E15FA067-7A98-485A-B33A-F4950E2842AF</string>
+                  </dict>
+                </dict>
+              </dict>
+              <dict>
+                <key>WFWorkflowActionIdentifier</key>
+                <string>is.workflow.actions.savephoto</string>
+                <key>WFWorkflowActionParameters</key>
+                <dict>
+                  <key>WFActionStatus</key>
+                  <dict>
+                    <key>StatusType</key>
+                    <string>NotStarted</string>
+                    <key>UUID</key>
+                    <string>A6525289-A48C-4228-B927-6DEFC5EFE7B3</string>
+                  </dict>
+                </dict>
+              </dict>
+            </array>
+            <key>WFWorkflowName</key>
+            <string>VideoDL</string>
+          </dict>
+          </plist>
+          PLISTEOF
+          echo "plist created"
+
+      - name: Try shortcuts import
+        run: |
+          shortcuts import ./VideoDL.plist 2>&1
+          shortcuts list | grep -i video || echo "check..."
+
+      - name: Check what shortcuts exist
+        run: |
+          shortcuts list
+
+      - name: Try shortcuts sign
+        run: |
+          shortcuts sign ./VideoDL.plist --output VideoDL.signed.shortcut 2>&1
+          ls -la *.shortcut 2>/dev/null
+
+      - name: Upload as release asset
+        if: github.event_name == 'release'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./VideoDL.signed.shortcut
+          asset_name: VideoDL.shortcut
+          asset_content_type: application/octet-stream
