@@ -35,8 +35,7 @@ async fn get_notion_token() -> Result<String, String> {
         }
     }
 
-    // 生产环境：通过远程隧道访问 QClaw auth gateway (evilom.top:6039)
-    // 本地开发：通过 localhost 访问 QClaw
+    // 通过本地 QClaw auth gateway 获取 Notion token
     let base_url = std::env::var("QCLAW_AUTH_URL")
         .unwrap_or_else(|_| "http://localhost:19000".to_string());
 
@@ -93,23 +92,20 @@ async fn clear_token_cache() -> Result<(), String> {
 
 #[tauri::command]
 async fn fetch_notion(path: String, method: String, body: Option<String>, token: String) -> Result<String, String> {
-    // 获取代理地址（默认走 evilom.top:6039，通过 frpc 隧道访问家里 QClaw）
-    let proxy_base = std::env::var("NOTION_PROXY_URL")
-        .unwrap_or_else(|_| "http://evilom.top:6039".to_string());
-
+    // 直接访问 Notion API（不走代理）
     let notion_api_url = format!("https://api.notion.com{}", path);
 
     let client = reqwest::Client::new();
 
     let mut req = match method.to_uppercase().as_str() {
-        "POST" => client.post(format!("{}/proxy/api", proxy_base)),
-        "PATCH" => client.patch(format!("{}/proxy/api", proxy_base)),
-        "DELETE" => client.delete(format!("{}/proxy/api", proxy_base)),
-        _ => client.get(format!("{}/proxy/api", proxy_base)),
+        "POST" => client.post(&notion_api_url),
+        "PATCH" => client.patch(&notion_api_url),
+        "DELETE" => client.delete(&notion_api_url),
+        "GET" => client.get(&notion_api_url),
+        _ => client.get(&notion_api_url),
     };
 
     req = req
-        .header("Remote-URL", &notion_api_url)       // 告诉代理转发到哪里
         .header("Authorization", format!("Bearer {}", token))
         .header("Notion-Version", "2025-09-03")
         .header("Content-Type", "application/json");
@@ -150,11 +146,9 @@ async fn window_maximize(window: tauri::Window) -> Result<(), String> {
 
 #[tauri::command]
 async fn window_close(app: AppHandle) -> Result<(), String> {
-    // 生产环境：真正关闭应用
     if let Some(window) = app.get_webview_window("main") {
         window.close().map_err(|e| e.to_string())?;
     }
-    // 强制退出进程，确保窗口真正关闭
     std::process::exit(0);
 }
 
