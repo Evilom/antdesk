@@ -1,9 +1,8 @@
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager, LogicalSize, LogicalPosition};
+use tauri::{AppHandle, Manager};
 use serde::{Deserialize, Serialize};
 
 static TOKEN_CACHE: Mutex<Option<String>> = Mutex::new(None);
-static FAB_MODE: Mutex<bool> = Mutex::new(false);
 
 #[derive(Debug, Serialize)]
 struct ProxyRequest {
@@ -218,10 +217,10 @@ async fn is_maximized(window: tauri::Window) -> Result<bool, String> {
 #[tauri::command]
 async fn expand_panel(app: AppHandle) -> Result<(), String> {
     if let Some(main) = app.get_webview_window("main") {
-        // 先显示，再设置置顶，避免遮挡
         main.show().map_err(|e| e.to_string())?;
         main.unminimize().map_err(|e| e.to_string())?;
         main.set_focus().map_err(|e| e.to_string())?;
+        Ok(())
     } else {
         Err("主窗口未找到".to_string())
     }
