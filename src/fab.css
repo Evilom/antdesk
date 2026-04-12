@@ -1,0 +1,62 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #fab-root {
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.fab-root {
+  width: 64px;
+  height: 64px;
+  background: transparent;
+  -webkit-app-region: no-drag;
+}
+
+.fab {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #818cf8);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+  -webkit-app-region: no-drag;
+}
+
+.fab:hover {
+  transform: scale(1.12);
+  box-shadow: 0 6px 28px rgba(99, 102, 241, 0.7), 0 3px 12px rgba(0, 0, 0, 0.4);
+}
+
+.fab:active {
+  transform: scale(0.94);
+}
+
+.fab-icon {
+  font-size: 26px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+}
+
+.fab-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #1a1a2e;
+  flex-shrink: 0;
+  transition: background 0.3s;
+}

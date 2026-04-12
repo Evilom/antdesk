@@ -1,8 +1,9 @@
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, LogicalSize, LogicalPosition};
 use serde::{Deserialize, Serialize};
 
 static TOKEN_CACHE: Mutex<Option<String>> = Mutex::new(None);
+static FAB_MODE: Mutex<bool> = Mutex::new(false);
 
 #[derive(Debug, Serialize)]
 struct ProxyRequest {
@@ -92,42 +93,89 @@ async fn clear_token_cache() -> Result<(), String> {
 
 #[tauri::command]
 async fn fetch_notion(path: String, method: String, body: Option<String>, token: String) -> Result<String, String> {
-    // 直接访问 Notion API（不走代理）
+    // 数据来源模式：
+    // - "direct"（默认）：Mac mini 直连 Notion API
+    // - "tunnel"：通过 evilom.top:6038 隧道转发（需 Mac mini 在家开着 frpc）
+    let mode = std::env::var("ANTDESK_DATA_MODE")
+        .unwrap_or_else(|_| "direct".to_string());
+
     let notion_api_url = format!("https://api.notion.com{}", path);
 
     let client = reqwest::Client::new();
 
-    let mut req = match method.to_uppercase().as_str() {
-        "POST" => client.post(&notion_api_url),
-        "PATCH" => client.patch(&notion_api_url),
-        "DELETE" => client.delete(&notion_api_url),
-        "GET" => client.get(&notion_api_url),
-        _ => client.get(&notion_api_url),
-    };
+    if mode == "tunnel" {
+        // 通过远端隧道走 QClaw Auth Gateway 的 proxy/api 端点
+        let tunnel_url = std::env::var("ANTDESK_TUNNEL_URL")
+            .unwrap_or_else(|_| "http://localhost:19000".to_string());
 
-    req = req
-        .header("Authorization", format!("Bearer {}", token))
-        .header("Notion-Version", "2025-09-03")
-        .header("Content-Type", "application/json");
+        let proxy_url = format!("{}/proxy/api", tunnel_url);
 
-    if let Some(b) = body {
-        req = req.body(b);
+        let mut req = match method.to_uppercase().as_str() {
+            "POST" => client.post(&proxy_url),
+            "PATCH" => client.patch(&proxy_url),
+            "DELETE" => client.delete(&proxy_url),
+            "GET" => client.get(&proxy_url),
+            _ => client.get(&proxy_url),
+        };
+
+        req = req
+            .header("Remote-URL", &notion_api_url)
+            .header("Authorization", format!("Bearer {}", token))
+            .header("Notion-Version", "2025-09-03")
+            .header("Content-Type", "application/json");
+
+        if let Some(b) = body {
+            req = req.body(b);
+        }
+
+        let resp = req
+            .timeout(std::time::Duration::from_secs(30))
+            .send()
+            .await
+            .map_err(|e| format!("隧道请求失败: {}", e))?;
+
+        let status = resp.status();
+        let text = resp.text().await.map_err(|e| format!("读取失败: {}", e))?;
+
+        if !status.is_success() {
+            return Err(format!("代理返回错误 {}: {}", status.as_u16(), &text[..text.len().min(300)]));
+        }
+
+        Ok(text)
+    } else {
+        // 直接访问 Notion API
+        let mut req = match method.to_uppercase().as_str() {
+            "POST" => client.post(&notion_api_url),
+            "PATCH" => client.patch(&notion_api_url),
+            "DELETE" => client.delete(&notion_api_url),
+            "GET" => client.get(&notion_api_url),
+            _ => client.get(&notion_api_url),
+        };
+
+        req = req
+            .header("Authorization", format!("Bearer {}", token))
+            .header("Notion-Version", "2025-09-03")
+            .header("Content-Type", "application/json");
+
+        if let Some(b) = body {
+            req = req.body(b);
+        }
+
+        let resp = req
+            .timeout(std::time::Duration::from_secs(30))
+            .send()
+            .await
+            .map_err(|e| format!("请求失败: {}", e))?;
+
+        let status = resp.status();
+        let text = resp.text().await.map_err(|e| format!("读取失败: {}", e))?;
+
+        if !status.is_success() {
+            return Err(format!("Notion API 错误 {}: {}", status.as_u16(), &text[..text.len().min(200)]));
+        }
+
+        Ok(text)
     }
-
-    let resp = req
-        .timeout(std::time::Duration::from_secs(30))
-        .send()
-        .await
-        .map_err(|e| format!("请求失败: {}", e))?;
-
-    let status = resp.status();
-    let text = resp.text().await.map_err(|e| format!("读取失败: {}", e))?;
-
-    if !status.is_success() {
-        return Err(format!("Notion API 错误 {}: {}", status.as_u16(), &text[..text.len().min(200)]));
-    }
-
-    Ok(text)
 }
 
 #[tauri::command]
@@ -166,10 +214,101 @@ async fn is_maximized(window: tauri::Window) -> Result<bool, String> {
     window.is_maximized().map_err(|e| e.to_string())
 }
 
+/// 展开主面板（从 FAB 模式切换到面板模式）
+#[tauri::command]
+async fn expand_panel(app: AppHandle) -> Result<(), String> {
+    if let Some(main) = app.get_webview_window("main") {
+        // 先显示，再设置置顶，避免遮挡
+        main.show().map_err(|e| e.to_string())?;
+        main.unminimize().map_err(|e| e.to_string())?;
+        main.set_focus().map_err(|e| e.to_string())?;
+    } else {
+        Err("主窗口未找到".to_string())
+    }
+}
+
+/// 收起主面板（从面板模式切换回 FAB 模式）
+#[tauri::command]
+async fn collapse_panel(app: AppHandle) -> Result<(), String> {
+    if let Some(main) = app.get_webview_window("main") {
+        main.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// FAB 点击：展开主面板
+#[tauri::command]
+async fn fab_click(app: AppHandle) -> Result<(), String> {
+    expand_panel(app).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            // 设置托盘图标：单击显示/隐藏主面板
+            use tauri::tray::TrayIconBuilder;
+            use tauri::menu::{MenuBuilder, MenuItemBuilder};
+
+            let show_item = MenuItemBuilder::with_id("show", "显示 AntDesk").build(app)?;
+            let hide_item = MenuItemBuilder::with_id("hide", "隐藏面板").build(app)?;
+            let quit_item = MenuItemBuilder::with_id("quit", "退出").build(app)?;
+
+            let menu = MenuBuilder::new(app)
+                .item(&show_item)
+                .item(&hide_item)
+                .separator()
+                .item(&quit_item)
+                .build()?;
+
+            let _tray = TrayIconBuilder::new()
+                .menu(&menu)
+                .tooltip("AntDesk 🐜 — 点击展开")
+                .on_menu_event(move |app, event| {
+                    match event.id().as_ref() {
+                        "show" => {
+                            if let Some(main) = app.get_webview_window("main") {
+                                let _ = main.show();
+                                let _ = main.unminimize();
+                                let _ = main.set_focus();
+                            }
+                        }
+                        "hide" => {
+                            if let Some(main) = app.get_webview_window("main") {
+                                let _ = main.hide();
+                            }
+                        }
+                        "quit" => {
+                            std::process::exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    use tauri::tray::TrayIconEvent;
+                    if let TrayIconEvent::Click { .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(main) = app.get_webview_window("main") {
+                            if main.is_visible().unwrap_or(false) {
+                                let _ = main.hide();
+                            } else {
+                                let _ = main.show();
+                                let _ = main.unminimize();
+                                let _ = main.set_focus();
+                            }
+                        }
+                    }
+                })
+                .build(app)?;
+
+            // 主面板默认置顶
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_always_on_top(true);
+            }
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_notion_token,
             clear_token_cache,
@@ -179,13 +318,10 @@ pub fn run() {
             window_close,
             window_hide,
             is_maximized,
+            expand_panel,
+            collapse_panel,
+            fab_click,
         ])
-        .setup(|app| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_always_on_top(true);
-            }
-            Ok(())
-        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

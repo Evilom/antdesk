@@ -2,7 +2,7 @@
   "$schema": "https://v2.tauri.app/schemas/authority.schema.json",
   "identifier": "default",
   "description": "AntDesk capabilities",
-  "windows": ["main"],
+  "windows": ["main", "fab"],
   "permissions": [
     "core:default",
     "shell:allow-open",
@@ -17,6 +17,8 @@
     "core:window:allow-unmaximize",
     "core:window:allow-show",
     "core:window:allow-hide",
+    "core:window:allow-is-visible",
+    "core:window:allow-is-maximized",
     "core:tray:default",
     "core:tray:allow-set-icon",
     "core:tray:allow-set-tooltip"

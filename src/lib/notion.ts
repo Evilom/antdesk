@@ -7,15 +7,14 @@ export interface TokenStatus {
   error: string | null
 }
 
-// AntData 数据库 ID
+// DestopAnt 数据库 ID（正确版：2026-04-12 实测）
 const DB_IDS = {
-  todos:    '2d51ba51-3457-8125-9d4c-f28ffa2fff14',
-  projects:  '2d51ba51-3457-8127-840e-d8b43c0e5e21',
+  // DestopAnt Todos - 走 data_source_id
+  todos:    '2d51ba51-3457-815e-8850-000b6ebaa003',
+  // DestopAnt Projects
+  projects:  '2d51ba51-3457-813a-9eeb-000b6715eed1',
+  // DestopAnt Reports（日报）
   reports:   '2d51ba51-3457-8158-84e1-c5cbc66ed8b2',
-  // data_source IDs
-  todosDs:    '2d51ba51-3457-815e-8850-000b6ebaa003',
-  projectsDs: '2d51ba51-3457-813a-9eeb-000b6715eed1',
-  reportsDs:  '2d51ba51-3457-815f-8e4d-000c70f2f91a',
 }
 
 export async function getToken(): Promise<TokenStatus> {
@@ -31,7 +30,7 @@ export async function clearToken(): Promise<void> {
   await invoke('clear_token_cache')
 }
 
-// 调用 Notion API（通过 Rust 后端代理）
+// 调用 Notion API（通过 Rust 后端，支持直连和隧道两种模式）
 async function notionFetch(path: string, method: string, body?: object): Promise<any> {
   const token = await invoke<string>('get_notion_token')
   const raw = body ? JSON.stringify(body) : undefined
