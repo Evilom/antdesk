@@ -140,7 +140,9 @@ function Panel({ tokenStatus, onTokenChange, onCollapse }: {
 
 // ===== Root App =====
 export default function App() {
-  const [isExpanded, setIsExpanded] = useState(false)
+  // 主窗口默认 invisible，isExpanded 只控制 React 渲染内容
+  // 当 FAB 点击触发 expand_panel 时，窗口变可见，同时渲染 Panel
+  const [isExpanded, setIsExpanded] = useState(true)  // 主窗口显示时默认 Panel
   const [tokenStatus, setTokenStatus] = useState<TokenStatus>({ connected: false, token: null, error: null })
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -148,16 +150,31 @@ export default function App() {
     fetchToken().then(setTokenStatus)
   }, [])
 
-  // 点击 FAB，展开面板
+  // 监听主窗口获得焦点 → 自动展开面板
+  // （当 Rust hide 主窗口后再次 show 时，触发这里同步状态）
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const win = getCurrentWindow()
+        const unlisten = await win.onFocusedChanged(({ payload: focused }) => {
+          if (focused && !cancelled) {
+            setIsExpanded(true)
+          }
+        })
+        return () => { cancelled = true; unlisten() }
+      } catch {}
+    })()
+  }, [])
+
   const handleExpand = async () => {
+    setIsExpanded(true)  // 先更新状态，再调 Rust（避免闪烁）
     await invoke('expand_panel')
-    setIsExpanded(true)
   }
 
-  // 点击关闭，收起面板
   const handleCollapse = async () => {
     setIsExpanded(false)
-    // 不再调用 hide，让窗口保持隐藏状态（由 tauri.conf.json visible:false 控制）
+    await invoke('collapse_panel')
   }
 
   if (!isExpanded) {

@@ -1,5 +1,5 @@
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager, PhysicalPosition};
+use tauri::{AppHandle, Manager};
 use serde::{Deserialize, Serialize};
 
 static TOKEN_CACHE: Mutex<Option<String>> = Mutex::new(None);
@@ -208,34 +208,23 @@ async fn is_maximized(window: tauri::Window) -> Result<bool, String> {
 }
 
 /// 展开主面板（从 FAB 模式切换到面板模式）
+/// FAB 窗口始终保持可见，作为悬浮入口
 #[tauri::command]
 async fn expand_panel(app: AppHandle) -> Result<(), String> {
-    // 先隐藏 FAB 按钮，再显示主面板
-    if let Some(fab) = app.get_webview_window("fab") {
-        let _ = fab.hide();
-    }
     if let Some(main) = app.get_webview_window("main") {
         main.show().map_err(|e| e.to_string())?;
         main.unminimize().map_err(|e| e.to_string())?;
-        // 确保主窗口在 FAB 之上（如果 FAB 还在的话）
-        main.set_always_on_top(true).map_err(|e| e.to_string())?;
         main.set_focus().map_err(|e| e.to_string())?;
-        Ok(())
-    } else {
-        Err("主窗口未找到".to_string())
     }
+    Ok(())
 }
 
 /// 收起主面板（从面板模式切换回 FAB 模式）
+/// FAB 窗口始终保持可见，这里只隐藏主窗口
 #[tauri::command]
 async fn collapse_panel(app: AppHandle) -> Result<(), String> {
     if let Some(main) = app.get_webview_window("main") {
         main.hide().map_err(|e| e.to_string())?;
-    }
-    // 重新显示 FAB 按钮
-    if let Some(fab) = app.get_webview_window("fab") {
-        fab.show().map_err(|e| e.to_string())?;
-        fab.set_focus().map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -307,24 +296,11 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // 主面板默认置顶
+            // 主面板默认置顶（FAB 不置顶，macOS 按打开顺序决定层级，主窗口最后打开会在 FAB 之上）
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_always_on_top(true);
             }
-
-            // 动态设置 FAB 窗口位置到屏幕右下角
-            if let Some(fab) = app.get_webview_window("fab") {
-                if let Ok(monitor) = fab.current_monitor() {
-                    if let Some(monitor) = monitor {
-                        let screen_size = monitor.size();
-                        let fab_size = fab.outer_size().unwrap_or(tauri::PhysicalSize::new(64, 64));
-                        // 计算右下角位置，留出 20px 边距
-                        let x = (screen_size.width as i32) - (fab_size.width as i32) - 20;
-                        let y = (screen_size.height as i32) - (fab_size.height as i32) - 20;
-                        let _ = fab.set_position(tauri::PhysicalPosition::new(x, y));
-                    }
-                }
-            }
+            // FAB 窗口始终保持可见（由 tauri.conf.json 控制）
 
             Ok(())
         })
