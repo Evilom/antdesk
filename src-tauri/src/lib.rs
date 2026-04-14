@@ -193,19 +193,13 @@ async fn window_maximize(window: tauri::Window) -> Result<(), String> {
 
 #[tauri::command]
 async fn window_close(app: AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("main") {
-        window.close().map_err(|e| e.to_string())?;
-    }
-    std::process::exit(0);
+    // 收起主面板，显示 FAB 按钮（而不是退出应用）
+    collapse_panel(app).await
 }
 
 #[tauri::command]
 async fn window_hide(app: AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("main") {
-        window.hide().map_err(|e| e.to_string())
-    } else {
-        Err("窗口未找到".to_string())
-    }
+    collapse_panel(app).await
 }
 
 #[tauri::command]
@@ -216,10 +210,14 @@ async fn is_maximized(window: tauri::Window) -> Result<bool, String> {
 /// 展开主面板（从 FAB 模式切换到面板模式）
 #[tauri::command]
 async fn expand_panel(app: AppHandle) -> Result<(), String> {
+    // 先隐藏 FAB 按钮，再显示主面板
+    if let Some(fab) = app.get_webview_window("fab") {
+        let _ = fab.hide();
+    }
     if let Some(main) = app.get_webview_window("main") {
         main.show().map_err(|e| e.to_string())?;
         main.unminimize().map_err(|e| e.to_string())?;
-        // 重新设置置顶，确保在 FAB 之上
+        // 确保主窗口在 FAB 之上（如果 FAB 还在的话）
         main.set_always_on_top(true).map_err(|e| e.to_string())?;
         main.set_focus().map_err(|e| e.to_string())?;
         Ok(())
@@ -233,6 +231,11 @@ async fn expand_panel(app: AppHandle) -> Result<(), String> {
 async fn collapse_panel(app: AppHandle) -> Result<(), String> {
     if let Some(main) = app.get_webview_window("main") {
         main.hide().map_err(|e| e.to_string())?;
+    }
+    // 重新显示 FAB 按钮
+    if let Some(fab) = app.get_webview_window("fab") {
+        fab.show().map_err(|e| e.to_string())?;
+        fab.set_focus().map_err(|e| e.to_string())?;
     }
     Ok(())
 }
