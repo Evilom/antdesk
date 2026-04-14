@@ -1,29 +1,7 @@
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
-use serde::{Deserialize, Serialize};
 
 static TOKEN_CACHE: Mutex<Option<String>> = Mutex::new(None);
-
-#[derive(Debug, Serialize)]
-struct ProxyRequest {
-    platform: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct ProxyResponse {
-    ret: i32,
-    data: Option<ProxyData>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ProxyData {
-    resp: Option<RespData>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RespData {
-    access_token: Option<String>,
-}
 
 #[tauri::command]
 async fn get_notion_token() -> Result<String, String> {
@@ -35,45 +13,13 @@ async fn get_notion_token() -> Result<String, String> {
         }
     }
 
-    // 通过本地 QClaw auth gateway 获取 Notion token
-    let base_url = std::env::var("QCLAW_AUTH_URL")
-        .unwrap_or_else(|_| "http://localhost:19000".to_string());
+    // 直接从环境变量或配置读取 Notion token（不走 Auth Gateway）
+    let token = std::env::var("NOTION_TOKEN")
+        .unwrap_or_else(|_| "ntn_z7420851287aTgqYKcfYqocoVHHLmNadxKn2WHcZTFp8hv".to_string());
 
-    let client = reqwest::Client::new();
-    let proxy_url = format!("{}/proxy/api", base_url);
-    let remote_url = "https://jprx.m.qq.com/data/4164/forward";
-
-    let body = ProxyRequest {
-        platform: "notion".to_string(),
-    };
-
-    let resp = client
-        .post(&proxy_url)
-        .header("Remote-URL", remote_url)
-        .header("Content-Type", "application/json")
-        .json(&body)
-        .timeout(std::time::Duration::from_secs(10))
-        .send()
-        .await
-        .map_err(|e| format!("网络请求失败: {}", e))?;
-
-    if !resp.status().is_success() {
-        return Err(format!("Auth gateway 返回错误: {}", resp.status()));
+    if token.is_empty() {
+        return Err("未配置 Notion Token，请设置环境变量 NOTION_TOKEN 或在设置页填写".to_string());
     }
-
-    let data: ProxyResponse = resp
-        .json()
-        .await
-        .map_err(|e| format!("响应解析失败: {}", e))?;
-
-    if data.ret != 0 {
-        return Err(format!("Auth gateway ret={}，请检查 Notion 是否已授权", data.ret));
-    }
-
-    let token = data.data
-        .and_then(|d| d.resp)
-        .and_then(|r| r.access_token)
-        .ok_or_else(|| "未获取到 access_token，请先在 QClaw 集成面板完成 Notion 授权".to_string())?;
 
     if let Ok(mut cache) = TOKEN_CACHE.lock() {
         *cache = Some(token.clone());
@@ -92,89 +38,41 @@ async fn clear_token_cache() -> Result<(), String> {
 
 #[tauri::command]
 async fn fetch_notion(path: String, method: String, body: Option<String>, token: String) -> Result<String, String> {
-    // 数据来源模式：
-    // - "direct"：Mac mini 直连 Notion API
-    // - "tunnel"：通过 evilom.top:6041 隧道转发（需 Mac mini 在家开着 frpc）
-    let mode = std::env::var("ANTDESK_DATA_MODE")
-        .unwrap_or_else(|_| "tunnel".to_string());
-
     let notion_api_url = format!("https://api.notion.com{}", path);
-
     let client = reqwest::Client::new();
 
-    if mode == "tunnel" {
-        // 通过远端隧道走 QClaw Auth Gateway 的 proxy/api 端点
-        let tunnel_url = std::env::var("ANTDESK_TUNNEL_URL")
-            .unwrap_or_else(|_| "http://evilom.top:6041".to_string());
+    // 直接访问 Notion API（Mac mini 可直连，无需代理）
+    let mut req = match method.to_uppercase().as_str() {
+        "POST" => client.post(&notion_api_url),
+        "PATCH" => client.patch(&notion_api_url),
+        "DELETE" => client.delete(&notion_api_url),
+        "GET" => client.get(&notion_api_url),
+        _ => client.get(&notion_api_url),
+    };
 
-        let proxy_url = format!("{}/proxy/api", tunnel_url);
+    req = req
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Notion-Version", "2022-06-28")
+        .header("Content-Type", "application/json");
 
-        let mut req = match method.to_uppercase().as_str() {
-            "POST" => client.post(&proxy_url),
-            "PATCH" => client.patch(&proxy_url),
-            "DELETE" => client.delete(&proxy_url),
-            "GET" => client.get(&proxy_url),
-            _ => client.get(&proxy_url),
-        };
-
-        req = req
-            .header("Remote-URL", &notion_api_url)
-            .header("Authorization", format!("Bearer {}", token))
-            .header("Notion-Version", "2025-09-03")
-            .header("Content-Type", "application/json");
-
-        if let Some(b) = body {
-            req = req.body(b);
-        }
-
-        let resp = req
-            .timeout(std::time::Duration::from_secs(30))
-            .send()
-            .await
-            .map_err(|e| format!("隧道请求失败: {}", e))?;
-
-        let status = resp.status();
-        let text = resp.text().await.map_err(|e| format!("读取失败: {}", e))?;
-
-        if !status.is_success() {
-            return Err(format!("代理返回错误 {}: {}", status.as_u16(), &text[..text.len().min(300)]));
-        }
-
-        Ok(text)
-    } else {
-        // 直接访问 Notion API
-        let mut req = match method.to_uppercase().as_str() {
-            "POST" => client.post(&notion_api_url),
-            "PATCH" => client.patch(&notion_api_url),
-            "DELETE" => client.delete(&notion_api_url),
-            "GET" => client.get(&notion_api_url),
-            _ => client.get(&notion_api_url),
-        };
-
-        req = req
-            .header("Authorization", format!("Bearer {}", token))
-            .header("Notion-Version", "2025-09-03")
-            .header("Content-Type", "application/json");
-
-        if let Some(b) = body {
-            req = req.body(b);
-        }
-
-        let resp = req
-            .timeout(std::time::Duration::from_secs(30))
-            .send()
-            .await
-            .map_err(|e| format!("请求失败: {}", e))?;
-
-        let status = resp.status();
-        let text = resp.text().await.map_err(|e| format!("读取失败: {}", e))?;
-
-        if !status.is_success() {
-            return Err(format!("Notion API 错误 {}: {}", status.as_u16(), &text[..text.len().min(200)]));
-        }
-
-        Ok(text)
+    if let Some(b) = body {
+        req = req.body(b);
     }
+
+    let resp = req
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {}", e))?;
+
+    let status = resp.status();
+    let text = resp.text().await.map_err(|e| format!("读取失败: {}", e))?;
+
+    if !status.is_success() {
+        return Err(format!("Notion API 错误 {}: {}", status.as_u16(), &text[..text.len().min(200)]));
+    }
+
+    Ok(text)
 }
 
 #[tauri::command]
