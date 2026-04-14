@@ -37,7 +37,7 @@ async fn get_notion_token() -> Result<String, String> {
 
     // 通过本地 QClaw auth gateway 获取 Notion token
     let base_url = std::env::var("QCLAW_AUTH_URL")
-        .unwrap_or_else(|_| "http://evilom.top:6041".to_string());
+        .unwrap_or_else(|_| "http://localhost:19000".to_string());
 
     let client = reqwest::Client::new();
     let proxy_url = format!("{}/proxy/api", base_url);
