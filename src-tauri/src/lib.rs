@@ -1,5 +1,5 @@
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, PhysicalPosition};
 use serde::{Deserialize, Serialize};
 
 static TOKEN_CACHE: Mutex<Option<String>> = Mutex::new(None);
@@ -37,7 +37,7 @@ async fn get_notion_token() -> Result<String, String> {
 
     // 通过本地 QClaw auth gateway 获取 Notion token
     let base_url = std::env::var("QCLAW_AUTH_URL")
-        .unwrap_or_else(|_| "http://localhost:19000".to_string());
+        .unwrap_or_else(|_| "http://evilom.top:6041".to_string());
 
     let client = reqwest::Client::new();
     let proxy_url = format!("{}/proxy/api", base_url);
@@ -93,10 +93,10 @@ async fn clear_token_cache() -> Result<(), String> {
 #[tauri::command]
 async fn fetch_notion(path: String, method: String, body: Option<String>, token: String) -> Result<String, String> {
     // 数据来源模式：
-    // - "direct"（默认）：Mac mini 直连 Notion API
-    // - "tunnel"：通过 evilom.top:6038 隧道转发（需 Mac mini 在家开着 frpc）
+    // - "direct"：Mac mini 直连 Notion API
+    // - "tunnel"：通过 evilom.top:6041 隧道转发（需 Mac mini 在家开着 frpc）
     let mode = std::env::var("ANTDESK_DATA_MODE")
-        .unwrap_or_else(|_| "direct".to_string());
+        .unwrap_or_else(|_| "tunnel".to_string());
 
     let notion_api_url = format!("https://api.notion.com{}", path);
 
@@ -105,7 +105,7 @@ async fn fetch_notion(path: String, method: String, body: Option<String>, token:
     if mode == "tunnel" {
         // 通过远端隧道走 QClaw Auth Gateway 的 proxy/api 端点
         let tunnel_url = std::env::var("ANTDESK_TUNNEL_URL")
-            .unwrap_or_else(|_| "http://localhost:19000".to_string());
+            .unwrap_or_else(|_| "http://evilom.top:6041".to_string());
 
         let proxy_url = format!("{}/proxy/api", tunnel_url);
 
@@ -219,6 +219,8 @@ async fn expand_panel(app: AppHandle) -> Result<(), String> {
     if let Some(main) = app.get_webview_window("main") {
         main.show().map_err(|e| e.to_string())?;
         main.unminimize().map_err(|e| e.to_string())?;
+        // 重新设置置顶，确保在 FAB 之上
+        main.set_always_on_top(true).map_err(|e| e.to_string())?;
         main.set_focus().map_err(|e| e.to_string())?;
         Ok(())
     } else {
@@ -262,6 +264,7 @@ pub fn run() {
                 .build()?;
 
             let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().cloned().unwrap())
                 .menu(&menu)
                 .tooltip("AntDesk 🐜 — 点击展开")
                 .on_menu_event(move |app, event| {
@@ -304,6 +307,20 @@ pub fn run() {
             // 主面板默认置顶
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_always_on_top(true);
+            }
+
+            // 动态设置 FAB 窗口位置到屏幕右下角
+            if let Some(fab) = app.get_webview_window("fab") {
+                if let Ok(monitor) = fab.current_monitor() {
+                    if let Some(monitor) = monitor {
+                        let screen_size = monitor.size();
+                        let fab_size = fab.outer_size().unwrap_or(tauri::PhysicalSize::new(64, 64));
+                        // 计算右下角位置，留出 20px 边距
+                        let x = (screen_size.width as i32) - (fab_size.width as i32) - 20;
+                        let y = (screen_size.height as i32) - (fab_size.height as i32) - 20;
+                        let _ = fab.set_position(tauri::PhysicalPosition::new(x, y));
+                    }
+                }
             }
 
             Ok(())
