@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "./stores/appStore";
-import { getNotionToken, fetchTodos, fetchReports } from "./lib/notion";
+import { getNotionToken, fetchTodos, fetchReports, fetchProjects } from "./lib/notion";
 import Dashboard from "./components/Dashboard";
 import TaskList from "./components/TaskList";
 import Reports from "./components/Reports";
@@ -22,6 +22,7 @@ export default function App() {
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const setTodos = useAppStore((s) => s.setTodos);
   const setReports = useAppStore((s) => s.setReports);
+  const setProjects = useAppStore((s) => s.setProjects);
   const setNotionConnected = useAppStore((s) => s.setNotionConnected);
   const updateSettings = useAppStore((s) => s.updateSettings);
   const notionConnected = useAppStore((s) => s.notionConnected);
@@ -32,7 +33,7 @@ export default function App() {
       updateSettings({ notionToken: token });
       setNotionConnected(true);
 
-      const [todos, reports] = await Promise.all([
+      const [todos, reports, projects] = await Promise.all([
         fetchTodos(token).catch((e) => {
           console.error("fetchTodos error:", e);
           return [];
@@ -41,14 +42,19 @@ export default function App() {
           console.error("fetchReports error:", e);
           return [];
         }),
+        fetchProjects(token).catch((e) => {
+          console.error("fetchProjects error:", e);
+          return [];
+        }),
       ]);
       setTodos(todos);
       setReports(reports);
+      setProjects(projects);
     } catch (e) {
       console.error("loadData error:", e);
       setNotionConnected(false);
     }
-  }, [setTodos, setReports, setNotionConnected, updateSettings]);
+  }, [setTodos, setReports, setProjects, setNotionConnected, updateSettings]);
 
   useEffect(() => {
     loadData();

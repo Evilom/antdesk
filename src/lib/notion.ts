@@ -25,7 +25,7 @@ export async function getNotionToken(): Promise<string> {
 
 export async function fetchTodos(token: string) {
   const body = JSON.stringify({
-    sorts: [{ property: "Created time", direction: "descending" }],
+    sorts: [{ timestamp: "created_time", direction: "descending" }],
     page_size: 100,
   });
   const raw = await notionFetch(
