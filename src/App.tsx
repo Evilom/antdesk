@@ -1,25 +1,28 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow, LogicalSize, LogicalPosition } from "@tauri-apps/api/window";
 import { useAppStore } from "./stores/appStore";
 import { getNotionToken, fetchTodos, fetchReports, fetchProjects } from "./lib/notion";
-import Dashboard from "./components/Dashboard";
-import TaskList from "./components/TaskList";
+import Today from "./components/Today";
+import ProjectView from "./components/ProjectView";
 import Reports from "./components/Reports";
 import Chat from "./components/Chat";
 import Settings from "./components/Settings";
+import SearchModal from "./components/SearchModal";
 import type { Page } from "./types";
 
 const NAV_ITEMS: { id: Page; label: string; icon: string }[] = [
-  { id: "dashboard", label: "仪表盘", icon: "\u{1F4CA}" },
-  { id: "tasks", label: "任务", icon: "\u{1F4CB}" },
+  { id: "today", label: "今日", icon: "\u{1F4C5}" },
+  { id: "projects", label: "项目", icon: "\u{1F4CB}" },
   { id: "reports", label: "日报", icon: "\u{1F4DD}" },
-  { id: "chat", label: "AI", icon: "\u{1F916}" },
-  { id: "settings", label: "设置", icon: "\u{2699}\u{FE0F}" },
+  { id: "chat", label: "助理", icon: "\u{1F916}" },
 ];
 
 export default function App() {
   const currentPage = useAppStore((s) => s.currentPage);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const setTodos = useAppStore((s) => s.setTodos);
   const setReports = useAppStore((s) => s.setReports);
   const setProjects = useAppStore((s) => s.setProjects);
@@ -60,6 +63,72 @@ export default function App() {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setShowSearch((v) => !v);
+        setShowSettings(false);
+      }
+      if (e.key === "Escape") {
+        if (showSearch) setShowSearch(false);
+        else if (showSettings) setShowSettings(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showSearch, showSettings]);
+
+  // Restore and persist window state
+  useEffect(() => {
+    const win = getCurrentWindow();
+    const KEY = "antdesk_window";
+
+    // Restore saved size/position on mount
+    const saved = localStorage.getItem(KEY);
+    if (saved) {
+      try {
+        const { width, height, x, y } = JSON.parse(saved);
+        if (width && height) win.setSize(new LogicalSize(width, height));
+        if (x != null && y != null) win.setPosition(new LogicalPosition(x, y));
+      } catch {}
+    }
+
+    // Save on resize and move
+    const unlistenResize = win.onResized(async () => {
+      try {
+        const size = await win.innerSize();
+        const pos = await win.outerPosition();
+        const scale = await win.scaleFactor();
+        localStorage.setItem(KEY, JSON.stringify({
+          width: size.width / scale,
+          height: size.height / scale,
+          x: pos.x / scale,
+          y: pos.y / scale,
+        }));
+      } catch {}
+    });
+
+    const unlistenMove = win.onMoved(async () => {
+      try {
+        const size = await win.innerSize();
+        const pos = await win.outerPosition();
+        const scale = await win.scaleFactor();
+        localStorage.setItem(KEY, JSON.stringify({
+          width: size.width / scale,
+          height: size.height / scale,
+          x: pos.x / scale,
+          y: pos.y / scale,
+        }));
+      } catch {}
+    });
+
+    return () => {
+      unlistenResize.then((fn) => fn());
+      unlistenMove.then((fn) => fn());
+    };
+  }, []);
+
   const handleClose = async () => {
     try {
       await invoke("window_close");
@@ -74,16 +143,14 @@ export default function App() {
 
   const renderPage = () => {
     switch (currentPage) {
-      case "dashboard":
-        return <Dashboard onRefresh={loadData} />;
-      case "tasks":
-        return <TaskList />;
+      case "today":
+        return <Today onRefresh={loadData} />;
+      case "projects":
+        return <ProjectView />;
       case "reports":
         return <Reports />;
       case "chat":
         return <Chat />;
-      case "settings":
-        return <Settings />;
     }
   };
 
@@ -104,6 +171,25 @@ export default function App() {
           />
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => { setShowSearch(true); setShowSettings(false); }}
+            className="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary transition-colors"
+            style={{ background: "transparent", fontSize: "12px" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            title="搜索 (Ctrl+K)"
+          >
+            &#128269;
+          </button>
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary transition-colors"
+            style={{ background: showSettings ? "rgba(255,255,255,0.08)" : "transparent" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = showSettings ? "rgba(255,255,255,0.08)" : "transparent")}
+          >
+            &#x2699;
+          </button>
           <button
             onClick={handleMinimize}
             className="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary transition-colors"
@@ -147,6 +233,20 @@ export default function App() {
           </button>
         ))}
       </div>
+
+      {/* Settings Slide-over */}
+      {showSettings && (
+        <div className="absolute inset-0 z-50 flex justify-end" onClick={() => setShowSettings(false)}>
+          <div className="w-72 h-full overflow-y-auto p-4"
+            style={{ background: "rgba(15,15,20,0.95)", backdropFilter: "blur(30px)", borderLeft: "1px solid rgba(255,255,255,0.08)" }}
+            onClick={(e) => e.stopPropagation()}>
+            <Settings />
+          </div>
+        </div>
+      )}
+
+      {/* Search Modal */}
+      {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
     </div>
   );
 }

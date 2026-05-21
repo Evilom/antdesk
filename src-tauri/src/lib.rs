@@ -225,6 +225,46 @@ async fn toggle_panel(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn get_pending_count(state: tauri::State<'_, AppState>) -> Result<u32, String> {
+    let token = {
+        let cached = state.notion_token.lock().unwrap();
+        cached
+            .clone()
+            .unwrap_or_else(|| DEFAULT_NOTION_TOKEN.to_string())
+    };
+
+    let body = serde_json::json!({
+        "filter": {
+            "property": "Status",
+            "checkbox": { "equals": false }
+        },
+        "page_size": 100
+    })
+    .to_string();
+
+    let url = "https://api.notion.com/v1/databases/2d51ba51-3457-8125-9d4c-f28ffa2fff14/query";
+    let client = http_client();
+    let resp = client
+        .post(url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Notion-Version", "2022-06-28")
+        .header("Content-Type", "application/json")
+        .body(body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() {
+        let text = resp.text().await.map_err(|e| e.to_string())?;
+        return Err(format!("Notion API error: {}", text));
+    }
+
+    let data: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    let count = data["results"].as_array().map(|a| a.len() as u32).unwrap_or(0);
+    Ok(count)
+}
+
+#[tauri::command]
 async fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
     app.exit(0);
     Ok(())
@@ -328,6 +368,7 @@ pub fn run() {
             show_fab_context_menu,
             show_settings,
             toggle_panel,
+            get_pending_count,
             quit_app,
         ])
         .run(tauri::generate_context!())

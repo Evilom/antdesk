@@ -44,6 +44,7 @@ export async function fetchTodos(token: string) {
       page.properties.Tags?.multi_select?.map((t: any) => t.name) || [],
     projectId:
       page.properties.Project?.relation?.[0]?.id || undefined,
+    dueDate: page.properties["Due Date"]?.date?.start || undefined,
     createdTime: page.created_time,
   }));
 }
@@ -51,15 +52,20 @@ export async function fetchTodos(token: string) {
 export async function createTodo(
   token: string,
   name: string,
-  priority: "High" | "Medium" | "Low" = "Medium"
+  priority: "High" | "Medium" | "Low" = "Medium",
+  projectId?: string
 ) {
+  const properties: any = {
+    Name: { title: [{ text: { content: name } }] },
+    Priority: { select: { name: priority } },
+    Status: { checkbox: false },
+  };
+  if (projectId) {
+    properties.Project = { relation: [{ id: projectId }] };
+  }
   const body = JSON.stringify({
     parent: { database_id: DB.todos },
-    properties: {
-      Name: { title: [{ text: { content: name } }] },
-      Priority: { select: { name: priority } },
-      Status: { checkbox: false },
-    },
+    properties,
   });
   const raw = await notionFetch("/v1/pages", "POST", body, token);
   const page = JSON.parse(raw);
@@ -69,6 +75,7 @@ export async function createTodo(
     status: false,
     priority,
     tags: [],
+    projectId,
     createdTime: page.created_time,
   };
 }
@@ -151,6 +158,34 @@ export async function fetchReportContent(
     })
     .filter(Boolean)
     .join("\n");
+}
+
+export async function createReport(
+  token: string,
+  date: string,
+  content: string
+) {
+  const lines = content.split("\n").filter(Boolean);
+  const children = lines.map((line) => ({
+    type: "paragraph",
+    paragraph: { rich_text: [{ type: "text", text: { content: line } }] },
+  }));
+  const body = JSON.stringify({
+    parent: { database_id: DB.reports },
+    properties: {
+      Name: { title: [{ text: { content: `日报 ${date}` } }] },
+      Date: { date: { start: date } },
+    },
+    children,
+  });
+  const raw = await notionFetch("/v1/pages", "POST", body, token);
+  const page = JSON.parse(raw);
+  return {
+    id: page.id,
+    date,
+    summary: lines[0]?.slice(0, 50) || "",
+    content: undefined,
+  };
 }
 
 // ---- Projects ----

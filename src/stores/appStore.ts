@@ -44,7 +44,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export const useAppStore = create<AppState>((set) => ({
-  currentPage: "dashboard",
+  currentPage: "today",
   setCurrentPage: (page) => set({ currentPage: page }),
 
   todos: [],

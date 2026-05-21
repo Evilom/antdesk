@@ -71,7 +71,7 @@ export default function Dashboard({ onRefresh }: Props) {
         <QuickAction
           label="新建任务"
           icon="+"
-          onClick={() => setCurrentPage("tasks")}
+          onClick={() => setCurrentPage("projects")}
         />
         <QuickAction
           label="写日报"

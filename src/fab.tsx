@@ -4,12 +4,24 @@ import { useEffect, useState, useCallback, useRef } from "react";
 
 export default function FAB() {
   const [connected, setConnected] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const didDrag = useRef(false);
 
   useEffect(() => {
     invoke<string>("get_notion_token")
       .then(() => setConnected(true))
       .catch(() => setConnected(false));
+  }, []);
+
+  useEffect(() => {
+    const fetchCount = () => {
+      invoke<number>("get_pending_count")
+        .then(setPendingCount)
+        .catch(() => {});
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -63,6 +75,9 @@ export default function FAB() {
       <span
         className={`status-dot ${connected ? "connected" : "disconnected"}`}
       />
+      {pendingCount > 0 && (
+        <span className="pending-badge">{pendingCount > 99 ? "99+" : pendingCount}</span>
+      )}
     </button>
   );
 }

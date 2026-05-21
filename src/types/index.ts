@@ -5,6 +5,7 @@ export interface Todo {
   priority: "High" | "Medium" | "Low";
   tags: string[];
   projectId?: string;
+  dueDate?: string;
   createdTime?: string;
 }
 
@@ -28,7 +29,7 @@ export interface ChatMessage {
   timestamp: number;
 }
 
-export type Page = "dashboard" | "tasks" | "reports" | "chat" | "settings";
+export type Page = "today" | "projects" | "reports" | "chat";
 
 export type Priority = "High" | "Medium" | "Low";
 
