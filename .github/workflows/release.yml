@@ -61,7 +61,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
-          tagName: AntDesk-v${{ steps.version.outputs.value }}
+          tagName: v${{ steps.version.outputs.value }}
           releaseName: "AntDesk v${{ steps.version.outputs.value }}"
           releaseBody: "See the assets below to download and install."
           releaseDraft: false
