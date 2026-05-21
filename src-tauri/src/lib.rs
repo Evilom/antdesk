@@ -6,7 +6,7 @@ struct AppState {
     notion_token: Mutex<Option<String>>,
 }
 
-const DEFAULT_NOTION_TOKEN: &str = "ntn_z7420851287aTgqYKcfYqocoVHHLmNadxKn2WHcZTFp8hv";
+const DEFAULT_NOTION_TOKEN: &str = "ntn_A74208512877NJgCuXKZv8qc4cy1jO8Zj2xWfIqwTA4dQY";
 
 fn http_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();

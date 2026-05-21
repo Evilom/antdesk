@@ -157,6 +157,18 @@ select option {
   }
 }
 
+.bg-bg-input {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.bg-bg-input:focus {
+  border-color: #007AFF;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+
 /* Glass utilities for Tailwind — must come after @tailwind utilities */
 .bg-bg-card {
   background: rgba(255, 255, 255, 0.06) !important;
@@ -171,16 +183,4 @@ select option {
 .bg-bg-hover {
   background: rgba(255, 255, 255, 0.10);
   border-color: rgba(255, 255, 255, 0.12);
-}
-
-.bg-bg-input {
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.bg-bg-input:focus {
-  border-color: #007AFF;
-  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
 }

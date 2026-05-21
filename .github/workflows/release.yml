@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - "AntDesk-v*"
   workflow_dispatch:
 
 permissions:
@@ -49,6 +49,10 @@ jobs:
       - name: Install frontend dependencies
         run: yarn install --frozen-lockfile
 
+      - name: Get app version
+        id: version
+        run: echo "value=$(jq -r .version src-tauri/tauri.conf.json)" >> "$GITHUB_OUTPUT"
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -56,8 +60,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "AntDesk ${{ github.ref_name }}"
+          tagName: AntDesk-v${{ steps.version.outputs.value }}
+          releaseName: "AntDesk v${{ steps.version.outputs.value }}"
           releaseBody: "See the assets below to download and install."
           releaseDraft: false
           prerelease: false

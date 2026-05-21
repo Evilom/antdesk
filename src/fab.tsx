@@ -14,43 +14,31 @@ export default function FAB() {
 
   const handleMouseDown = useCallback(async (e: React.MouseEvent) => {
     isDragging.current = false;
-    const startX = e.screenX;
-    const startY = e.screenY;
-    
-    // Get initial window position once
-    let winX = 0, winY = 0;
+    const mouseStartX = e.screenX;
+    const mouseStartY = e.screenY;
+
+    let winStartX = 0, winStartY = 0;
     try {
       const pos = await invoke<[number, number]>("get_fab_position");
-      winX = pos[0]; winY = pos[1];
+      winStartX = pos[0];
+      winStartY = pos[1];
     } catch {}
 
-    let rafId: number | null = null;
-    let latestMouse = { x: e.screenX, y: e.screenY };
-
     const handleMouseMove = (me: MouseEvent) => {
-      const dx = Math.abs(me.screenX - startX);
-      const dy = Math.abs(me.screenY - startY);
+      const dx = Math.abs(me.screenX - mouseStartX);
+      const dy = Math.abs(me.screenY - mouseStartY);
       if (dx > 2 || dy > 2) isDragging.current = true;
       if (!isDragging.current) return;
-      
-      latestMouse.x = me.screenX;
-      latestMouse.y = me.screenY;
-      
-      // Throttle to one RAF per frame for smooth 60fps
-      if (rafId === null) {
-        rafId = requestAnimationFrame(() => {
-          const newX = winX + (latestMouse.x - startX);
-          const newY = winY + (latestMouse.y - startY);
-          invoke("set_fab_position", { x: newX, y: newY });
-          rafId = null;
-        });
-      }
+
+      invoke("set_fab_position", {
+        x: winStartX + (me.screenX - mouseStartX),
+        y: winStartY + (me.screenY - mouseStartY),
+      });
     };
 
     const handleMouseUp = () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
-      if (rafId !== null) cancelAnimationFrame(rafId);
     };
 
     document.addEventListener("mousemove", handleMouseMove);
