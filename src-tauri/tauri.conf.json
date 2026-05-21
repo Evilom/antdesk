@@ -24,7 +24,8 @@
         "skipTaskbar": true,
         "x": 100,
         "y": 100,
-        "visible": true
+        "visible": true,
+        "shadow": false
       },
       {
         "label": "main",

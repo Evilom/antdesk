@@ -3,8 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 const NOTION_VERSION = "2022-06-28";
 
 const DB = {
-  todos: "2d51ba51-3457-815e-8850-000b6ebaa003",
-  projects: "2d51ba51-3457-813a-9eeb-000b6715eed1",
+  todos: "2d51ba51-3457-8125-9d4c-f28ffa2fff14",
+  projects: "2d51ba51-3457-8127-840e-d8b43c0e5e21",
   reports: "2d51ba51-3457-8158-84e1-c5cbc66ed8b2",
 };
 
