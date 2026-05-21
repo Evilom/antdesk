@@ -8,13 +8,34 @@
   box-sizing: border-box;
 }
 
-body {
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 13px;
+html, body {
+  background: #0a0a0f;
   overflow: hidden;
-  user-select: none;
 }
 
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
+  font-size: 13px;
+  user-select: none;
+  color: #ffffff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  height: 100vh;
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Scrollbar */
 ::-webkit-scrollbar {
   width: 4px;
 }
@@ -24,30 +45,108 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: rgba(255, 255, 255, 0.2);
 }
 
+/* Titlebar */
 .titlebar {
   -webkit-app-region: drag;
-  height: 32px;
+  height: 36px;
 }
 
 .titlebar button {
   -webkit-app-region: no-drag;
 }
 
+/* Glass card */
+.glass-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.2);
+  transition: all 150ms ease;
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Buttons */
+button {
+  transition: all 150ms ease;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
+  filter: brightness(0.9);
+}
+
+/* Inputs */
+input, textarea {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  color: #ffffff;
+  transition: all 150ms ease;
+}
+
+input:focus, textarea:focus {
+  border-color: #007AFF;
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+
+input::placeholder, textarea::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Select */
+select {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='rgba(255,255,255,0.4)'%3E%3Cpath d='M4.5 6l3.5 4 3.5-4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 28px;
+  transition: all 150ms ease;
+}
+
+select:focus {
+  border-color: #007AFF;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+
+select option {
+  background: rgba(28, 28, 30, 0.95);
+  backdrop-filter: blur(20px);
+  color: #ffffff;
+}
+
+/* Utilities */
 @layer utilities {
   .fade-in {
-    animation: fadeIn 200ms ease-out;
+    animation: fadeSlideIn 200ms ease-out;
+  }
+
+  .slide-up {
+    animation: fadeSlideIn 200ms ease-out;
   }
 }
 
-@keyframes fadeIn {
+@keyframes fadeSlideIn {
   from {
     opacity: 0;
     transform: translateY(4px);

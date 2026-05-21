@@ -4,35 +4,60 @@ export default {
   theme: {
     extend: {
       colors: {
-        bg: {
-          primary: "#0f0f17",
-          card: "#1a1a2e",
-          hover: "#252540",
-          input: "#16162a",
+        glass: {
+          bg: "rgba(255, 255, 255, 0.03)",
+          card: "rgba(255, 255, 255, 0.06)",
+          "card-hover": "rgba(255, 255, 255, 0.08)",
+          input: "rgba(255, 255, 255, 0.06)",
+          "input-focus": "rgba(255, 255, 255, 0.08)",
+          border: "rgba(255, 255, 255, 0.08)",
+          "border-light": "rgba(255, 255, 255, 0.05)",
         },
         accent: {
-          purple: "#6366f1",
-          green: "#22c55e",
-          red: "#ef4444",
-          yellow: "#eab308",
-          blue: "#3b82f6",
+          blue: "#007AFF",
+          green: "#34C759",
+          red: "#FF3B30",
+          orange: "#FF9500",
+          yellow: "#FFCC00",
+          purple: "#AF52DE",
+          teal: "#5AC8FA",
         },
         text: {
-          primary: "#e2e8f0",
-          secondary: "#94a3b8",
-          muted: "#64748b",
+          primary: "#ffffff",
+          secondary: "rgba(255, 255, 255, 0.5)",
+          muted: "rgba(255, 255, 255, 0.35)",
+        },
+        bg: {
+          base: "#0a0a0f",
+          card: "rgba(255, 255, 255, 0.06)",
+          hover: "rgba(255, 255, 255, 0.08)",
+          input: "rgba(255, 255, 255, 0.06)",
         },
       },
       borderRadius: {
-        card: "12px",
-        button: "8px",
+        card: "16px",
+        button: "12px",
+        input: "10px",
       },
       fontFamily: {
-        sans: ["system-ui", "-apple-system", "sans-serif"],
+        sans: ["system-ui", "-apple-system", "BlinkMacSystemFont", "SF Pro Display", "SF Pro Text", "sans-serif"],
       },
       boxShadow: {
-        panel: "0 4px 24px rgba(0,0,0,0.3)",
-        fab: "0 2px 12px rgba(0,0,0,0.4)",
+        card: "0 2px 20px rgba(0, 0, 0, 0.2)",
+        "card-hover": "0 4px 30px rgba(0, 0, 0, 0.3)",
+        fab: "0 4px 20px rgba(0, 122, 255, 0.4)",
+        soft: "0 2px 10px rgba(0, 0, 0, 0.15)",
+        glass: "0 8px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)",
+      },
+      backdropBlur: {
+        glass: "20px",
+        heavy: "40px",
+      },
+      transitionDuration: {
+        DEFAULT: "150ms",
+      },
+      transitionTimingFunction: {
+        DEFAULT: "ease",
       },
     },
   },

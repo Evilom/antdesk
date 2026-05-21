@@ -53,7 +53,7 @@ export default function Settings() {
           value={tokenInput}
           onChange={(e) => setTokenInput(e.target.value)}
           placeholder="ntn_..."
-          className="w-full bg-bg-input text-text-primary text-xs rounded-button px-2.5 py-1.5 outline-none border border-white/5 focus:border-accent-purple/50 transition-colors placeholder:text-text-muted"
+          className="w-full bg-bg-input text-text-primary text-xs rounded-button px-2.5 py-1.5 outline-none border border-white/5 focus:border-accent-blue/50 transition-colors placeholder:text-text-muted"
         />
         <button
           onClick={handleClearCache}
@@ -72,7 +72,7 @@ export default function Settings() {
           type="text"
           value={endpointInput}
           onChange={(e) => setEndpointInput(e.target.value)}
-          className="w-full bg-bg-input text-text-primary text-xs rounded-button px-2.5 py-1.5 outline-none border border-white/5 focus:border-accent-purple/50 transition-colors mb-2"
+          className="w-full bg-bg-input text-text-primary text-xs rounded-button px-2.5 py-1.5 outline-none border border-white/5 focus:border-accent-blue/50 transition-colors mb-2"
         />
         <label className="text-[10px] text-text-muted block mb-1">模型</label>
         <select
@@ -90,7 +90,7 @@ export default function Settings() {
       {/* Save */}
       <button
         onClick={handleSave}
-        className="w-full py-2 bg-accent-purple text-white text-xs rounded-button hover:bg-accent-purple/80 transition-colors"
+        className="w-full py-2 bg-accent-blue text-white text-xs rounded-button hover:bg-accent-blue/80 transition-colors"
       >
         {saved ? "已保存" : "保存设置"}
       </button>

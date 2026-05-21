@@ -31,7 +31,7 @@ export default function Dashboard({ onRefresh }: Props) {
         </div>
         <button
           onClick={onRefresh}
-          className="text-xs text-accent-purple hover:text-accent-purple/80 transition-colors"
+          className="text-xs text-accent-blue hover:text-accent-blue/80 transition-colors"
         >
           刷新
         </button>
@@ -90,7 +90,7 @@ export default function Dashboard({ onRefresh }: Props) {
             {reports.slice(0, 3).map((report) => (
               <div
                 key={report.id}
-                className="flex items-center gap-2 text-xs cursor-pointer hover:text-accent-purple transition-colors"
+                className="flex items-center gap-2 text-xs cursor-pointer hover:text-accent-blue transition-colors"
                 onClick={() => setCurrentPage("reports")}
               >
                 <span className="text-text-muted">{report.date}</span>

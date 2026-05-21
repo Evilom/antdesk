@@ -67,7 +67,7 @@ export default function TaskList() {
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
             placeholder="添加新任务..."
-            className="flex-1 bg-bg-input text-text-primary text-xs rounded-button px-2.5 py-1.5 outline-none border border-white/5 focus:border-accent-purple/50 transition-colors placeholder:text-text-muted"
+            className="flex-1 bg-bg-input text-text-primary text-xs rounded-button px-2.5 py-1.5 outline-none border border-white/5 focus:border-accent-blue/50 transition-colors placeholder:text-text-muted"
           />
           <select
             value={newPriority}
@@ -81,7 +81,7 @@ export default function TaskList() {
           <button
             onClick={handleAdd}
             disabled={adding || !newName.trim()}
-            className="px-3 py-1.5 bg-accent-purple text-white text-xs rounded-button disabled:opacity-40 hover:bg-accent-purple/80 transition-colors"
+            className="px-3 py-1.5 bg-accent-blue text-white text-xs rounded-button disabled:opacity-40 hover:bg-accent-blue/80 transition-colors"
           >
             {adding ? "..." : "+"}
           </button>
@@ -102,7 +102,7 @@ export default function TaskList() {
             onClick={() => setFilter(f.id)}
             className={`px-2.5 py-1 text-xs rounded-button transition-colors ${
               filter === f.id
-                ? "bg-accent-purple text-white"
+                ? "bg-accent-blue text-white"
                 : "bg-bg-card text-text-muted hover:text-text-secondary"
             }`}
           >
@@ -128,7 +128,7 @@ export default function TaskList() {
               className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
                 todo.status
                   ? "bg-accent-green border-accent-green"
-                  : "border-text-muted hover:border-accent-purple"
+                  : "border-text-muted hover:border-accent-blue"
               }`}
             >
               {todo.status && (

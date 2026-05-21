@@ -10,11 +10,11 @@ import Settings from "./components/Settings";
 import type { Page } from "./types";
 
 const NAV_ITEMS: { id: Page; label: string; icon: string }[] = [
-  { id: "dashboard", label: "仪表盘", icon: " " },
-  { id: "tasks", label: "任务", icon: " " },
-  { id: "reports", label: "日报", icon: " " },
-  { id: "chat", label: "AI", icon: " " },
-  { id: "settings", label: "设置", icon: " " },
+  { id: "dashboard", label: "仪表盘", icon: "\u{1F4CA}" },
+  { id: "tasks", label: "任务", icon: "\u{1F4CB}" },
+  { id: "reports", label: "日报", icon: "\u{1F4DD}" },
+  { id: "chat", label: "AI", icon: "\u{1F916}" },
+  { id: "settings", label: "设置", icon: "\u{2699}\u{FE0F}" },
 ];
 
 export default function App() {
@@ -33,12 +33,19 @@ export default function App() {
       setNotionConnected(true);
 
       const [todos, reports] = await Promise.all([
-        fetchTodos(token).catch(() => []),
-        fetchReports(token).catch(() => []),
+        fetchTodos(token).catch((e) => {
+          console.error("fetchTodos error:", e);
+          return [];
+        }),
+        fetchReports(token).catch((e) => {
+          console.error("fetchReports error:", e);
+          return [];
+        }),
       ]);
       setTodos(todos);
       setReports(reports);
-    } catch {
+    } catch (e) {
+      console.error("loadData error:", e);
       setNotionConnected(false);
     }
   }, [setTodos, setReports, setNotionConnected, updateSettings]);
@@ -75,9 +82,10 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-bg-primary text-text-primary">
+    <div className="h-screen flex flex-col text-text-primary">
       {/* Title Bar */}
-      <div className="titlebar flex items-center justify-between px-3 bg-bg-card border-b border-white/5">
+      <div className="titlebar flex items-center justify-between px-4 shrink-0"
+        style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)", height: "36px" }}>
         <div className="flex items-center gap-2">
           <span className="text-sm">&#129514;</span>
           <span className="text-xs font-medium text-text-secondary">
@@ -92,13 +100,19 @@ export default function App() {
         <div className="flex items-center gap-1">
           <button
             onClick={handleMinimize}
-            className="w-6 h-6 flex items-center justify-center rounded hover:bg-bg-hover text-text-muted hover:text-text-primary transition-colors"
+            className="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary transition-colors"
+            style={{ background: "transparent" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           >
             &#x2013;
           </button>
           <button
             onClick={handleClose}
-            className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent-red/80 text-text-muted hover:text-white transition-colors"
+            className="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-white transition-colors"
+            style={{ background: "transparent" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,59,48,0.8)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           >
             &#x2715;
           </button>
@@ -106,21 +120,23 @@ export default function App() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3">{renderPage()}</div>
+      <div className="flex-1 overflow-y-auto p-4">{renderPage()}</div>
 
       {/* Bottom Nav */}
-      <div className="flex items-center justify-around bg-bg-card border-t border-white/5 py-1.5">
+      <div className="flex items-center justify-around shrink-0 py-2"
+        style={{ background: "rgba(255,255,255,0.03)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         {NAV_ITEMS.map((item) => (
           <button
             key={item.id}
             onClick={() => setCurrentPage(item.id)}
-            className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors ${
+            className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all duration-150 ${
               currentPage === item.id
-                ? "text-accent-purple"
+                ? "text-accent-blue"
                 : "text-text-muted hover:text-text-secondary"
             }`}
+            style={currentPage === item.id ? { background: "rgba(0,122,255,0.12)" } : {}}
           >
-            <span className="text-base leading-none">{item.icon}</span>
+            <span className="text-sm leading-none">{item.icon}</span>
             <span className="text-[10px]">{item.label}</span>
           </button>
         ))}

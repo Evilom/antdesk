@@ -112,7 +112,7 @@ export default function Chat() {
             <div
               className={`max-w-[85%] rounded-card px-3 py-2 text-xs leading-relaxed ${
                 msg.role === "user"
-                  ? "bg-accent-purple text-white"
+                  ? "bg-accent-blue text-white"
                   : "bg-bg-card text-text-secondary"
               }`}
             >
@@ -133,7 +133,7 @@ export default function Chat() {
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
           placeholder="输入消息..."
           disabled={chatLoading}
-          className="flex-1 bg-bg-input text-text-primary text-xs rounded-button px-3 py-2 outline-none border border-white/5 focus:border-accent-purple/50 transition-colors placeholder:text-text-muted disabled:opacity-50"
+          className="flex-1 bg-bg-input text-text-primary text-xs rounded-button px-3 py-2 outline-none border border-white/5 focus:border-accent-blue/50 transition-colors placeholder:text-text-muted disabled:opacity-50"
         />
         {chatLoading ? (
           <button
@@ -146,7 +146,7 @@ export default function Chat() {
           <button
             onClick={handleSend}
             disabled={!input.trim()}
-            className="px-3 py-2 bg-accent-purple text-white text-xs rounded-button disabled:opacity-40 hover:bg-accent-purple/80 transition-colors"
+            className="px-3 py-2 bg-accent-blue text-white text-xs rounded-button disabled:opacity-40 hover:bg-accent-blue/80 transition-colors"
           >
             发送
           </button>

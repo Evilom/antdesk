@@ -30,11 +30,11 @@
         "label": "main",
         "title": "AntDesk",
         "url": "/index.html",
-        "width": 380,
-        "height": 560,
+        "width": 400,
+        "height": 600,
         "resizable": false,
         "decorations": false,
-        "transparent": false,
+        "transparent": true,
         "center": true,
         "visible": false
       }
