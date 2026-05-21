@@ -53,6 +53,7 @@ jobs:
       - name: Get app version
         id: version
         run: echo "value=$(jq -r .version src-tauri/tauri.conf.json)" >> "$GITHUB_OUTPUT"
+        shell: bash
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
