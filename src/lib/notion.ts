@@ -38,7 +38,7 @@ export async function fetchTodos(token: string) {
   return data.results.map((page: any) => ({
     id: page.id,
     name: page.properties.Name?.title?.[0]?.plain_text || "",
-    status: page.properties.Status?.status?.name === "Done",
+    status: page.properties.Status?.checkbox === true,
     priority: (page.properties.Priority?.select?.name || "Medium") as "High" | "Medium" | "Low",
     tags:
       page.properties.Tags?.multi_select?.map((t: any) => t.name) || [],
@@ -58,7 +58,7 @@ export async function createTodo(
     properties: {
       Name: { title: [{ text: { content: name } }] },
       Priority: { select: { name: priority } },
-      Status: { status: { name: "To Do" } },
+      Status: { checkbox: false },
     },
   });
   const raw = await notionFetch("/v1/pages", "POST", body, token);
@@ -80,7 +80,7 @@ export async function toggleTodoStatus(
 ) {
   const body = JSON.stringify({
     properties: {
-      Status: { status: { name: done ? "Done" : "To Do" } },
+      Status: { checkbox: done },
     },
   });
   await notionFetch(`/v1/pages/${id}`, "PATCH", body, token);
