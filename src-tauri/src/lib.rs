@@ -148,7 +148,7 @@ async fn collapse_panel(app: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 async fn fab_click(app: tauri::AppHandle) -> Result<(), String> {
-    expand_panel(app).await
+    toggle_quick_panel(app).await
 }
 
 #[tauri::command]
@@ -265,6 +265,66 @@ async fn get_pending_count(state: tauri::State<'_, AppState>) -> Result<u32, Str
 }
 
 #[tauri::command]
+async fn toggle_quick_panel(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(quick) = app.get_webview_window("quick") {
+        if quick.is_visible().unwrap_or(false) {
+            quick.hide().map_err(|e| e.to_string())?;
+            return Ok(());
+        }
+        // Position near FAB and show
+        position_quick_near_fab_inner(&app)?;
+        quick.show().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
+    let fab = app
+        .get_webview_window("fab")
+        .ok_or("FAB window not found")?;
+    let quick = app
+        .get_webview_window("quick")
+        .ok_or("Quick window not found")?;
+
+    let fab_pos = fab.outer_position().map_err(|e| e.to_string())?;
+    let fab_x = fab_pos.x as f64;
+    let fab_y = fab_pos.y as f64;
+    let quick_w = 260.0;
+    let quick_h = 360.0;
+    let gap = 8.0;
+
+    // Try above the FAB, if not enough space try below
+    let mut x = fab_x - quick_w / 2.0 + 32.0; // center on FAB (64/2=32)
+    let mut y = fab_y - quick_h - gap;
+
+    // Clamp to screen bounds (assume primary monitor at 0,0 with reasonable size)
+    if x < 0.0 {
+        x = 4.0;
+    }
+    if y < 0.0 {
+        // Not enough space above, place below
+        y = fab_y + 64.0 + gap;
+    }
+
+    let pos = tauri::Position::Physical(tauri::PhysicalPosition::new(
+        x as i32,
+        y as i32,
+    ));
+    quick.set_position(pos).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn open_full_panel(app: tauri::AppHandle) -> Result<(), String> {
+    // Hide quick panel
+    if let Some(quick) = app.get_webview_window("quick") {
+        let _ = quick.hide();
+    }
+    // Show main panel
+    expand_panel(app).await
+}
+
+#[tauri::command]
 async fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
     app.exit(0);
     Ok(())
@@ -361,6 +421,8 @@ pub fn run() {
             is_maximized,
             expand_panel,
             collapse_panel,
+            toggle_quick_panel,
+            open_full_panel,
             fab_click,
             fab_drag,
             get_fab_position,

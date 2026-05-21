@@ -1,6 +1,6 @@
 {
   "productName": "AntDesk",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "identifier": "com.antdesk.app",
   "build": {
     "beforeDevCommand": "yarn dev",
@@ -42,6 +42,20 @@
         "transparent": true,
         "center": true,
         "visible": false
+      },
+      {
+        "label": "quick",
+        "title": "AntDesk Quick",
+        "url": "/quick.html",
+        "width": 260,
+        "height": 360,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "shadow": false
       }
     ],
     "security": {
