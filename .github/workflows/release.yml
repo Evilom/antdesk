@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "AntDesk-v*"
+      - "v*"
   workflow_dispatch:
 
 permissions:

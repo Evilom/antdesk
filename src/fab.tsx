@@ -1,10 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState, useCallback, useRef } from "react";
 
 export default function FAB() {
   const [connected, setConnected] = useState(false);
-  const isDragging = useRef(false);
-
+  const didDrag = useRef(false);
 
   useEffect(() => {
     invoke<string>("get_notion_token")
@@ -12,41 +12,31 @@ export default function FAB() {
       .catch(() => setConnected(false));
   }, []);
 
-  const handleMouseDown = useCallback(async (e: React.MouseEvent) => {
-    isDragging.current = false;
-    const mouseStartX = e.screenX;
-    const mouseStartY = e.screenY;
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    didDrag.current = false;
+    const startX = e.screenX;
+    const startY = e.screenY;
 
-    let winStartX = 0, winStartY = 0;
-    try {
-      const pos = await invoke<[number, number]>("get_fab_position");
-      winStartX = pos[0];
-      winStartY = pos[1];
-    } catch {}
-
-    const handleMouseMove = (me: MouseEvent) => {
-      const dx = Math.abs(me.screenX - mouseStartX);
-      const dy = Math.abs(me.screenY - mouseStartY);
-      if (dx > 2 || dy > 2) isDragging.current = true;
-      if (!isDragging.current) return;
-
-      invoke("set_fab_position", {
-        x: winStartX + (me.screenX - mouseStartX),
-        y: winStartY + (me.screenY - mouseStartY),
-      });
+    const onMouseMove = (me: MouseEvent) => {
+      if (Math.abs(me.screenX - startX) > 3 || Math.abs(me.screenY - startY) > 3) {
+        didDrag.current = true;
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        getCurrentWindow().startDragging();
+      }
     };
 
-    const handleMouseUp = () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
+    const onMouseUp = () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
     };
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
   }, []);
 
   const handleClick = useCallback(async () => {
-    if (isDragging.current) return;
+    if (didDrag.current) return;
     try {
       await invoke("fab_click");
     } catch (e) {

@@ -9,7 +9,7 @@
 }
 
 html, body {
-  background: rgba(10, 10, 15, 0.85);
+  background: transparent;
   overflow: hidden;
 }
 
