@@ -43,6 +43,26 @@ const DEFAULT_SETTINGS: AppSettings = {
   theme: "dark",
 };
 
+// Load saved settings from localStorage
+function loadSettings(): AppSettings {
+  try {
+    const saved = localStorage.getItem("antdesk_settings");
+    if (saved) {
+      return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+    }
+  } catch {}
+  return DEFAULT_SETTINGS;
+}
+
+// Save settings to localStorage
+function saveSettings(settings: AppSettings) {
+  try {
+    localStorage.setItem("antdesk_settings", JSON.stringify(settings));
+  } catch {}
+}
+
+const initialSettings = loadSettings();
+
 export const useAppStore = create<AppState>((set) => ({
   currentPage: "today",
   setCurrentPage: (page) => set({ currentPage: page }),
@@ -78,9 +98,13 @@ export const useAppStore = create<AppState>((set) => ({
   setChatLoading: (loading) => set({ chatLoading: loading }),
   clearChat: () => set({ chatMessages: [] }),
 
-  settings: DEFAULT_SETTINGS,
+  settings: initialSettings,
   updateSettings: (updates) =>
-    set((state) => ({ settings: { ...state.settings, ...updates } })),
+    set((state) => {
+      const newSettings = { ...state.settings, ...updates };
+      saveSettings(newSettings);
+      return { settings: newSettings };
+    }),
 
   loading: false,
   setLoading: (loading) => set({ loading }),
