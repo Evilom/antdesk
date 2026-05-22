@@ -66,21 +66,21 @@ export default function App() {
   }, [loadData]);
 
   const checkForUpdates = useCallback(async () => {
+    // Skip in dev mode
+    if (window.location.hostname === "localhost" || window.location.protocol === "http:") return;
     try {
       const { check } = await import("@tauri-apps/plugin-updater");
       const update = await check();
       if (update?.available) {
-        const shouldUpdate = confirm(
-          `发现新版本 v${update.version}！\n\n${update.body || "是否立即更新？"}`
-        );
-        if (shouldUpdate) {
+        try {
           await update.downloadAndInstall();
           const { relaunch } = await import("@tauri-apps/plugin-process");
           await relaunch();
+        } catch (e) {
+          console.log("Auto-update install failed:", e);
         }
       }
     } catch (e) {
-      // Updater not available in dev mode or network error
       console.log("Update check skipped:", e);
     }
   }, []);

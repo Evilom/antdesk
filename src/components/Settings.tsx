@@ -57,30 +57,39 @@ export default function Settings() {
     }
   };
 
+  const isDev = window.location.hostname === "localhost" || window.location.protocol === "http:";
+
   const handleCheckUpdate = async () => {
+    if (isDev) {
+      setUpdateStatus("开发模式下不支持自动更新");
+      setTimeout(() => setUpdateStatus(""), 3000);
+      return;
+    }
     setChecking(true);
     setUpdateStatus("检查中...");
     try {
       const { check } = await import("@tauri-apps/plugin-updater");
       const update = await check();
       if (update?.available) {
-        setUpdateStatus(`发现新版本 v${update.version}`);
-        const shouldUpdate = confirm(`发现新版本 v${update.version}！\n\n${update.body || "是否立即更新？"}`);
-        if (shouldUpdate) {
-          setUpdateStatus("下载中...");
+        setUpdateStatus(`发现新版本 v${update.version}，下载中...`);
+        try {
           await update.downloadAndInstall();
           setUpdateStatus("安装完成，即将重启...");
           const { relaunch } = await import("@tauri-apps/plugin-process");
           await relaunch();
+        } catch (installErr) {
+          setUpdateStatus("下载失败，请手动下载安装");
+          console.error("Install failed:", installErr);
         }
       } else {
         setUpdateStatus("已是最新版本");
       }
     } catch (e) {
-      setUpdateStatus("检查失败（开发模式不支持）");
+      setUpdateStatus("检查失败，请检查网络");
+      console.error("Update check failed:", e);
     } finally {
       setChecking(false);
-      setTimeout(() => setUpdateStatus(""), 3000);
+      setTimeout(() => setUpdateStatus(""), 5000);
     }
   };
 
@@ -186,7 +195,7 @@ export default function Settings() {
 
       {/* Info */}
       <div className="text-center text-[10px] text-text-muted space-y-0.5">
-        <div>AntDesk v2.3.0</div>
+        <div>AntDesk v2.3.8</div>
         <div>Tauri 2 + React 19 + Zustand</div>
       </div>
     </div>
