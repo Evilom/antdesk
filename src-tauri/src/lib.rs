@@ -269,11 +269,20 @@ async fn toggle_quick_panel(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(quick) = app.get_webview_window("quick") {
         if quick.is_visible().unwrap_or(false) {
             quick.hide().map_err(|e| e.to_string())?;
+            // Show FAB again
+            if let Some(fab) = app.get_webview_window("fab") {
+                let _ = fab.show();
+            }
             return Ok(());
+        }
+        // Hide FAB while quick panel is open
+        if let Some(fab) = app.get_webview_window("fab") {
+            let _ = fab.hide();
         }
         // Position near FAB and show
         position_quick_near_fab_inner(&app)?;
         quick.show().map_err(|e| e.to_string())?;
+        quick.set_focus().map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -289,22 +298,34 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
     let fab_pos = fab.outer_position().map_err(|e| e.to_string())?;
     let fab_x = fab_pos.x as f64;
     let fab_y = fab_pos.y as f64;
+    let fab_size = 64.0;
     let quick_w = 260.0;
     let quick_h = 360.0;
-    let gap = 8.0;
+    let gap = 10.0;
 
-    // Try above the FAB, if not enough space try below
-    let mut x = fab_x - quick_w / 2.0 + 32.0; // center on FAB (64/2=32)
+    // Get actual screen bounds
+    let (screen_w, screen_h) = if let Some(monitor) = fab.current_monitor().ok().flatten() {
+        let size = monitor.size();
+        let scale = monitor.scale_factor();
+        (size.width as f64 / scale, size.height as f64 / scale)
+    } else {
+        (1920.0, 1080.0)
+    };
+
+    // Position: right-aligned to FAB, above it
+    // Panel right edge = FAB right edge, so panel doesn't extend left past screen
+    let mut x = fab_x + fab_size - quick_w;
     let mut y = fab_y - quick_h - gap;
 
-    // Clamp to screen bounds (assume primary monitor at 0,0 with reasonable size)
-    if x < 0.0 {
-        x = 4.0;
-    }
+    // If not enough space above, place below
     if y < 0.0 {
-        // Not enough space above, place below
-        y = fab_y + 64.0 + gap;
+        y = fab_y + fab_size + gap;
     }
+
+    // Clamp to screen
+    if x < 4.0 { x = 4.0; }
+    if x + quick_w > screen_w - 4.0 { x = screen_w - quick_w - 4.0; }
+    if y + quick_h > screen_h - 4.0 { y = screen_h - quick_h - 4.0; }
 
     let pos = tauri::Position::Physical(tauri::PhysicalPosition::new(
         x as i32,
@@ -327,6 +348,17 @@ async fn open_full_panel(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 async fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
     app.exit(0);
+    Ok(())
+}
+
+#[tauri::command]
+async fn show_fab(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(quick) = app.get_webview_window("quick") {
+        let _ = quick.hide();
+    }
+    if let Some(fab) = app.get_webview_window("fab") {
+        fab.show().map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -436,6 +468,7 @@ pub fn run() {
             toggle_panel,
             get_pending_count,
             quit_app,
+            show_fab,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

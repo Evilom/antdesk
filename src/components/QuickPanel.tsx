@@ -92,6 +92,33 @@ export default function QuickPanel() {
     })();
   }, []);
 
+  // Close quick panel when window loses focus
+  useEffect(() => {
+    let blurTimer: ReturnType<typeof setTimeout>;
+    const handleBlur = () => {
+      // Delay to avoid closing during click interactions
+      blurTimer = setTimeout(async () => {
+        try {
+          const { getCurrentWindow } = await import("@tauri-apps/api/window");
+          const win = getCurrentWindow();
+          await win.hide();
+          // Show FAB via Rust command
+          await invoke("show_fab");
+        } catch {}
+      }, 200);
+    };
+    const handleFocus = () => {
+      clearTimeout(blurTimer);
+    };
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      clearTimeout(blurTimer);
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
+
   const handleToggle = useCallback(
     async (id: string, current: boolean) => {
       if (current) {
