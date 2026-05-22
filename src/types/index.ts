@@ -34,9 +34,20 @@ export type Page = "today" | "projects" | "reports" | "chat";
 
 export type Priority = "High" | "Medium" | "Low";
 
+export type ThemeMode = "dark" | "light" | "auto";
+
+export type AccentColor = "blue" | "purple" | "green" | "orange" | "red" | "pink";
+
+export type FontSize = "small" | "medium" | "large";
+
+export type GlassIntensity = "low" | "medium" | "high";
+
 export interface AppSettings {
   notionToken: string;
   aiEndpoint: string;
   aiModel: string;
-  theme: "dark" | "light";
+  theme: ThemeMode;
+  accent: AccentColor;
+  fontSize: FontSize;
+  glass: GlassIntensity;
 }

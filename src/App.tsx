@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalSize, LogicalPosition } from "@tauri-apps/api/window";
-import { useAppStore } from "./stores/appStore";
+import { useAppStore, applyTheme } from "./stores/appStore";
 import { getNotionToken, fetchTodos, fetchReports, fetchProjects } from "./lib/notion";
 import Today from "./components/Today";
 import ProjectView from "./components/ProjectView";
@@ -29,8 +29,21 @@ export default function App() {
   const setNotionConnected = useAppStore((s) => s.setNotionConnected);
   const updateSettings = useAppStore((s) => s.updateSettings);
   const notionConnected = useAppStore((s) => s.notionConnected);
-  // Track page key for animation reset
+  const settings = useAppStore((s) => s.settings);
   const [pageKey, setPageKey] = useState(0);
+
+  // Apply theme on mount and when settings change
+  useEffect(() => {
+    applyTheme(settings);
+
+    // Listen for system theme changes (auto mode)
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = () => {
+      if (settings.theme === "auto") applyTheme(settings);
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [settings.theme, settings.accent, settings.fontSize, settings.glass]);
 
   const loadData = useCallback(async () => {
     try {
