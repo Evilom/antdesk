@@ -55,17 +55,42 @@ export default function ProjectView() {
       map.get(pid)!.push(t);
     }
 
+    const TAG_CATEGORIES = ["工作", "生活", "项目"];
     const result: ProjectGroup[] = [];
-    // Inbox first
+    // Inbox first — grouped by tags
     if (map.has("__inbox__")) {
       const inboxTodos = map.get("__inbox__")!;
-      result.push({
-        id: "__inbox__",
-        name: "收件箱",
-        todos: inboxTodos,
-        doneCount: inboxTodos.filter((t) => t.status).length,
-        totalCount: inboxTodos.length,
-      });
+      // Group by tag categories
+      const tagGroups = new Map<string, Todo[]>();
+      for (const t of inboxTodos) {
+        const matched = t.tags.find((tag) => TAG_CATEGORIES.includes(tag));
+        const key = matched || "__other__";
+        if (!tagGroups.has(key)) tagGroups.set(key, []);
+        tagGroups.get(key)!.push(t);
+      }
+      for (const cat of TAG_CATEGORIES) {
+        const catTodos = tagGroups.get(cat);
+        if (catTodos && catTodos.length > 0) {
+          result.push({
+            id: `__inbox__${cat}`,
+            name: cat,
+            todos: catTodos,
+            doneCount: catTodos.filter((t) => t.status).length,
+            totalCount: catTodos.length,
+          });
+        }
+      }
+      // Other (untagged)
+      const otherTodos = tagGroups.get("__other__");
+      if (otherTodos && otherTodos.length > 0) {
+        result.push({
+          id: "__inbox__other",
+          name: "其他",
+          todos: otherTodos,
+          doneCount: otherTodos.filter((t) => t.status).length,
+          totalCount: otherTodos.length,
+        });
+      }
     }
     // Then projects in order (skip archived)
     for (const proj of projects) {
@@ -359,13 +384,14 @@ function TaskRow({
       >
         {todo.name}
       </span>
-      <span
-        className={`text-[10px] px-1.5 py-0.5 rounded ${
-          PRIORITY_COLORS[todo.priority]
-        }`}
-      >
+      <span className={`text-[10px] px-1.5 py-0.5 rounded ${PRIORITY_COLORS[todo.priority]}`}>
         {PRIORITY_LABELS[todo.priority]}
       </span>
+      {todo.tags.length > 0 && (
+        <span className="text-[9px] px-1 py-0.5 rounded bg-accent-blue/15 text-accent-blue flex-shrink-0">
+          {todo.tags[0]}
+        </span>
+      )}
     </div>
   );
 }
