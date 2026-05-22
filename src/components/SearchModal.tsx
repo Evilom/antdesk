@@ -85,11 +85,11 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="absolute inset-0 z-50 flex items-start justify-center pt-[15vh]"
+      className="absolute inset-0 z-50 flex items-start justify-center pt-[15vh] search-backdrop"
       onClick={onClose}
     >
       <div
-        className="rounded-xl overflow-hidden flex flex-col"
+        className="rounded-xl overflow-hidden flex flex-col search-modal"
         style={{
           width: 360,
           maxHeight: "60vh",

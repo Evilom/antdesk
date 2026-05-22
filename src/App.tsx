@@ -29,6 +29,8 @@ export default function App() {
   const setNotionConnected = useAppStore((s) => s.setNotionConnected);
   const updateSettings = useAppStore((s) => s.updateSettings);
   const notionConnected = useAppStore((s) => s.notionConnected);
+  // Track page key for animation reset
+  const [pageKey, setPageKey] = useState(0);
 
   const loadData = useCallback(async () => {
     try {
@@ -61,12 +63,10 @@ export default function App() {
 
   useEffect(() => {
     loadData();
-    // Auto-check for updates on startup
     checkForUpdates();
   }, [loadData]);
 
   const checkForUpdates = useCallback(async () => {
-    // Skip in dev mode
     if (window.location.hostname === "localhost" || window.location.protocol === "http:") return;
     try {
       const { check } = await import("@tauri-apps/plugin-updater");
@@ -106,7 +106,6 @@ export default function App() {
     const win = getCurrentWindow();
     const KEY = "antdesk_window";
 
-    // Restore saved size/position on mount
     const saved = localStorage.getItem(KEY);
     if (saved) {
       try {
@@ -116,7 +115,6 @@ export default function App() {
       } catch {}
     }
 
-    // Save on resize and move
     const unlistenResize = win.onResized(async () => {
       try {
         const size = await win.innerSize();
@@ -152,15 +150,18 @@ export default function App() {
   }, []);
 
   const handleClose = async () => {
-    try {
-      await invoke("window_close");
-    } catch {}
+    try { await invoke("window_close"); } catch {}
   };
 
   const handleMinimize = async () => {
-    try {
-      await invoke("window_minimize");
-    } catch {}
+    try { await invoke("window_minimize"); } catch {}
+  };
+
+  const handleNavClick = (id: Page) => {
+    if (id !== currentPage) {
+      setPageKey((k) => k + 1);
+      setCurrentPage(id);
+    }
   };
 
   const renderPage = () => {
@@ -179,89 +180,82 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col text-text-primary">
       {/* Title Bar */}
-      <div className="titlebar flex items-center justify-between px-4 shrink-0"
-        style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)", height: "36px" }}>
+      <div
+        className="titlebar flex items-center justify-between px-4 shrink-0"
+        style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)", height: "36px" }}
+      >
         <div className="flex items-center gap-2">
           <span className="text-sm">&#129514;</span>
-          <span className="text-xs font-medium text-text-secondary">
-            AntDesk
-          </span>
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              notionConnected ? "bg-accent-green" : "bg-accent-red"
-            }`}
-          />
+          <span className="text-xs font-medium text-text-secondary">AntDesk</span>
+          <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-500 ${notionConnected ? "bg-accent-green" : "bg-accent-red"}`} />
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => { setShowSearch(true); setShowSettings(false); }}
-            className="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary transition-colors"
-            style={{ background: "transparent", fontSize: "12px" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            className="titlebar-btn w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary"
             title="搜索 (Ctrl+K)"
           >
             &#128269;
           </button>
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary transition-colors"
-            style={{ background: showSettings ? "rgba(255,255,255,0.08)" : "transparent" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = showSettings ? "rgba(255,255,255,0.08)" : "transparent")}
+            className={`titlebar-btn w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary ${showSettings ? "active" : ""}`}
           >
             &#x2699;
           </button>
           <button
             onClick={handleMinimize}
-            className="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary transition-colors"
-            style={{ background: "transparent" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            className="titlebar-btn w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary"
           >
             &#x2013;
           </button>
           <button
             onClick={handleClose}
-            className="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-white transition-colors"
-            style={{ background: "transparent" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,59,48,0.8)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            className="titlebar-btn w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-white"
+            style={{ "--hover-bg": "rgba(255,59,48,0.8)" } as React.CSSProperties}
           >
             &#x2715;
           </button>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">{renderPage()}</div>
+      {/* Content — animated page transition */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div key={pageKey} className="page-enter">
+          {renderPage()}
+        </div>
+      </div>
 
       {/* Bottom Nav */}
-      <div className="flex items-center justify-around shrink-0 py-2"
-        style={{ background: "rgba(255,255,255,0.03)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setCurrentPage(item.id)}
-            className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all duration-150 ${
-              currentPage === item.id
-                ? "text-accent-blue"
-                : "text-text-muted hover:text-text-secondary"
-            }`}
-            style={currentPage === item.id ? { background: "rgba(0,122,255,0.12)" } : {}}
-          >
-            <span className="text-sm leading-none">{item.icon}</span>
-            <span className="text-[10px]">{item.label}</span>
-          </button>
-        ))}
+      <div
+        className="flex items-center justify-around shrink-0 py-2"
+        style={{ background: "rgba(255,255,255,0.03)", borderTop: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        {NAV_ITEMS.map((item) => {
+          const isActive = currentPage === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => handleNavClick(item.id)}
+              className={`nav-item flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl ${
+                isActive ? "text-accent-blue nav-item-active" : "text-text-muted hover:text-text-secondary"
+              }`}
+            >
+              <span className="text-sm leading-none">{item.icon}</span>
+              <span className="text-[10px]">{item.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Settings Slide-over */}
       {showSettings && (
-        <div className="absolute inset-0 z-50 flex justify-end" onClick={() => setShowSettings(false)}>
-          <div className="w-72 h-full overflow-y-auto p-4"
+        <div className="absolute inset-0 z-50 flex justify-end settings-backdrop" onClick={() => setShowSettings(false)}>
+          <div
+            className="w-72 h-full overflow-y-auto p-4 settings-panel"
             style={{ background: "rgba(15,15,20,0.95)", backdropFilter: "blur(30px)", borderLeft: "1px solid rgba(255,255,255,0.08)" }}
-            onClick={(e) => e.stopPropagation()}>
+            onClick={(e) => e.stopPropagation()}
+          >
             <Settings />
           </div>
         </div>

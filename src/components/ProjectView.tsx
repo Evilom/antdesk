@@ -229,13 +229,13 @@ export default function ProjectView() {
         </div>
       )}
 
-      {sections.map((section) => {
+      {sections.map((section, sectionIndex) => {
         const isCollapsed = collapsed.has(section.id);
 
         // 项目 section — has nested project groups
         if (section.projects) {
           return (
-            <div key={section.id} className="bg-bg-card rounded-card overflow-hidden">
+            <div key={section.id} className="bg-bg-card rounded-card overflow-hidden anim-card" style={{ "--delay": `${sectionIndex * 0.06}s` } as React.CSSProperties}>
               <button
                 onClick={() => toggleCollapse(section.id)}
                 className="w-full p-3 flex items-center gap-2 hover:bg-bg-hover transition-colors text-left"
@@ -276,7 +276,7 @@ export default function ProjectView() {
         const isShowCompleted = showCompleted.has(section.id);
 
         return (
-          <div key={section.id} className="bg-bg-card rounded-card overflow-hidden">
+          <div key={section.id} className="bg-bg-card rounded-card overflow-hidden anim-card" style={{ "--delay": `${sectionIndex * 0.06}s` } as React.CSSProperties}>
             <button
               onClick={() => toggleCollapse(section.id)}
               className="w-full p-3 flex items-center gap-2 hover:bg-bg-hover transition-colors text-left"
@@ -477,12 +477,12 @@ function TaskRow({
   onToggle: (id: string, current: boolean) => void;
 }) {
   return (
-    <div className="flex items-center gap-2 py-1 group">
+    <div className="flex items-center gap-2 py-1 group task-row">
       <button
         onClick={() => onToggle(todo.id, todo.status)}
-        className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+        className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center task-check ${
           todo.status
-            ? "bg-accent-green border-accent-green"
+            ? "bg-accent-green border-accent-green task-check-done"
             : "border-text-muted hover:border-accent-blue"
         }`}
       >

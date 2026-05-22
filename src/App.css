@@ -22,6 +22,14 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ── Apple spring system ── */
+:root {
+  --spring: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --spring-smooth: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --spring-snappy: cubic-bezier(0.2, 0, 0, 1);
+}
+
 #root {
   background: rgba(10, 10, 15, 0.70);
   backdrop-filter: blur(50px) saturate(200%);
@@ -39,16 +47,13 @@ body {
 ::-webkit-scrollbar {
   width: 4px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 2px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
@@ -58,58 +63,52 @@ body {
   -webkit-app-region: drag;
   height: 36px;
 }
-
 .titlebar button {
   -webkit-app-region: no-drag;
 }
 
-/* Glass card */
-.glass-card {
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.2);
-  transition: all 150ms ease;
+.titlebar-btn {
+  background: transparent;
+  transition: all 0.2s var(--spring);
+}
+.titlebar-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+.titlebar-btn:active {
+  transform: scale(0.9);
+}
+.titlebar-btn.active {
+  background: rgba(255, 255, 255, 0.08) !important;
 }
 
-.glass-card:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.12);
-}
-
-/* Buttons */
+/* ── Global button spring ── */
 button {
-  transition: all 150ms ease;
+  transition: all 0.25s var(--spring);
 }
-
 button:active:not(:disabled) {
-  transform: scale(0.97);
-  filter: brightness(0.9);
+  transform: scale(0.96);
+  transition-duration: 0.08s;
 }
 
-/* Inputs */
+/* ── Inputs ── */
 input, textarea {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   color: #ffffff;
-  transition: all 150ms ease;
+  transition: all 0.25s var(--spring);
 }
-
 input:focus, textarea:focus {
   border-color: #007AFF;
   background: rgba(255, 255, 255, 0.08);
   outline: none;
   box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
 }
-
 input::placeholder, textarea::placeholder {
   color: rgba(255, 255, 255, 0.35);
 }
 
-/* Select */
+/* ── Select ── */
 select {
   background: rgba(255, 255, 255, 0.06);
   color: #ffffff;
@@ -120,41 +119,165 @@ select {
   background-repeat: no-repeat;
   background-position: right 8px center;
   padding-right: 28px;
-  transition: all 150ms ease;
+  transition: all 0.25s var(--spring);
 }
-
 select:focus {
   border-color: #007AFF;
   outline: none;
   box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
 }
-
 select option {
   background: rgba(28, 28, 30, 0.95);
   backdrop-filter: blur(20px);
   color: #ffffff;
 }
 
-/* Utilities */
-@layer utilities {
-  .fade-in {
-    animation: fadeSlideIn 200ms ease-out;
-  }
+/* ══════════════════════════════════════════
+   ANIMATION KEYFRAMES
+   ══════════════════════════════════════════ */
 
-  .slide-up {
-    animation: fadeSlideIn 200ms ease-out;
-  }
-}
-
-@keyframes fadeSlideIn {
+/* Page enter — cascading cards */
+@keyframes page-enter {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(8px) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
+}
+
+/* Card stagger entrance */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  60% {
+    transform: translateY(-1px) scale(1.002);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Slide from right (settings) */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Backdrop fade */
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Search modal — scale up from center */
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Subtle pulse for loading */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+/* Nav tab active indicator */
+@keyframes tab-pop {
+  0% { transform: scale(0.85); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+/* Check animation */
+@keyframes check-pop {
+  0% { transform: scale(0.5); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+/* ══════════════════════════════════════════
+   ANIMATED CLASSES
+   ══════════════════════════════════════════ */
+
+/* Page content wrapper */
+.page-enter {
+  animation: page-enter 0.35s var(--spring) both;
+}
+
+/* Staggered card — set --delay via inline style */
+.anim-card {
+  opacity: 0;
+  animation: card-in 0.4s var(--spring) both;
+  animation-delay: var(--delay, 0s);
+}
+
+/* Settings panel slide */
+.settings-backdrop {
+  animation: backdrop-in 0.25s var(--spring-smooth) both;
+}
+.settings-panel {
+  animation: slide-in-right 0.35s var(--spring) both;
+}
+
+/* Search modal */
+.search-backdrop {
+  animation: backdrop-in 0.15s ease both;
+}
+.search-modal {
+  animation: modal-in 0.3s var(--spring) both;
+}
+
+/* Nav tab active pop */
+.nav-active {
+  animation: tab-pop 0.3s var(--spring-bounce);
+}
+
+/* Task row check */
+.check-animate {
+  animation: check-pop 0.3s var(--spring-bounce);
+}
+
+/* Loading pulse */
+.loading-pulse {
+  animation: pulse-soft 1.5s ease-in-out infinite;
+}
+
+/* ══════════════════════════════════════════
+   GLASS UTILITIES
+   ══════════════════════════════════════════ */
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.2);
+  transition: all 0.25s var(--spring);
+}
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
 }
 
 .bg-bg-input {
@@ -163,13 +286,11 @@ select option {
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
-
 .bg-bg-input:focus {
   border-color: #007AFF;
   box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
 }
 
-/* Glass utilities for Tailwind — must come after @tailwind utilities */
 .bg-bg-card {
   background: rgba(255, 255, 255, 0.06) !important;
   backdrop-filter: blur(24px) saturate(180%) !important;
@@ -177,10 +298,58 @@ select option {
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   border-radius: 16px !important;
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  transition: all 0.25s var(--spring) !important;
 }
 
-.bg-bg-card:hover,
+.bg-bg-card:hover {
+  background: rgba(255, 255, 255, 0.09) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  transform: translateY(-0.5px);
+}
+
 .bg-bg-hover {
   background: rgba(255, 255, 255, 0.10);
   border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Bottom nav bar */
+.nav-item {
+  transition: all 0.25s var(--spring);
+}
+.nav-item:active {
+  transform: scale(0.9);
+}
+.nav-item-active {
+  background: rgba(0, 122, 255, 0.12);
+  animation: tab-pop 0.3s var(--spring-bounce);
+}
+
+/* Progress bar */
+.progress-fill {
+  transition: width 0.6s var(--spring);
+}
+
+/* Task row hover */
+.task-row {
+  transition: all 0.2s var(--spring);
+  border-radius: 8px;
+}
+.task-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+  padding-left: 4px;
+}
+
+/* Checkbox */
+.task-check {
+  transition: all 0.25s var(--spring);
+}
+.task-check:hover {
+  border-color: #0a84ff;
+  transform: scale(1.1);
+}
+.task-check:active {
+  transform: scale(0.85);
+}
+.task-check-done {
+  animation: check-pop 0.3s var(--spring-bounce);
 }

@@ -24,7 +24,6 @@ export default function Today({ onRefresh }: Props) {
 
   const today = todayStr();
 
-  // Filter out todos belonging to archived projects
   const archivedProjectIds = useMemo(
     () => new Set(projects.filter((p) => p.archived).map((p) => p.id)),
     [projects]
@@ -35,29 +34,17 @@ export default function Today({ onRefresh }: Props) {
   );
 
   const overdue = useMemo(
-    () =>
-      activeTodos.filter(
-        (t) => !t.status && t.dueDate && t.dueDate < today
-      ),
+    () => activeTodos.filter((t) => !t.status && t.dueDate && t.dueDate < today),
     [activeTodos, today]
   );
 
   const dueToday = useMemo(
-    () =>
-      activeTodos.filter(
-        (t) => !t.status && t.dueDate === today
-      ),
+    () => activeTodos.filter((t) => !t.status && t.dueDate === today),
     [activeTodos, today]
   );
 
   const highPriority = useMemo(
-    () =>
-      activeTodos.filter(
-        (t) =>
-          !t.status &&
-          t.priority === "High" &&
-          !(t.dueDate && t.dueDate <= today)
-      ),
+    () => activeTodos.filter((t) => !t.status && t.priority === "High" && !(t.dueDate && t.dueDate <= today)),
     [activeTodos, today]
   );
 
@@ -78,19 +65,18 @@ export default function Today({ onRefresh }: Props) {
 
   const navigate = (page: Page) => setCurrentPage(page);
 
+  // Section counter for stagger
+  let cardIndex = 0;
+
   return (
-    <div className="space-y-3 fade-in">
+    <div className="space-y-3">
       {/* Header */}
-      <div className="bg-bg-card rounded-card p-3 flex items-center justify-between">
+      <div className="bg-bg-card rounded-card p-3 flex items-center justify-between anim-card" style={{ "--delay": "0s" } as React.CSSProperties}>
         <h1 className="text-sm font-semibold text-text-primary">
           今日 · {formatChineseDate(new Date())}
         </h1>
         <div className="flex items-center gap-2">
-          <span
-            className={`w-2 h-2 rounded-full ${
-              notionConnected ? "bg-accent-green" : "bg-accent-red"
-            }`}
-          />
+          <span className={`w-2 h-2 rounded-full transition-colors duration-500 ${notionConnected ? "bg-accent-green" : "bg-accent-red"}`} />
           <button
             onClick={onRefresh}
             className="text-xs text-accent-blue hover:text-accent-blue/80 transition-colors"
@@ -102,7 +88,7 @@ export default function Today({ onRefresh }: Props) {
 
       {/* Overdue */}
       {overdue.length > 0 && (
-        <Section title="逾期任务" accent="border-accent-red">
+        <Section title="逾期任务" accent="border-accent-red" delay={++cardIndex}>
           {overdue.map((t) => (
             <TaskItem key={t.id} todo={t} dotColor="bg-accent-red" />
           ))}
@@ -111,7 +97,7 @@ export default function Today({ onRefresh }: Props) {
 
       {/* Due Today */}
       {dueToday.length > 0 && (
-        <Section title="今日截止" accent="border-accent-yellow">
+        <Section title="今日截止" accent="border-accent-yellow" delay={++cardIndex}>
           {dueToday.map((t) => (
             <TaskItem key={t.id} todo={t} dotColor="bg-accent-yellow" />
           ))}
@@ -120,7 +106,7 @@ export default function Today({ onRefresh }: Props) {
 
       {/* High Priority */}
       {highPriority.length > 0 && (
-        <Section title="高优先级" accent="border-accent-orange">
+        <Section title="高优先级" accent="border-accent-orange" delay={++cardIndex}>
           {highPriority.map((t) => (
             <TaskItem key={t.id} todo={t} dotColor="bg-accent-orange" />
           ))}
@@ -129,10 +115,8 @@ export default function Today({ onRefresh }: Props) {
 
       {/* Project Overview */}
       {projectOverview.length > 0 && (
-        <div className="bg-bg-card rounded-card p-3">
-          <h3 className="text-xs font-medium text-text-secondary mb-2">
-            项目快览
-          </h3>
+        <div className="bg-bg-card rounded-card p-3 anim-card" style={{ "--delay": `${++cardIndex * 0.06}s` } as React.CSSProperties}>
+          <h3 className="text-xs font-medium text-text-secondary mb-2">项目快览</h3>
           <div className="space-y-2">
             {projectOverview.map((p) => (
               <ProjectRow key={p.id} project={p} />
@@ -142,7 +126,7 @@ export default function Today({ onRefresh }: Props) {
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 anim-card" style={{ "--delay": `${++cardIndex * 0.06}s` } as React.CSSProperties}>
         <button
           onClick={() => navigate("projects")}
           className="bg-bg-card rounded-card p-3 flex items-center justify-center gap-1.5 hover:bg-bg-hover transition-colors"
@@ -167,17 +151,20 @@ export default function Today({ onRefresh }: Props) {
 function Section({
   title,
   accent,
+  delay,
   children,
 }: {
   title: string;
   accent: string;
+  delay: number;
   children: React.ReactNode;
 }) {
   return (
-    <div className={`bg-bg-card rounded-card p-3 border-l-2 ${accent}`}>
-      <h3 className="text-xs font-medium text-text-secondary mb-2">
-        {title}
-      </h3>
+    <div
+      className={`bg-bg-card rounded-card p-3 border-l-2 ${accent} anim-card`}
+      style={{ "--delay": `${delay * 0.06}s` } as React.CSSProperties}
+    >
+      <h3 className="text-xs font-medium text-text-secondary mb-2">{title}</h3>
       <div className="space-y-1.5">{children}</div>
     </div>
   );
@@ -185,7 +172,7 @@ function Section({
 
 function TaskItem({ todo, dotColor }: { todo: Todo; dotColor: string }) {
   return (
-    <div className="flex items-center gap-2 text-xs">
+    <div className="flex items-center gap-2 text-xs task-row">
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor}`} />
       <span className="text-text-primary truncate flex-1">{todo.name}</span>
       <PriorityBadge priority={todo.priority} />
@@ -218,7 +205,7 @@ function ProjectRow({
       <span className="text-text-primary truncate flex-1">{project.name}</span>
       <div className="w-16 h-1.5 bg-bg-hover rounded-full overflow-hidden flex-shrink-0">
         <div
-          className="h-full bg-accent-green rounded-full transition-all"
+          className="h-full bg-accent-green rounded-full progress-fill"
           style={{ width: `${pct}%` }}
         />
       </div>
