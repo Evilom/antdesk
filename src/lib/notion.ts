@@ -122,6 +122,7 @@ export async function fetchReportContent(
   token: string,
   blockId: string
 ): Promise<string> {
+  // Try reading page blocks (children) first
   const raw = await notionFetch(
     `/v1/blocks/${blockId}/children?page_size=100`,
     "GET",
@@ -129,7 +130,7 @@ export async function fetchReportContent(
     token
   );
   const data = JSON.parse(raw);
-  return data.results
+  const blockContent = data.results
     .map((block: any) => {
       if (block.type === "paragraph") {
         return block.paragraph.rich_text
@@ -159,6 +160,28 @@ export async function fetchReportContent(
     })
     .filter(Boolean)
     .join("\n");
+
+  // If blocks are empty, fall back to Content property
+  if (!blockContent.trim()) {
+    const pageRaw = await notionFetch(
+      `/v1/pages/${blockId}`,
+      "GET",
+      undefined,
+      token
+    );
+    const page = JSON.parse(pageRaw);
+    return (
+      page.properties?.Content?.rich_text
+        ?.map((t: any) => t.plain_text)
+        .join("") ||
+      page.properties?.Summary?.rich_text
+        ?.map((t: any) => t.plain_text)
+        .join("") ||
+      "无内容"
+    );
+  }
+
+  return blockContent;
 }
 
 export async function createReport(
