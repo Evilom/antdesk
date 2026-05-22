@@ -222,11 +222,10 @@ select option {
   animation: page-enter 0.35s var(--spring) both;
 }
 
-/* Staggered card — set --delay via inline style */
+/* Staggered card — set delay via inline animationDelay */
 .anim-card {
   opacity: 0;
-  animation: card-in 0.4s var(--spring) both;
-  animation-delay: var(--delay, 0s);
+  animation: card-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 /* Settings panel slide */

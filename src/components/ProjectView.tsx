@@ -53,6 +53,7 @@ export default function ProjectView() {
   const [newName, setNewName] = useState("");
   const [newPriority, setNewPriority] = useState<Priority>("Medium");
   const [newProjectId, setNewProjectId] = useState("");
+  const [newTag, setNewTag] = useState<string>("");
   const [adding, setAdding] = useState(false);
 
   // Archived project IDs
@@ -172,21 +173,25 @@ export default function ProjectView() {
     if (!newName.trim() || !token) return;
     setAdding(true);
     try {
+      const tags = newTag ? [newTag] : [];
       const todo = await createTodo(
         token,
         newName.trim(),
         newPriority,
-        newProjectId || undefined
+        newProjectId || undefined,
+        tags
       );
       addTodo(todo);
       setNewName("");
+      setNewTag("");
+      setNewProjectId("");
       setShowAddForm(false);
     } catch (e) {
       console.error("Failed to create todo:", e);
     } finally {
       setAdding(false);
     }
-  }, [newName, newPriority, newProjectId, token, addTodo]);
+  }, [newName, newPriority, newProjectId, newTag, token, addTodo]);
 
   const handleCloseProject = useCallback(
     async (projectId: string) => {
@@ -235,7 +240,7 @@ export default function ProjectView() {
         // 项目 section — has nested project groups
         if (section.projects) {
           return (
-            <div key={section.id} className="bg-bg-card rounded-card overflow-hidden anim-card" style={{ "--delay": `${sectionIndex * 0.06}s` } as React.CSSProperties}>
+            <div key={section.id} className="bg-bg-card rounded-card overflow-hidden anim-card" style={{ animationDelay: `${sectionIndex * 0.06}s` }}>
               <button
                 onClick={() => toggleCollapse(section.id)}
                 className="w-full p-3 flex items-center gap-2 hover:bg-bg-hover transition-colors text-left"
@@ -276,7 +281,7 @@ export default function ProjectView() {
         const isShowCompleted = showCompleted.has(section.id);
 
         return (
-          <div key={section.id} className="bg-bg-card rounded-card overflow-hidden anim-card" style={{ "--delay": `${sectionIndex * 0.06}s` } as React.CSSProperties}>
+          <div key={section.id} className="bg-bg-card rounded-card overflow-hidden anim-card" style={{ animationDelay: `${sectionIndex * 0.06}s` }}>
             <button
               onClick={() => toggleCollapse(section.id)}
               className="w-full p-3 flex items-center gap-2 hover:bg-bg-hover transition-colors text-left"
@@ -316,7 +321,7 @@ export default function ProjectView() {
 
       {/* Add Task */}
       {showAddForm ? (
-        <div className="bg-bg-card rounded-card p-3 space-y-2">
+        <div className="bg-bg-card rounded-card p-3 space-y-2 anim-card" style={{ animationDelay: "0s" }}>
           <input
             type="text"
             value={newName}
@@ -326,46 +331,65 @@ export default function ProjectView() {
             autoFocus
             className="w-full bg-bg-input text-text-primary text-xs rounded-button px-2.5 py-1.5 outline-none border border-white/5 focus:border-accent-blue/50 transition-colors placeholder:text-text-muted"
           />
-          <div className="flex gap-2">
-            <select
-              value={newPriority}
-              onChange={(e) => setNewPriority(e.target.value as Priority)}
-              className="flex-1 bg-bg-input text-text-primary text-xs rounded-button px-2 py-1.5 outline-none border border-white/5 cursor-pointer"
-            >
-              <option value="High">高</option>
-              <option value="Medium">中</option>
-              <option value="Low">低</option>
-            </select>
+          {/* Tag selector */}
+          <div className="flex gap-1.5">
+            {["工作", "生活", "项目"].map((tag) => (
+              <button
+                key={tag}
+                onClick={() => setNewTag(newTag === tag ? "" : tag)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] transition-all ${
+                  newTag === tag
+                    ? tag === "工作"
+                      ? "bg-accent-blue/20 text-accent-blue border border-accent-blue/40"
+                      : tag === "生活"
+                        ? "bg-accent-green/20 text-accent-green border border-accent-green/40"
+                        : "bg-accent-orange/20 text-accent-orange border border-accent-orange/40"
+                    : "bg-white/5 text-text-muted border border-white/5 hover:bg-white/10"
+                }`}
+              >
+                {tag === "工作" ? " " : tag === "生活" ? " " : " "} {tag}
+              </button>
+            ))}
+          </div>
+          {/* Project selector — only show when tag is 项目 or no tag */}
+          {(newTag === "项目" || newTag === "") && (
             <select
               value={newProjectId}
               onChange={(e) => setNewProjectId(e.target.value)}
-              className="flex-1 bg-bg-input text-text-primary text-xs rounded-button px-2 py-1.5 outline-none border border-white/5 cursor-pointer"
+              className="w-full bg-bg-input text-text-primary text-xs rounded-button px-2 py-1.5 outline-none border border-white/5 cursor-pointer"
             >
               <option value="">不关联项目</option>
               {activeProjects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
+                <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
-          </div>
-          <div className="flex gap-2 justify-end">
-            <button
-              onClick={() => {
-                setShowAddForm(false);
-                setNewName("");
-              }}
-              className="px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors"
+          )}
+          {/* Priority + buttons */}
+          <div className="flex gap-2 items-center justify-between">
+            <select
+              value={newPriority}
+              onChange={(e) => setNewPriority(e.target.value as Priority)}
+              className="bg-bg-input text-text-primary text-xs rounded-button px-2 py-1.5 outline-none border border-white/5 cursor-pointer"
             >
-              取消
-            </button>
-            <button
-              onClick={handleAdd}
-              disabled={adding || !newName.trim()}
-              className="px-3 py-1.5 bg-accent-blue text-white text-xs rounded-button disabled:opacity-40 hover:bg-accent-blue/80 transition-colors"
-            >
-              {adding ? "..." : "添加"}
-            </button>
+              <option value="High">高优先</option>
+              <option value="Medium">中优先</option>
+              <option value="Low">低优先</option>
+            </select>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowAddForm(false); setNewName(""); setNewTag(""); setNewProjectId(""); }}
+                className="px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleAdd}
+                disabled={adding || !newName.trim()}
+                className="px-3 py-1.5 bg-accent-blue text-white text-xs rounded-button disabled:opacity-40 hover:bg-accent-blue/80 transition-colors"
+              >
+                {adding ? "..." : "添加"}
+              </button>
+            </div>
           </div>
         </div>
       ) : (

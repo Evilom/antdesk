@@ -90,7 +90,6 @@ export default function QuickPanel() {
         try {
           const { getCurrentWindow } = await import("@tauri-apps/api/window");
           await getCurrentWindow().hide();
-          await invoke("show_fab");
         } catch {}
       }, 200);
     };

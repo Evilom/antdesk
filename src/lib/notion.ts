@@ -53,7 +53,8 @@ export async function createTodo(
   token: string,
   name: string,
   priority: "High" | "Medium" | "Low" = "Medium",
-  projectId?: string
+  projectId?: string,
+  tags?: string[]
 ) {
   const properties: any = {
     Name: { title: [{ text: { content: name } }] },
@@ -62,6 +63,11 @@ export async function createTodo(
   };
   if (projectId) {
     properties.Project = { relation: [{ id: projectId }] };
+  }
+  if (tags && tags.length > 0) {
+    properties.Tags = {
+      multi_select: tags.map((t) => ({ name: t })),
+    };
   }
   const body = JSON.stringify({
     parent: { database_id: DB.todos },
@@ -74,7 +80,7 @@ export async function createTodo(
     name,
     status: false,
     priority,
-    tags: [],
+    tags: tags || [],
     projectId,
     createdTime: page.created_time,
   };

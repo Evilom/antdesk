@@ -269,17 +269,9 @@ async fn toggle_quick_panel(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(quick) = app.get_webview_window("quick") {
         if quick.is_visible().unwrap_or(false) {
             quick.hide().map_err(|e| e.to_string())?;
-            // Show FAB again
-            if let Some(fab) = app.get_webview_window("fab") {
-                let _ = fab.show();
-            }
             return Ok(());
         }
-        // Hide FAB while quick panel is open
-        if let Some(fab) = app.get_webview_window("fab") {
-            let _ = fab.hide();
-        }
-        // Position near FAB and show
+        // Position near FAB and show — FAB stays visible
         position_quick_near_fab_inner(&app)?;
         quick.show().map_err(|e| e.to_string())?;
         quick.set_focus().map_err(|e| e.to_string())?;
@@ -353,9 +345,7 @@ async fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 async fn show_fab(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(quick) = app.get_webview_window("quick") {
-        let _ = quick.hide();
-    }
+    // FAB is always visible, this just ensures it
     if let Some(fab) = app.get_webview_window("fab") {
         fab.show().map_err(|e| e.to_string())?;
     }
