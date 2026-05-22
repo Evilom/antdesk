@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useAppStore } from "../stores/appStore";
 import { createTodo, toggleTodoStatus, closeProject, fetchProjects } from "../lib/notion";
-import type { Todo, Priority } from "../types";
+import type { Todo, Priority, Project } from "../types";
 
 const PRIORITY_COLORS: Record<Priority, string> = {
   High: "bg-accent-red/20 text-accent-red",
@@ -15,9 +15,22 @@ const PRIORITY_LABELS: Record<Priority, string> = {
   Low: "低",
 };
 
+const TAG_ICONS: Record<string, string> = {
+  工作: " ",
+  生活: " ",
+};
+
 type PriorityFilter = "all" | Priority;
 
-interface ProjectGroup {
+interface Section {
+  id: string;
+  name: string;
+  icon?: string;
+  todos: Todo[];
+  projects?: ProjectSection[];
+}
+
+interface ProjectSection {
   id: string;
   name: string;
   todos: Todo[];
@@ -34,7 +47,7 @@ export default function ProjectView() {
   const setProjects = useAppStore((s) => s.setProjects);
 
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set(["__other__"]));
   const [showCompleted, setShowCompleted] = useState<Set<string>>(new Set());
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState("");
@@ -42,62 +55,57 @@ export default function ProjectView() {
   const [newProjectId, setNewProjectId] = useState("");
   const [adding, setAdding] = useState(false);
 
-  const groups = useMemo((): ProjectGroup[] => {
+  // Archived project IDs
+  const archivedIds = useMemo(
+    () => new Set(projects.filter((p) => p.archived).map((p) => p.id)),
+    [projects]
+  );
+  const activeProjects = useMemo(
+    () => projects.filter((p) => !p.archived),
+    [projects]
+  );
+
+  const sections = useMemo((): Section[] => {
     const filtered =
       priorityFilter === "all"
         ? todos
         : todos.filter((t) => t.priority === priorityFilter);
 
-    const map = new Map<string, Todo[]>();
-    for (const t of filtered) {
-      const pid = t.projectId || "__inbox__";
-      if (!map.has(pid)) map.set(pid, []);
-      map.get(pid)!.push(t);
+    // Filter out todos from archived projects
+    const activeTodos = filtered.filter(
+      (t) => !t.projectId || !archivedIds.has(t.projectId)
+    );
+
+    // Split: inbox (no project) vs project tasks
+    const inboxTodos = activeTodos.filter((t) => !t.projectId);
+    const projectTodosMap = new Map<string, Todo[]>();
+    for (const t of activeTodos) {
+      if (t.projectId) {
+        if (!projectTodosMap.has(t.projectId)) projectTodosMap.set(t.projectId, []);
+        projectTodosMap.get(t.projectId)!.push(t);
+      }
     }
 
-    const TAG_CATEGORIES = ["工作", "生活", "项目"];
-    const result: ProjectGroup[] = [];
-    // Inbox first — grouped by tags
-    if (map.has("__inbox__")) {
-      const inboxTodos = map.get("__inbox__")!;
-      // Group by tag categories
-      const tagGroups = new Map<string, Todo[]>();
-      for (const t of inboxTodos) {
-        const matched = t.tags.find((tag) => TAG_CATEGORIES.includes(tag));
-        const key = matched || "__other__";
-        if (!tagGroups.has(key)) tagGroups.set(key, []);
-        tagGroups.get(key)!.push(t);
-      }
-      for (const cat of TAG_CATEGORIES) {
-        const catTodos = tagGroups.get(cat);
-        if (catTodos && catTodos.length > 0) {
-          result.push({
-            id: `__inbox__${cat}`,
-            name: cat,
-            todos: catTodos,
-            doneCount: catTodos.filter((t) => t.status).length,
-            totalCount: catTodos.length,
-          });
-        }
-      }
-      // Other (untagged)
-      const otherTodos = tagGroups.get("__other__");
-      if (otherTodos && otherTodos.length > 0) {
-        result.push({
-          id: "__inbox__other",
-          name: "其他",
-          todos: otherTodos,
-          doneCount: otherTodos.filter((t) => t.status).length,
-          totalCount: otherTodos.length,
-        });
-      }
+    const result: Section[] = [];
+
+    // 工作 section
+    const workTodos = inboxTodos.filter((t) => t.tags.includes("工作"));
+    if (workTodos.length > 0) {
+      result.push({ id: "__work", name: "工作", icon: " ", todos: workTodos });
     }
-    // Then projects in order (skip archived)
-    for (const proj of projects) {
-      if (proj.archived) continue;
-      const projTodos = map.get(proj.id);
-      if (projTodos) {
-        result.push({
+
+    // 生活 section
+    const lifeTodos = inboxTodos.filter((t) => t.tags.includes("生活"));
+    if (lifeTodos.length > 0) {
+      result.push({ id: "__life", name: "生活", icon: " ", todos: lifeTodos });
+    }
+
+    // 项目 section — contains individual projects
+    const projectSections: ProjectSection[] = [];
+    for (const proj of activeProjects) {
+      const projTodos = projectTodosMap.get(proj.id);
+      if (projTodos && projTodos.length > 0) {
+        projectSections.push({
           id: proj.id,
           name: proj.name,
           todos: projTodos,
@@ -106,8 +114,27 @@ export default function ProjectView() {
         });
       }
     }
+    // Always show 项目 section (even if empty, so user can see projects)
+    if (projectSections.length > 0) {
+      result.push({
+        id: "__projects",
+        name: "项目",
+        icon: " ",
+        todos: [],
+        projects: projectSections,
+      });
+    }
+
+    // 其他 — inbox tasks with no matching category
+    const otherTodos = inboxTodos.filter(
+      (t) => !t.tags.includes("工作") && !t.tags.includes("生活")
+    );
+    if (otherTodos.length > 0) {
+      result.push({ id: "__other", name: "其他", todos: otherTodos });
+    }
+
     return result;
-  }, [todos, projects, priorityFilter]);
+  }, [todos, projects, archivedIds, activeProjects, priorityFilter]);
 
   const toggleCollapse = useCallback((id: string) => {
     setCollapsed((prev) => {
@@ -192,96 +219,94 @@ export default function ProjectView() {
             <option value="Medium">中</option>
             <option value="Low">低</option>
           </select>
-          <button className="w-6 h-6 flex items-center justify-center text-text-muted hover:text-text-secondary transition-colors">
-            <span className="text-xs">&#128269;</span>
-          </button>
         </div>
       </div>
 
-      {/* Project Groups */}
-      {groups.length === 0 && (
+      {/* Sections */}
+      {sections.length === 0 && (
         <div className="text-center text-text-muted text-xs py-8">
           暂无任务
         </div>
       )}
 
-      {groups.map((group) => {
-        const isCollapsed = collapsed.has(group.id);
-        const isShowCompleted = showCompleted.has(group.id);
-        const incomplete = group.todos.filter((t) => !t.status);
-        const completed = group.todos.filter((t) => t.status);
-        const pct =
-          group.totalCount > 0
-            ? (group.doneCount / group.totalCount) * 100
-            : 0;
+      {sections.map((section) => {
+        const isCollapsed = collapsed.has(section.id);
+
+        // 项目 section — has nested project groups
+        if (section.projects) {
+          return (
+            <div key={section.id} className="bg-bg-card rounded-card overflow-hidden">
+              <button
+                onClick={() => toggleCollapse(section.id)}
+                className="w-full p-3 flex items-center gap-2 hover:bg-bg-hover transition-colors text-left"
+              >
+                <Chevron collapsed={isCollapsed} />
+                <span className="text-sm">{section.icon}</span>
+                <span className="text-xs font-semibold text-text-primary flex-1">
+                  {section.name}
+                </span>
+                <span className="text-[10px] text-text-muted">
+                  {section.projects.length} 个项目
+                </span>
+              </button>
+
+              {!isCollapsed && (
+                <div className="px-2 pb-2 space-y-1">
+                  {section.projects.map((proj) => (
+                    <ProjectGroup
+                      key={proj.id}
+                      project={proj}
+                      collapsed={collapsed.has(proj.id)}
+                      showCompleted={showCompleted.has(proj.id)}
+                      onToggleCollapse={toggleCollapse}
+                      onToggleShowCompleted={toggleShowCompleted}
+                      onToggleTask={handleToggle}
+                      onCloseProject={handleCloseProject}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        // Flat section (工作/生活/其他)
+        const incomplete = section.todos.filter((t) => !t.status);
+        const completed = section.todos.filter((t) => t.status);
+        const isShowCompleted = showCompleted.has(section.id);
 
         return (
-          <div key={group.id} className="bg-bg-card rounded-card overflow-hidden">
-            {/* Project Header */}
+          <div key={section.id} className="bg-bg-card rounded-card overflow-hidden">
             <button
-              onClick={() => toggleCollapse(group.id)}
-              className="w-full p-3 flex items-center gap-2 hover:bg-bg-hover transition-colors text-left group"
+              onClick={() => toggleCollapse(section.id)}
+              className="w-full p-3 flex items-center gap-2 hover:bg-bg-hover transition-colors text-left"
             >
-              <span
-                className="text-[10px] text-text-muted transition-transform"
-                style={{
-                  transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
-                }}
-              >
-                &#9662;
+              <Chevron collapsed={isCollapsed} />
+              {section.icon && <span className="text-sm">{section.icon}</span>}
+              <span className="text-xs font-semibold text-text-primary flex-1">
+                {section.name}
               </span>
-              <span className="text-xs font-medium text-text-primary flex-1 truncate">
-                {group.name}
+              <span className="text-[10px] text-text-muted">
+                {incomplete.length} 项
               </span>
-              <div className="w-16 h-1.5 bg-bg-hover rounded-full overflow-hidden flex-shrink-0">
-                <div
-                  className="h-full bg-accent-green rounded-full transition-all"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <span className="text-[10px] text-text-muted flex-shrink-0">
-                {group.doneCount}/{group.totalCount}
-              </span>
-              {!group.id.startsWith("__") && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleCloseProject(group.id); }}
-                  className="w-5 h-5 flex items-center justify-center text-text-muted hover:text-accent-red transition-colors opacity-0 group-hover:opacity-100"
-                  title="关闭项目"
-                >
-                  <span className="text-[10px]">&#10005;</span>
-                </button>
-              )}
             </button>
 
-            {/* Tasks */}
             {!isCollapsed && (
               <div className="px-3 pb-3 space-y-1">
                 {incomplete.map((todo) => (
-                  <TaskRow
-                    key={todo.id}
-                    todo={todo}
-                    onToggle={handleToggle}
-                  />
+                  <TaskRow key={todo.id} todo={todo} onToggle={handleToggle} />
                 ))}
-
                 {completed.length > 0 && (
                   <button
-                    onClick={() => toggleShowCompleted(group.id)}
+                    onClick={() => toggleShowCompleted(section.id)}
                     className="w-full text-[10px] text-text-muted hover:text-text-secondary py-1 transition-colors"
                   >
-                    {isShowCompleted
-                      ? "收起已完成"
-                      : `已完成(${completed.length})`}
+                    {isShowCompleted ? "收起已完成" : `已完成(${completed.length})`}
                   </button>
                 )}
-
                 {isShowCompleted &&
                   completed.map((todo) => (
-                    <TaskRow
-                      key={todo.id}
-                      todo={todo}
-                      onToggle={handleToggle}
-                    />
+                    <TaskRow key={todo.id} todo={todo} onToggle={handleToggle} />
                   ))}
               </div>
             )}
@@ -316,8 +341,8 @@ export default function ProjectView() {
               onChange={(e) => setNewProjectId(e.target.value)}
               className="flex-1 bg-bg-input text-text-primary text-xs rounded-button px-2 py-1.5 outline-none border border-white/5 cursor-pointer"
             >
-              <option value="">待办</option>
-              {projects.filter(p => !p.archived).map((p) => (
+              <option value="">不关联项目</option>
+              {activeProjects.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
@@ -356,6 +381,94 @@ export default function ProjectView() {
   );
 }
 
+/* ---------- Sub-components ---------- */
+
+function Chevron({ collapsed }: { collapsed: boolean }) {
+  return (
+    <span
+      className="text-[10px] text-text-muted transition-transform"
+      style={{ transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
+    >
+      &#9662;
+    </span>
+  );
+}
+
+function ProjectGroup({
+  project,
+  collapsed,
+  showCompleted,
+  onToggleCollapse,
+  onToggleShowCompleted,
+  onToggleTask,
+  onCloseProject,
+}: {
+  project: ProjectSection;
+  collapsed: boolean;
+  showCompleted: boolean;
+  onToggleCollapse: (id: string) => void;
+  onToggleShowCompleted: (id: string) => void;
+  onToggleTask: (id: string, current: boolean) => void;
+  onCloseProject: (id: string) => void;
+}) {
+  const incomplete = project.todos.filter((t) => !t.status);
+  const completed = project.todos.filter((t) => t.status);
+  const pct = project.totalCount > 0 ? (project.doneCount / project.totalCount) * 100 : 0;
+
+  return (
+    <div className="bg-bg-hover/30 rounded-card overflow-hidden">
+      <button
+        onClick={() => onToggleCollapse(project.id)}
+        className="w-full p-2.5 flex items-center gap-2 hover:bg-bg-hover transition-colors text-left group"
+      >
+        <Chevron collapsed={collapsed} />
+        <span className="text-xs font-medium text-text-primary flex-1 truncate">
+          {project.name}
+        </span>
+        <div className="w-14 h-1.5 bg-bg-hover rounded-full overflow-hidden flex-shrink-0">
+          <div
+            className="h-full bg-accent-green rounded-full transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <span className="text-[10px] text-text-muted flex-shrink-0">
+          {project.doneCount}/{project.totalCount}
+        </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onCloseProject(project.id);
+          }}
+          className="w-5 h-5 flex items-center justify-center text-text-muted hover:text-accent-red transition-colors opacity-0 group-hover:opacity-100"
+          title="关闭项目"
+        >
+          <span className="text-[10px]">&#10005;</span>
+        </button>
+      </button>
+
+      {!collapsed && (
+        <div className="px-2.5 pb-2.5 space-y-1">
+          {incomplete.map((todo) => (
+            <TaskRow key={todo.id} todo={todo} onToggle={onToggleTask} />
+          ))}
+          {completed.length > 0 && (
+            <button
+              onClick={() => onToggleShowCompleted(project.id)}
+              className="w-full text-[10px] text-text-muted hover:text-text-secondary py-1 transition-colors"
+            >
+              {showCompleted ? "收起已完成" : `已完成(${completed.length})`}
+            </button>
+          )}
+          {showCompleted &&
+            completed.map((todo) => (
+              <TaskRow key={todo.id} todo={todo} onToggle={onToggleTask} />
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TaskRow({
   todo,
   onToggle,
@@ -373,9 +486,7 @@ function TaskRow({
             : "border-text-muted hover:border-accent-blue"
         }`}
       >
-        {todo.status && (
-          <span className="text-[10px] text-white">&#10003;</span>
-        )}
+        {todo.status && <span className="text-[10px] text-white">&#10003;</span>}
       </button>
       <span
         className={`flex-1 text-xs truncate ${
@@ -387,11 +498,6 @@ function TaskRow({
       <span className={`text-[10px] px-1.5 py-0.5 rounded ${PRIORITY_COLORS[todo.priority]}`}>
         {PRIORITY_LABELS[todo.priority]}
       </span>
-      {todo.tags.length > 0 && (
-        <span className="text-[9px] px-1 py-0.5 rounded bg-accent-blue/15 text-accent-blue flex-shrink-0">
-          {todo.tags[0]}
-        </span>
-      )}
     </div>
   );
 }
