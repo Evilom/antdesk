@@ -67,8 +67,9 @@ export default function ProjectView() {
         totalCount: inboxTodos.length,
       });
     }
-    // Then projects in order
+    // Then projects in order (skip archived)
     for (const proj of projects) {
+      if (proj.archived) continue;
       const projTodos = map.get(proj.id);
       if (projTodos) {
         result.push({
@@ -290,8 +291,8 @@ export default function ProjectView() {
               onChange={(e) => setNewProjectId(e.target.value)}
               className="flex-1 bg-bg-input text-text-primary text-xs rounded-button px-2 py-1.5 outline-none border border-white/5 cursor-pointer"
             >
-              <option value="">收件箱</option>
-              {projects.map((p) => (
+              <option value="">待办</option>
+              {projects.filter(p => !p.archived).map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>

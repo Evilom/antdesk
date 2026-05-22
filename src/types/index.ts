@@ -13,6 +13,7 @@ export interface Project {
   id: string;
   name: string;
   status: string;
+  archived?: boolean;
 }
 
 export interface Report {

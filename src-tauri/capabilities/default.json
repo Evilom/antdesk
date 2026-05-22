@@ -1,7 +1,7 @@
 {
   "identifier": "default",
   "description": "Default capabilities for AntDesk",
-  "windows": ["main", "fab"],
+  "windows": ["main", "fab", "quick"],
   "permissions": [
     "core:default",
     "core:window:default",
@@ -17,6 +17,7 @@
     "core:window:allow-start-dragging",
     "core:menu:default",
     "shell:allow-open",
-    "updater:default"
+    "updater:default",
+    "autostart:default"
   ]
 }

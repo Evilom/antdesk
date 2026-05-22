@@ -228,6 +228,7 @@ export async function fetchProjects(token: string) {
     id: page.id,
     name: page.properties.Name?.title?.[0]?.plain_text || "",
     status: page.properties.Status?.status?.name || "",
+    archived: page.archived === true,
   }));
 }
 

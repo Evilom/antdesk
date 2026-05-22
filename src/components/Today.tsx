@@ -24,36 +24,46 @@ export default function Today({ onRefresh }: Props) {
 
   const today = todayStr();
 
+  // Filter out todos belonging to archived projects
+  const archivedProjectIds = useMemo(
+    () => new Set(projects.filter((p) => p.archived).map((p) => p.id)),
+    [projects]
+  );
+  const activeTodos = useMemo(
+    () => todos.filter((t) => !t.projectId || !archivedProjectIds.has(t.projectId)),
+    [todos, archivedProjectIds]
+  );
+
   const overdue = useMemo(
     () =>
-      todos.filter(
+      activeTodos.filter(
         (t) => !t.status && t.dueDate && t.dueDate < today
       ),
-    [todos, today]
+    [activeTodos, today]
   );
 
   const dueToday = useMemo(
     () =>
-      todos.filter(
+      activeTodos.filter(
         (t) => !t.status && t.dueDate === today
       ),
-    [todos, today]
+    [activeTodos, today]
   );
 
   const highPriority = useMemo(
     () =>
-      todos.filter(
+      activeTodos.filter(
         (t) =>
           !t.status &&
           t.priority === "High" &&
           !(t.dueDate && t.dueDate <= today)
       ),
-    [todos, today]
+    [activeTodos, today]
   );
 
   const projectOverview = useMemo(() => {
     const map = new Map<string, { done: number; total: number }>();
-    for (const t of todos) {
+    for (const t of activeTodos) {
       const pid = t.projectId || "__inbox__";
       if (!map.has(pid)) map.set(pid, { done: 0, total: 0 });
       const e = map.get(pid)!;
@@ -62,9 +72,9 @@ export default function Today({ onRefresh }: Props) {
     }
     return Array.from(map.entries()).map(([pid, stats]) => {
       const proj = projects.find((p) => p.id === pid);
-      return { id: pid, name: proj?.name || "收件箱", ...stats };
+      return { id: pid, name: proj?.name || "待办", ...stats };
     });
-  }, [todos, projects]);
+  }, [activeTodos, projects]);
 
   const navigate = (page: Page) => setCurrentPage(page);
 
