@@ -10,18 +10,13 @@ interface Todo {
   projectId?: string;
 }
 
-interface Project {
-  id: string;
-  name: string;
-  archived: boolean;
-}
-
 export default function QuickPanel() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [projects, setProjects] = useState<Map<string, string>>(new Map());
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
+  const [exiting, setExiting] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
   const fetchProjects = useCallback(async () => {
@@ -35,10 +30,8 @@ export default function QuickPanel() {
       const nameMap = new Map<string, string>();
       const archived = new Set<string>();
       for (const page of data.results) {
-        const id = page.id;
-        const name = page.properties.Name?.title?.[0]?.plain_text || "";
-        nameMap.set(id, name);
-        if (page.archived) archived.add(id);
+        nameMap.set(page.id, page.properties.Name?.title?.[0]?.plain_text || "");
+        if (page.archived) archived.add(page.id);
       }
       setProjects(nameMap);
       setArchivedIds(archived);
@@ -73,10 +66,7 @@ export default function QuickPanel() {
           projectId: page.properties.Project?.relation?.[0]?.id || undefined,
         }))
         .filter((t: Todo) => !t.projectId || !(archived || archivedIds).has(t.projectId))
-        .sort(
-          (a: Todo, b: Todo) =>
-            (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1)
-        );
+        .sort((a: Todo, b: Todo) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
       setTodos(items);
     } catch (e) {
       console.error("QuickPanel fetch error:", e);
@@ -92,24 +82,19 @@ export default function QuickPanel() {
     })();
   }, []);
 
-  // Close quick panel when window loses focus
+  // Close on blur
   useEffect(() => {
     let blurTimer: ReturnType<typeof setTimeout>;
     const handleBlur = () => {
-      // Delay to avoid closing during click interactions
       blurTimer = setTimeout(async () => {
         try {
           const { getCurrentWindow } = await import("@tauri-apps/api/window");
-          const win = getCurrentWindow();
-          await win.hide();
-          // Show FAB via Rust command
+          await getCurrentWindow().hide();
           await invoke("show_fab");
         } catch {}
       }, 200);
     };
-    const handleFocus = () => {
-      clearTimeout(blurTimer);
-    };
+    const handleFocus = () => clearTimeout(blurTimer);
     window.addEventListener("blur", handleBlur);
     window.addEventListener("focus", handleFocus);
     return () => {
@@ -119,34 +104,28 @@ export default function QuickPanel() {
     };
   }, []);
 
-  const handleToggle = useCallback(
-    async (id: string, current: boolean) => {
-      if (current) {
-        setTodos((prev) => prev.filter((t) => t.id !== id));
-      } else {
-        setTodos((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, status: true } : t))
-        );
-        setTimeout(() => {
-          setTodos((prev) => prev.filter((t) => t.id !== id));
-        }, 300);
-      }
-      try {
-        const body = JSON.stringify({
-          properties: { Status: { checkbox: !current } },
-        });
-        await invoke("fetch_notion", {
-          path: `/v1/pages/${id}`,
-          method: "PATCH",
-          body,
-        });
-      } catch (e) {
-        console.error("Toggle failed:", e);
-        fetchTodos();
-      }
-    },
-    [fetchTodos]
-  );
+  const handleToggle = useCallback(async (id: string) => {
+    // Optimistic: mark exiting for animation
+    setExiting((prev) => new Set(prev).add(id));
+    setTimeout(() => {
+      setTodos((prev) => prev.filter((t) => t.id !== id));
+      setExiting((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }, 280);
+    try {
+      await invoke("fetch_notion", {
+        path: `/v1/pages/${id}`,
+        method: "PATCH",
+        body: JSON.stringify({ properties: { Status: { checkbox: true } } }),
+      });
+    } catch (e) {
+      console.error("Toggle failed:", e);
+      fetchTodos();
+    }
+  }, [fetchTodos]);
 
   const handleExpand = useCallback(async () => {
     try {
@@ -161,18 +140,17 @@ export default function QuickPanel() {
     if (!name) return;
     setNewName("");
     try {
-      const body = JSON.stringify({
-        parent: { database_id: "2d51ba51-3457-8125-9d4c-f28ffa2fff14" },
-        properties: {
-          Name: { title: [{ text: { content: name } }] },
-          Priority: { select: { name: "Medium" } },
-          Status: { checkbox: false },
-        },
-      });
       await invoke("fetch_notion", {
         path: "/v1/pages",
         method: "POST",
-        body,
+        body: JSON.stringify({
+          parent: { database_id: "2d51ba51-3457-8125-9d4c-f28ffa2fff14" },
+          properties: {
+            Name: { title: [{ text: { content: name } }] },
+            Priority: { select: { name: "Medium" } },
+            Status: { checkbox: false },
+          },
+        }),
       });
       fetchTodos();
     } catch (e) {
@@ -200,60 +178,77 @@ export default function QuickPanel() {
     <div className="quick-panel">
       {/* Header */}
       <div className="quick-header">
-        <div>
+        <div style={{ display: "flex", alignItems: "center" }}>
           <span className="title">待办</span>
-          <span className="count">· {visibleTodos.length}</span>
+          <span className="count">{visibleTodos.length}</span>
         </div>
         <button className="expand-btn" onClick={handleExpand}>
-          展开 →
+          展开 ↗
         </button>
       </div>
 
-      {/* Task list */}
+      {/* Task bubbles */}
       {loading ? (
-        <div className="quick-loading">加载中...</div>
+        <div className="quick-loading">加载中</div>
       ) : visibleTodos.length === 0 ? (
         <div className="quick-empty">🎉 全部完成</div>
       ) : (
         <div className="quick-list">
-          {displayTodos.map((todo) => (
-            <div key={todo.id} className="quick-task">
-              <button
-                className={`check ${todo.status ? "done" : ""}`}
-                onClick={() => handleToggle(todo.id, todo.status)}
-              />
-              <div className="quick-task-info">
-                <span className={`name ${todo.status ? "done-text" : ""}`}>
-                  {todo.name}
-                </span>
-                <div className="quick-task-meta">
-                  {todo.projectId && projects.has(todo.projectId) && (
-                    <span className="quick-tag" style={{ background: "rgba(255,255,255,0.08)" }}>
-                      {projects.get(todo.projectId)}
-                    </span>
+          {displayTodos.map((todo, index) => {
+            const isExiting = exiting.has(todo.id);
+            return (
+              <div
+                key={todo.id}
+                className={`quick-bubble ${isExiting ? "exit" : ""}`}
+                style={{ animationDelay: `${0.04 + index * 0.035}s` }}
+              >
+                <button
+                  className={`check ${todo.status ? "done" : ""}`}
+                  onClick={() => handleToggle(todo.id)}
+                />
+                <div className="quick-bubble-info">
+                  <span className={`name ${todo.status ? "done-text" : ""}`}>
+                    {todo.name}
+                  </span>
+                  {(todo.projectId || todo.tags.length > 0) && (
+                    <div className="quick-bubble-meta">
+                      {todo.projectId && projects.has(todo.projectId) && (
+                        <span
+                          className="quick-tag"
+                          style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)" }}
+                        >
+                          {projects.get(todo.projectId)}
+                        </span>
+                      )}
+                      {todo.tags.slice(0, 1).map((tag) => (
+                        <span
+                          key={tag}
+                          className="quick-tag"
+                          style={{
+                            background: `${TAG_COLORS[tag] || "#0a84ff"}18`,
+                            color: TAG_COLORS[tag] || "#0a84ff",
+                          }}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   )}
-                  {todo.tags.slice(0, 1).map((tag) => (
-                    <span
-                      key={tag}
-                      className="quick-tag"
-                      style={{
-                        background: `${TAG_COLORS[tag] || "#0a84ff"}22`,
-                        color: TAG_COLORS[tag] || "#0a84ff",
-                      }}
-                    >
-                      {tag}
-                    </span>
-                  ))}
                 </div>
+                <span
+                  className="dot"
+                  style={{ background: PRIORITY_COLORS[todo.priority] || PRIORITY_COLORS.Medium }}
+                />
               </div>
-              <span
-                className="dot"
-                style={{ background: PRIORITY_COLORS[todo.priority] || PRIORITY_COLORS.Medium }}
-              />
-            </div>
-          ))}
+            );
+          })}
           {remaining > 0 && (
-            <div className="quick-more">... 还有 {remaining} 项</div>
+            <div
+              className="quick-more"
+              style={{ animationDelay: `${0.04 + displayTodos.length * 0.035}s` }}
+            >
+              还有 {remaining} 项
+            </div>
           )}
         </div>
       )}
@@ -268,7 +263,7 @@ export default function QuickPanel() {
           onKeyDown={(e) => {
             if (e.key === "Enter") handleAdd();
           }}
-          placeholder="快速新增任务..."
+          placeholder="快速新增..."
         />
       </div>
     </div>
