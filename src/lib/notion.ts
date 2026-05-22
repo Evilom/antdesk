@@ -112,6 +112,7 @@ export async function fetchReports(token: string) {
     date:
       page.properties.Date?.date?.start || page.created_time?.slice(0, 10),
     summary:
+      page.properties.Content?.rich_text?.[0]?.plain_text ||
       page.properties.Summary?.rich_text?.[0]?.plain_text || "",
     content: undefined,
   }));
@@ -175,6 +176,7 @@ export async function createReport(
     properties: {
       Name: { title: [{ text: { content: `日报 ${date}` } }] },
       Date: { date: { start: date } },
+      Content: { rich_text: [{ type: "text", text: { content: content.slice(0, 2000) } }] },
     },
     children,
   });
@@ -204,4 +206,30 @@ export async function fetchProjects(token: string) {
     name: page.properties.Name?.title?.[0]?.plain_text || "",
     status: page.properties.Status?.status?.name || "",
   }));
+}
+
+export async function closeProject(token: string, projectId: string) {
+  // Archive the project page in Notion
+  await notionFetch(
+    `/v1/pages/${projectId}`,
+    "PATCH",
+    JSON.stringify({ archived: true }),
+    token
+  );
+}
+
+export async function createProject(token: string, name: string) {
+  const body = JSON.stringify({
+    parent: { database_id: DB.projects },
+    properties: {
+      Name: { title: [{ text: { content: name } }] },
+    },
+  });
+  const raw = await notionFetch("/v1/pages", "POST", body, token);
+  const page = JSON.parse(raw);
+  return {
+    id: page.id,
+    name,
+    status: "",
+  };
 }

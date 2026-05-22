@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { useAppStore } from "../stores/appStore";
-import { createTodo, toggleTodoStatus } from "../lib/notion";
+import { createTodo, toggleTodoStatus, closeProject, fetchProjects } from "../lib/notion";
 import type { Todo, Priority } from "../types";
 
 const PRIORITY_COLORS: Record<Priority, string> = {
@@ -31,6 +31,7 @@ export default function ProjectView() {
   const addTodo = useAppStore((s) => s.addTodo);
   const updateTodo = useAppStore((s) => s.updateTodo);
   const token = useAppStore((s) => s.settings.notionToken);
+  const setProjects = useAppStore((s) => s.setProjects);
 
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -134,6 +135,21 @@ export default function ProjectView() {
     }
   }, [newName, newPriority, newProjectId, token, addTodo]);
 
+  const handleCloseProject = useCallback(
+    async (projectId: string) => {
+      if (!token || projectId.startsWith("__")) return;
+      if (!confirm("确定关闭此项目？项目将在 Notion 中归档。")) return;
+      try {
+        await closeProject(token, projectId);
+        const fresh = await fetchProjects(token);
+        setProjects(fresh);
+      } catch (e) {
+        console.error("Failed to close project:", e);
+      }
+    },
+    [token, setProjects]
+  );
+
   return (
     <div className="space-y-3 fade-in">
       {/* Top Bar */}
@@ -178,7 +194,7 @@ export default function ProjectView() {
             {/* Project Header */}
             <button
               onClick={() => toggleCollapse(group.id)}
-              className="w-full p-3 flex items-center gap-2 hover:bg-bg-hover transition-colors text-left"
+              className="w-full p-3 flex items-center gap-2 hover:bg-bg-hover transition-colors text-left group"
             >
               <span
                 className="text-[10px] text-text-muted transition-transform"
@@ -200,6 +216,15 @@ export default function ProjectView() {
               <span className="text-[10px] text-text-muted flex-shrink-0">
                 {group.doneCount}/{group.totalCount}
               </span>
+              {!group.id.startsWith("__") && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleCloseProject(group.id); }}
+                  className="w-5 h-5 flex items-center justify-center text-text-muted hover:text-accent-red transition-colors opacity-0 group-hover:opacity-100"
+                  title="关闭项目"
+                >
+                  <span className="text-[10px]">&#10005;</span>
+                </button>
+              )}
             </button>
 
             {/* Tasks */}

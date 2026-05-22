@@ -61,7 +61,29 @@ export default function App() {
 
   useEffect(() => {
     loadData();
+    // Auto-check for updates on startup
+    checkForUpdates();
   }, [loadData]);
+
+  const checkForUpdates = useCallback(async () => {
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+      if (update?.available) {
+        const shouldUpdate = confirm(
+          `发现新版本 v${update.version}！\n\n${update.body || "是否立即更新？"}`
+        );
+        if (shouldUpdate) {
+          await update.downloadAndInstall();
+          const { relaunch } = await import("@tauri-apps/plugin-process");
+          await relaunch();
+        }
+      }
+    } catch (e) {
+      // Updater not available in dev mode or network error
+      console.log("Update check skipped:", e);
+    }
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
