@@ -72,12 +72,18 @@ export default function Settings() {
     try {
       if (autostartEnabled) {
         await invoke("plugin:autostart|disable");
+        setAutostartEnabled(false);
+        setUpdateStatus("已关闭开机自启");
       } else {
         await invoke("plugin:autostart|enable");
+        setAutostartEnabled(true);
+        setUpdateStatus("已开启开机自启");
       }
-      setAutostartEnabled(!autostartEnabled);
+      setTimeout(() => setUpdateStatus(""), 3000);
     } catch (e) {
       console.error("Autostart toggle failed:", e);
+      setUpdateStatus(`自启设置失败: ${e}`);
+      setTimeout(() => setUpdateStatus(""), 5000);
     }
   };
 

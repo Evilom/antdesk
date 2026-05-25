@@ -98,8 +98,8 @@ body {
 /* ── Tag filter tabs ── */
 .quick-tag-tabs {
   display: flex;
-  gap: 4px;
-  padding: 0 2px;
+  gap: 3px;
+  padding: 0;
   opacity: 0;
   animation: pill-in 0.35s var(--spring) forwards;
   animation-delay: 0.06s;
@@ -107,7 +107,9 @@ body {
 
 .quick-tag-tab {
   font-size: 10px;
-  padding: 3px 8px;
+  padding: 3px 0;
+  flex: 1;
+  text-align: center;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(30, 30, 40, 0.4);

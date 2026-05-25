@@ -13,7 +13,7 @@ import type { Page } from "./types";
 
 const NAV_ITEMS: { id: Page; label: string; icon: string }[] = [
   { id: "today", label: "今日", icon: "\u{1F4C5}" },
-  { id: "projects", label: "项目", icon: "\u{1F4CB}" },
+  { id: "projects", label: "目标", icon: "\u{1F4CB}" },
   { id: "reports", label: "日报", icon: "\u{1F4DD}" },
   { id: "chat", label: "助理", icon: "\u{1F916}" },
 ];

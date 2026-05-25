@@ -398,7 +398,7 @@ export default function Reports() {
               </div>
               {report.summary && (
                 <p className="text-[11px] text-text-secondary mt-1 line-clamp-2">
-                  {report.summary}
+                  {report.summary.replace(/^#+\s*/g, "").replace(/^-\s*/gm, "").replace(/---+/g, "").replace(/\*\*/g, "").replace(/`/g, "").trim()}
                 </p>
               )}
             </button>

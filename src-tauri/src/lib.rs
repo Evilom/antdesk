@@ -293,7 +293,7 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
     let fab_size = 64.0;
     let quick_w = 260.0;
     let quick_h = 360.0;
-    let gap = 24.0;
+    let gap = 36.0; // Enough gap so FAB is never covered
 
     // Get actual screen bounds
     let (screen_w, screen_h) = if let Some(monitor) = fab.current_monitor().ok().flatten() {
@@ -304,19 +304,30 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
         (1920.0, 1080.0)
     };
 
-    // Position: right-aligned to FAB, above it
-    // Panel right edge = FAB right edge, so panel doesn't extend left past screen
-    let mut x = fab_x + fab_size - quick_w;
-    let mut y = fab_y - quick_h - gap;
+    // Try left of FAB first (most natural — panel opens like a drawer)
+    let mut x = fab_x - quick_w - gap;
+    let mut y = fab_y + fab_size - quick_h; // bottom-aligned with FAB
 
-    // If not enough space above, place below
-    if y < 0.0 {
+    // If not enough space on left, try right
+    if x < 4.0 {
+        x = fab_x + fab_size + gap;
+    }
+
+    // If neither side works, position above
+    if x + quick_w > screen_w - 4.0 {
+        x = fab_x + fab_size - quick_w;
+        y = fab_y - quick_h - gap;
+    }
+
+    // If above doesn't fit, go below
+    if y < 4.0 {
         y = fab_y + fab_size + gap;
     }
 
     // Clamp to screen
     if x < 4.0 { x = 4.0; }
     if x + quick_w > screen_w - 4.0 { x = screen_w - quick_w - 4.0; }
+    if y < 4.0 { y = 4.0; }
     if y + quick_h > screen_h - 4.0 { y = screen_h - quick_h - 4.0; }
 
     let pos = tauri::Position::Physical(tauri::PhysicalPosition::new(
