@@ -90,6 +90,9 @@ jobs:
 
       - name: Create updater bundles + collect sigs
         shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         run: |
           set -ex
           mkdir -p updater-artifacts
@@ -110,7 +113,6 @@ jobs:
             echo "macOS: $f"
             fname=$(basename "$f")
             if [ -n "$MACOS_ARCH" ] && [[ "$fname" == AntDesk.app.tar.gz ]]; then
-              # Rename to arch-specific name
               new_name="AntDesk_${MACOS_ARCH}.app.tar.gz"
               if [[ "$fname" == *.sig ]]; then
                 new_name="${new_name}.sig"
@@ -122,38 +124,52 @@ jobs:
             fi
           done
 
-          # Windows: compress -setup.exe into .nsis.zip + collect sig
+          # Sign function using cargo tauri signer
+          sign_file() {
+            local file="$1"
+            echo "Signing $file..."
+            # Use tauri-cli to sign (generates .sig file alongside)
+            cargo tauri signer sign -f "$file" 2>/dev/null || {
+              # Fallback: use minisign if available
+              if command -v minisign &>/dev/null; then
+                echo "$TAURI_SIGNING_PRIVATE_KEY" | minisign -S -s /dev/stdin -m "$file"
+              else
+                echo "ERROR: No signing tool available"
+                return 1
+              fi
+            }
+          }
+
+          # Windows: compress -setup.exe into .nsis.zip + SIGN
           for exe in $(find "$BUNDLE_DIR" -name "*-setup.exe" 2>/dev/null); do
             NSIS_ZIP="${exe%-setup.exe}.nsis.zip"
             echo "Windows: compressing $exe -> $NSIS_ZIP"
-            if command -v zip &>/dev/null; then
-              (cd "$(dirname "$exe")" && zip -j "$(basename "$NSIS_ZIP")" "$(basename "$exe")")
-            elif command -v 7z &>/dev/null; then
+            if command -v 7z &>/dev/null; then
               7z a -tzip "$NSIS_ZIP" "$exe" >/dev/null
-            elif command -v 7za &>/dev/null; then
-              7za a -tzip "$NSIS_ZIP" "$exe" >/dev/null
+            elif command -v zip &>/dev/null; then
+              (cd "$(dirname "$exe")" && zip -j "$(basename "$NSIS_ZIP")" "$(basename "$exe")")
             else
-              # Use PowerShell Compress-Archive as fallback
               powershell -Command "Compress-Archive -Path '$exe' -DestinationPath '$NSIS_ZIP' -Force"
             fi
+            # Sign the compressed file (NOT the exe!)
+            sign_file "$NSIS_ZIP"
             cp "$NSIS_ZIP" updater-artifacts/
-            # Copy the .exe.sig (same signature content)
-            if [ -f "${exe}.sig" ]; then
-              cp "${exe}.sig" "updater-artifacts/$(basename "$NSIS_ZIP").sig"
-            fi
+            cp "${NSIS_ZIP}.sig" updater-artifacts/ 2>/dev/null || echo "WARN: sig not found for $NSIS_ZIP"
           done
 
-          # Linux: compress .AppImage into .AppImage.tar.gz + collect sig
+          # Linux: compress .AppImage into .AppImage.tar.gz + SIGN
           for img in $(find "$BUNDLE_DIR" -name "*.AppImage" 2>/dev/null); do
             TAR_GZ="${img}.tar.gz"
             echo "Linux: compressing $img -> $TAR_GZ"
             tar czf "$TAR_GZ" -C "$(dirname "$img")" "$(basename "$img")"
+            # Sign the compressed file (NOT the AppImage!)
+            sign_file "$TAR_GZ"
             cp "$TAR_GZ" updater-artifacts/
-            if [ -f "${img}.sig" ]; then
-              cp "${img}.sig" "updater-artifacts/$(basename "$TAR_GZ").sig"
-            fi
+            cp "${TAR_GZ}.sig" updater-artifacts/ 2>/dev/null || echo "WARN: sig not found for $TAR_GZ"
           done
 
+          echo "=== Collected updater artifacts ==="
+          ls -la updater-artifacts/
           echo "=== Collected updater artifacts ==="
           ls -la updater-artifacts/
 
