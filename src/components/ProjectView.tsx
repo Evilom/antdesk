@@ -119,7 +119,7 @@ export default function ProjectView() {
     if (projectSections.length > 0) {
       result.push({
         id: "__projects",
-        name: "目标",
+        name: "项目",
         icon: " ",
         todos: [],
         projects: projectSections,
@@ -251,7 +251,7 @@ export default function ProjectView() {
                   {section.name}
                 </span>
                 <span className="text-[10px] text-text-muted">
-                  {section.projects.length} 个目标
+                  {section.projects.length} 个项目
                 </span>
               </button>
 
