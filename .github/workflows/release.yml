@@ -114,82 +114,53 @@ jobs:
           gh release download "$TAG" --repo "$REPO" --dir sigs --pattern "*.sig" --clobber
 
           python3 - "$VERSION" "$TAG" "$BASE_URL" << 'PYEOF'
-          import json, os, sys
+          import json, os, sys, subprocess
 
           version, tag, base_url = sys.argv[1], sys.argv[2], sys.argv[3]
 
-          # Find the correct asset names for each platform
-          release_assets = os.listdir("sigs")
-
-          def find_asset(patterns, exclude_sig=True):
-              """Find first matching asset name."""
-              for f in sorted(release_assets):
-                  if exclude_sig and f.endswith(".sig"):
-                      continue
-                  for p in patterns:
-                      if p in f:
-                          return f
-              return None
-
-          # Platform → (bundle patterns, sig patterns)
-          # macOS: tauri-action uploads .app.tar.gz with arch suffix
-          # Windows: tauri-action uploads -setup.exe (raw NSIS installer)
-          # Linux: tauri-action uploads .AppImage (raw)
-          platform_defs = {
-              "darwin-aarch64": {
-                  "bundle_match": lambda f: "aarch64" in f and f.endswith(".app.tar.gz") and not f.endswith(".sig"),
-                  "sig_match": lambda f: "aarch64" in f and f.endswith(".app.tar.gz.sig"),
-              },
-              "darwin-x86_64": {
-                  "bundle_match": lambda f: ("x64" in f or "x86_64" in f) and f.endswith(".app.tar.gz") and not f.endswith(".sig"),
-                  "sig_match": lambda f: ("x64" in f or "x86_64" in f) and f.endswith(".app.tar.gz.sig"),
-              },
-              "windows-x86_64": {
-                  "bundle_match": lambda f: "setup" in f and f.endswith(".exe") and not f.endswith(".sig"),
-                  "sig_match": lambda f: "setup" in f and f.endswith(".exe.sig"),
-              },
-              "linux-x86_64": {
-                  "bundle_match": lambda f: f.endswith(".AppImage") and not f.endswith(".sig"),
-                  "sig_match": lambda f: f.endswith(".AppImage.sig"),
-              },
-          }
-
-          # Also check actual release asset list (not just sig dir)
+          # Get all release assets
           all_release = subprocess.run(
               ["gh", "release", "view", tag, "--repo", "Evilom/antdesk", "--json", "assets", "--jq", ".assets[].name"],
               capture_output=True, text=True
           ).stdout.strip().split("\n")
+          print(f"Release assets: {all_release}")
 
-          import subprocess
+          # Find the correct asset names for each platform
+          def find_asset(match_fn):
+              for f in all_release:
+                  if match_fn(f):
+                      return f
+              return None
+
+          platform_defs = {
+              "darwin-aarch64": {
+                  "bundle": lambda f: "aarch64" in f and f.endswith(".app.tar.gz") and not f.endswith(".sig"),
+                  "sig": lambda f: "aarch64" in f and f.endswith(".app.tar.gz.sig"),
+              },
+              "darwin-x86_64": {
+                  "bundle": lambda f: ("x64" in f or "x86_64" in f) and f.endswith(".app.tar.gz") and not f.endswith(".sig"),
+                  "sig": lambda f: ("x64" in f or "x86_64" in f) and f.endswith(".app.tar.gz.sig"),
+              },
+              "windows-x86_64": {
+                  "bundle": lambda f: "setup" in f and f.endswith(".exe") and not f.endswith(".sig"),
+                  "sig": lambda f: "setup" in f and f.endswith(".exe.sig"),
+              },
+              "linux-x86_64": {
+                  "bundle": lambda f: f.endswith(".AppImage") and not f.endswith(".sig"),
+                  "sig": lambda f: f.endswith(".AppImage.sig"),
+              },
+          }
 
           platforms = {}
           for key, matchers in platform_defs.items():
-              # Find bundle in release assets
-              bundle_name = None
-              for f in all_release:
-                  if matchers["bundle_match"](f):
-                      bundle_name = f
-                      break
-
-              # Find sig file
-              sig_name = None
-              for f in all_release:
-                  if matchers["sig_match"](f):
-                      sig_name = f
-                      break
+              bundle_name = find_asset(matchers["bundle"])
+              sig_name = find_asset(matchers["sig"])
 
               if not bundle_name or not sig_name:
                   print(f"WARN: {key} — bundle={bundle_name}, sig={sig_name}")
                   continue
 
-              # Read signature content
-              sig_path = os.path.join("sigs", sig_name)
-              if not os.path.exists(sig_path):
-                  # Download it
-                  subprocess.run(["gh", "release", "download", tag, "--repo", "Evilom/antdesk",
-                                   "--pattern", sig_name, "--output", sig_path, "--clobber"], check=True)
-
-              with open(sig_path) as f:
+              with open(f"sigs/{sig_name}") as f:
                   sig_content = f.read().strip()
 
               platforms[key] = {
