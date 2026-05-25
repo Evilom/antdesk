@@ -101,6 +101,10 @@ export const useAppStore = create<AppState>((set) => ({
       const newSettings = { ...state.settings, ...updates };
       saveSettings(newSettings);
       applyTheme(newSettings);
+      // Emit event for other windows (e.g. QuickPanel)
+      import("@tauri-apps/api/event").then(({ emit }) => {
+        emit("settings-changed", { transparency: newSettings.transparency }).catch(() => {});
+      });
       return { settings: newSettings };
     }),
 

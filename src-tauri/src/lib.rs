@@ -1,5 +1,6 @@
 use std::sync::{Mutex, OnceLock};
 use tauri::Manager;
+use tauri::Emitter;
 
 #[derive(Default)]
 struct AppState {
@@ -351,6 +352,11 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
 
     let pos = tauri::Position::Physical(tauri::PhysicalPosition::new(x as i32, y as i32));
     quick.set_position(pos).map_err(|e| e.to_string())?;
+
+    // Tell frontend whether panel is above or below FAB for drawer direction
+    let is_above = y + quick_h < fab_center_y;
+    let _ = app.emit("quick-panel-direction", if is_above { "above" } else { "below" });
+
     Ok(())
 }
 

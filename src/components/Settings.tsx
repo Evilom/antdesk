@@ -298,7 +298,7 @@ export default function Settings() {
 
       {/* Info */}
       <div className="text-center text-[10px] text-text-muted space-y-0.5">
-        <div>AntDesk v2.4.1</div>
+        <AppVersion />
         <div>Tauri 2 + React 19 + Zustand</div>
       </div>
     </div>
@@ -316,4 +316,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Label({ children }: { children: React.ReactNode }) {
   return <label className="text-[10px] text-text-muted block mb-1">{children}</label>;
+}
+
+function AppVersion() {
+  const [ver, setVer] = useState("");
+  useEffect(() => {
+    import("@tauri-apps/api/app").then(({ getVersion }) => {
+      getVersion().then((v) => setVer(`v${v}`)).catch(() => {});
+    }).catch(() => {});
+  }, []);
+  return <div>AntDesk {ver}</div>;
 }

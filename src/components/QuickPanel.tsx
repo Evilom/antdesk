@@ -37,17 +37,32 @@ export default function QuickPanel() {
 
   // Read transparency from localStorage (shared with main panel)
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("antdesk-settings");
-      if (raw) {
-        const s = JSON.parse(raw);
-        const t = s.transparency ?? 100;
-        setBgAlpha((255 - t) / 255);
-      }
-    } catch {}
-    // Listen for changes from main window
+    const loadAlpha = () => {
+      try {
+        // Try both keys (underscore from appStore, hyphen legacy)
+        const raw = localStorage.getItem("antdesk_settings") || localStorage.getItem("antdesk-settings");
+        if (raw) {
+          const s = JSON.parse(raw);
+          const t = s.transparency ?? 100;
+          setBgAlpha((255 - t) / 255);
+        }
+      } catch {}
+    };
+    loadAlpha();
+    // Also listen for Tauri event from main window
+    let unlisten: (() => void) | null = null;
+    (async () => {
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        unlisten = await listen<{ transparency: number }>("settings-changed", (e) => {
+          const t = e.payload.transparency ?? 100;
+          setBgAlpha((255 - t) / 255);
+        });
+      } catch {}
+    })();
+    // And storage events (same-origin only, won't work cross-webview)
     const onStorage = (e: StorageEvent) => {
-      if (e.key === "antdesk-settings" && e.newValue) {
+      if (e.key === "antdesk_settings" && e.newValue) {
         try {
           const s = JSON.parse(e.newValue);
           const t = s.transparency ?? 100;
@@ -56,7 +71,42 @@ export default function QuickPanel() {
       }
     };
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+  // Listen for drawer direction from Rust positioning
+  const [direction, setDirection] = useState<"above" | "below">("below");
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    (async () => {
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        unlisten = await listen<string>("quick-panel-direction", (e) => {
+          setDirection(e.payload as "above" | "below");
+        });
+      } catch {}
+    })();
+    return () => { if (unlisten) unlisten(); };
+  }, []);
+
+  // Dynamic window height: resize to fit content
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!panelRef.current) return;
+    const observer = new ResizeObserver(async (entries) => {
+      const h = entries[0]?.contentRect?.height;
+      if (!h || h < 10) return;
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const { LogicalSize } = await import("@tauri-apps/api/dpi");
+        await getCurrentWindow().setSize(new LogicalSize(260, Math.ceil(h + 8)));
+      } catch {}
+    });
+    observer.observe(panelRef.current);
+    return () => observer.disconnect();
   }, []);
 
   const fetchProjects = useCallback(async () => {
@@ -233,7 +283,7 @@ export default function QuickPanel() {
   const displayTodos = visibleTodos.slice(0, 6);
 
   return (
-    <div className="quick-panel" style={{ "--bg-alpha": bgAlpha } as React.CSSProperties}>
+    <div ref={panelRef} className={`quick-panel ${direction}`} style={{ "--bg-alpha": bgAlpha } as React.CSSProperties}>
       {/* Header */}
       <div className="quick-header">
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
