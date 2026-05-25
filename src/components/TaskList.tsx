@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useAppStore } from "../stores/appStore";
 import { createTodo, toggleTodoStatus } from "../lib/notion";
 import type { Priority, TodoCategory } from "../types";
@@ -37,6 +37,7 @@ export default function TaskList() {
   const [adding, setAdding] = useState(false);
   const [showDone, setShowDone] = useState(false);
   const [showPaused, setShowPaused] = useState(false);
+  const completingIds = useRef(new Set<string>());
 
   // 项目名映射
   const projectNameMap = useMemo(() => {
@@ -99,10 +100,15 @@ export default function TaskList() {
   const handleToggle = useCallback(
     async (id: string, current: boolean) => {
       if (!token) return;
+      if (!current) {
+        completingIds.current.add(id);
+        setTimeout(() => completingIds.current.delete(id), 600);
+      }
       updateTodo(id, { status: !current });
       try {
         await toggleTodoStatus(token, id, !current);
       } catch (e) {
+        completingIds.current.delete(id);
         updateTodo(id, { status: current });
         console.error("Failed to toggle todo:", e);
       }
@@ -110,51 +116,54 @@ export default function TaskList() {
     [token, updateTodo]
   );
 
-  const renderTodo = (todo: (typeof todos)[0]) => (
-    <div
-      key={todo.id}
-      className="bg-bg-card rounded-card p-2.5 flex items-center gap-2.5 hover:bg-bg-hover transition-colors group"
-    >
-      <button
-        onClick={() => handleToggle(todo.id, todo.status)}
-        className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
-          todo.status
-            ? "bg-accent-green border-accent-green"
-            : "border-text-muted hover:border-accent-blue"
-        }`}
+  const renderTodo = (todo: (typeof todos)[0]) => {
+    const isCompleting = completingIds.current.has(todo.id);
+    return (
+      <div
+        key={todo.id}
+        className={`bg-bg-card rounded-card p-2.5 flex items-center gap-2.5 hover:bg-bg-hover transition-colors group ${isCompleting ? "task-completing" : ""}`}
       >
-        {todo.status && (
-          <span className="text-[10px] text-white">&#10003;</span>
-        )}
-      </button>
-      <div className="flex-1 min-w-0">
-        <span
-          className={`text-xs truncate block ${
-            todo.status || todo.paused
-              ? "line-through text-text-muted"
-              : "text-text-primary"
+        <button
+          onClick={() => handleToggle(todo.id, todo.status)}
+          className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+            todo.status
+              ? "bg-accent-green border-accent-green check-animate"
+              : "border-text-muted hover:border-accent-blue"
           }`}
         >
-          {todo.name}
-        </span>
-        {todo.projectId && projectNameMap[todo.projectId] && (
-          <span className="text-[10px] text-text-muted truncate block">
-            📁 {projectNameMap[todo.projectId]}
+          {todo.status && (
+            <span className="text-[10px] text-white">&#10003;</span>
+          )}
+        </button>
+        <div className="flex-1 min-w-0">
+          <span
+            className={`task-complete-strike text-xs truncate block ${
+              todo.status || todo.paused
+                ? "line-through text-text-muted"
+                : "text-text-primary"
+            }`}
+          >
+            {todo.name}
+          </span>
+          {todo.projectId && projectNameMap[todo.projectId] && (
+            <span className="text-[10px] text-text-muted truncate block">
+              📁 {projectNameMap[todo.projectId]}
+            </span>
+          )}
+        </div>
+        {todo.paused && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-input text-text-muted flex-shrink-0">
+            暂停
           </span>
         )}
-      </div>
-      {todo.paused && (
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-input text-text-muted flex-shrink-0">
-          暂停
+        <span
+          className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${PRIORITY_COLORS[todo.priority]}`}
+        >
+          {PRIORITY_LABELS[todo.priority]}
         </span>
-      )}
-      <span
-        className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${PRIORITY_COLORS[todo.priority]}`}
-      >
-        {PRIORITY_LABELS[todo.priority]}
-      </span>
-    </div>
-  );
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-3 fade-in">
@@ -206,7 +215,7 @@ export default function TaskList() {
       </div>
 
       {/* Active Todos */}
-      <div className="space-y-1.5">
+      <div className="space-y-1.5 stagger-children">
         {activeTodos.length === 0 && (
           <div className="text-center text-text-muted text-xs py-6">
             暂无待办

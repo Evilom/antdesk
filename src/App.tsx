@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalSize, LogicalPosition } from "@tauri-apps/api/window";
 import { useAppStore, applyTheme } from "./stores/appStore";
@@ -18,6 +18,8 @@ const NAV_ITEMS: { id: Page; label: string; icon: string }[] = [
   { id: "chat", label: "助理", icon: "\u{1F916}" },
 ];
 
+const PAGE_INDEX: Record<Page, number> = { today: 0, projects: 1, reports: 2, chat: 3 };
+
 export default function App() {
   const currentPage = useAppStore((s) => s.currentPage);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
@@ -30,7 +32,10 @@ export default function App() {
   const updateSettings = useAppStore((s) => s.updateSettings);
   const notionConnected = useAppStore((s) => s.notionConnected);
   const settings = useAppStore((s) => s.settings);
+  const todos = useAppStore((s) => s.todos);
   const [pageKey, setPageKey] = useState(0);
+  const [direction, setDirection] = useState<"left" | "right">("right");
+  const navRef = useRef<HTMLDivElement>(null);
 
   // Apply theme on mount and when settings change
   useEffect(() => {
@@ -179,6 +184,7 @@ export default function App() {
 
   const handleNavClick = (id: Page) => {
     if (id !== currentPage) {
+      setDirection(PAGE_INDEX[id] > PAGE_INDEX[currentPage] ? "left" : "right");
       setPageKey((k) => k + 1);
       setCurrentPage(id);
     }
@@ -241,14 +247,25 @@ export default function App() {
 
       {/* Content — animated page transition */}
       <div className="flex-1 overflow-y-auto p-4">
-        <div key={pageKey} className="page-enter">
-          {renderPage()}
-        </div>
+        {!notionConnected && todos.length === 0 ? (
+          <div className="space-y-3">
+            <div className="skeleton h-14" />
+            <div className="skeleton h-24" />
+            <div className="skeleton h-20" />
+            <div className="skeleton h-20" />
+            <div className="skeleton h-12" />
+          </div>
+        ) : (
+          <div key={pageKey} className={direction === "left" ? "page-enter-left" : "page-enter-right"}>
+            {renderPage()}
+          </div>
+        )}
       </div>
 
       {/* Bottom Nav */}
       <div
-        className="flex items-center justify-around shrink-0 py-2"
+        ref={navRef}
+        className="relative flex items-center justify-around shrink-0 py-2"
         style={{ background: "rgba(255,255,255,0.03)", borderTop: "1px solid rgba(255,255,255,0.06)" }}
       >
         {NAV_ITEMS.map((item) => {
@@ -266,6 +283,13 @@ export default function App() {
             </button>
           );
         })}
+        <div
+          className="nav-indicator"
+          style={{
+            left: `${PAGE_INDEX[currentPage] * 25 + 12}%`,
+            width: "12%",
+          }}
+        />
       </div>
 
       {/* Settings Slide-over */}
