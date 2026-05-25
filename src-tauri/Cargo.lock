@@ -61,7 +61,7 @@ dependencies = [
 
 [[package]]
 name = "antdesk"
-version = "2.3.2"
+version = "2.5.1"
 dependencies = [
  "image",
  "reqwest 0.12.28",

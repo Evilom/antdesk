@@ -293,7 +293,7 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
     let fab_size = 64.0;
     let quick_w = 260.0;
     let quick_h = 360.0;
-    let gap = 10.0;
+    let gap = 24.0;
 
     // Get actual screen bounds
     let (screen_w, screen_h) = if let Some(monitor) = fab.current_monitor().ok().flatten() {
