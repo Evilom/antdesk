@@ -18,12 +18,16 @@ jobs:
         include:
           - platform: "macos-latest"
             args: "--target aarch64-apple-darwin"
+            label: macos-arm64
           - platform: "macos-latest"
             args: "--target x86_64-apple-darwin"
+            label: macos-x64
           - platform: "windows-latest"
             args: "--target x86_64-pc-windows-msvc"
+            label: windows-x64
           - platform: "ubuntu-22.04"
             args: "--target x86_64-unknown-linux-gnu"
+            label: linux-x64
 
     runs-on: ${{ matrix.platform }}
 
@@ -68,4 +72,150 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
-          includeUpdaterJson: true
+
+      - name: Upload updater artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-${{ matrix.label }}
+          path: |
+            src-tauri/target/**/release/bundle/**/*.sig
+            src-tauri/target/**/release/bundle/**/*.app.tar.gz
+            src-tauri/target/**/release/bundle/**/*.nsis.zip
+            src-tauri/target/**/release/bundle/**/*.msi.zip
+          if-no-files-found: warn
+
+  updater-json:
+    needs: publish
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get app version
+        id: version
+        run: echo "value=$(jq -r .version src-tauri/tauri.conf.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Download all updater artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: updater-*
+          merge-multiple: false
+
+      - name: Generate latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -e
+
+          REPO="Evilom/antdesk"
+          TAG="v${VERSION}"
+          BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+
+          # Find all .sig and updater bundle files
+          echo "=== Artifacts structure ==="
+          find artifacts -type f | sort
+
+          # Helper: find first file matching pattern in artifacts
+          find_file() {
+            find artifacts -name "$1" | head -1
+          }
+
+          # Extract signature content
+          read_sig() {
+            local f=$(find_file "$1")
+            if [ -n "$f" ]; then
+              cat "$f"
+            else
+              echo ""
+            fi
+          }
+
+          # Build platforms JSON
+          python3 << 'PYEOF'
+          import json, os, glob, sys
+
+          version = os.environ["VERSION"]
+          base_url = os.environ["BASE_URL"]
+          tag = os.environ["TAG"]
+
+          # Platform mapping: (artifact_label, file_glob_pattern, platform_key, upload_name)
+          platform_defs = [
+              # macOS arm64
+              ("updater-macos-arm64", "*.app.tar.gz", "darwin-aarch64"),
+              # macOS x64
+              ("updater-macos-x64", "*.app.tar.gz", "darwin-x86_64"),
+              # Windows
+              ("updater-windows-x64", "*.nsis.zip", "windows-x86_64"),
+              # Linux
+              ("updater-linux-x64", "*.AppImage.tar.gz", "linux-x86_64"),
+          ]
+
+          platforms = {}
+          for artifact_label, file_glob, platform_key in platform_defs:
+              # Find the updater bundle file
+              bundle_files = glob.glob(f"artifacts/{artifact_label}/**/{file_glob}", recursive=True)
+              sig_files = glob.glob(f"artifacts/{artifact_label}/**/*.sig", recursive=True)
+
+              if not bundle_files:
+                  print(f"WARNING: No bundle for {platform_key} (looked for {file_glob} in {artifact_label})")
+                  continue
+
+              bundle_path = bundle_files[0]
+              bundle_name = os.path.basename(bundle_path)
+
+              # Find matching .sig
+              sig_path = bundle_path + ".sig"
+              if not os.path.exists(sig_path):
+                  # Try to find any .sig that matches
+                  matching_sigs = [s for s in sig_files if os.path.basename(s).startswith(os.path.splitext(os.path.splitext(os.path.basename(bundle_path))[0])[0])]
+                  if matching_sigs:
+                      sig_path = matching_sigs[0]
+                  else:
+                      print(f"WARNING: No sig for {bundle_name}")
+                      continue
+
+              with open(sig_path) as f:
+                  signature = f.read().strip()
+
+              platforms[platform_key] = {
+                  "signature": signature,
+                  "url": f"{base_url}/{bundle_name}"
+              }
+              print(f"OK: {platform_key} -> {bundle_name}")
+
+          if not platforms:
+              print("ERROR: No platforms found!")
+              sys.exit(1)
+
+          latest = {
+              "version": version,
+              "notes": f"AntDesk {tag}",
+              "pub_date": "${{ github.event.head_commit.timestamp || '' }}" or "2026-01-01T00:00:00Z",
+              "platforms": platforms
+          }
+
+          with open("latest.json", "w") as f:
+              json.dump(latest, f, indent=2)
+
+          print(f"\nGenerated latest.json with {len(platforms)} platforms:")
+          print(json.dumps(latest, indent=2))
+          PYEOF
+
+      - name: Upload latest.json to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          # Also upload the updater bundles (.app.tar.gz, .nsis.zip) to the release
+          for f in $(find artifacts -name "*.app.tar.gz" -o -name "*.nsis.zip" | sort); do
+            name=$(basename "$f")
+            echo "Uploading $name..."
+            gh release upload "v${VERSION}" "$f#$name" --repo Evilom/antdesk --clobber 2>/dev/null || \
+            gh release upload "v${VERSION}" "$f" --repo Evilom/antdesk --clobber || true
+          done
+
+          # Upload latest.json
+          echo "Uploading latest.json..."
+          gh release upload "v${VERSION}" latest.json --repo Evilom/antdesk --clobber
