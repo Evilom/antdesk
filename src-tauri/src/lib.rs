@@ -287,61 +287,67 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
         .get_webview_window("quick")
         .ok_or("Quick window not found")?;
 
-    // Read ACTUAL window sizes from the OS
     let fab_pos = fab.outer_position().map_err(|e| e.to_string())?;
     let fab_size_rect = fab.outer_size().map_err(|e| e.to_string())?;
     let quick_size = quick.outer_size().map_err(|e| e.to_string())?;
 
-    let scale = fab.current_monitor().ok().flatten()
-        .map(|m| m.scale_factor())
-        .unwrap_or(1.0);
+    let monitor = fab.current_monitor().ok().flatten();
+    let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
+    let (mon_pos_x, mon_pos_y, mon_w, mon_h) = if let Some(ref m) = monitor {
+        let p = m.position();
+        let s = m.size();
+        (p.x, p.y, s.width, s.height)
+    } else {
+        (0, 0, 1920, 1080)
+    };
 
-    let fab_x = fab_pos.x as f64;
-    let fab_y = fab_pos.y as f64;
+    // All in logical (CSS) coordinates
+    let fab_x = fab_pos.x as f64 / scale;
+    let fab_y = fab_pos.y as f64 / scale;
     let fab_w = fab_size_rect.width as f64 / scale;
     let fab_h = fab_size_rect.height as f64 / scale;
     let quick_w = quick_size.width as f64 / scale;
     let quick_h = quick_size.height as f64 / scale;
+
+    // Monitor bounds in logical coordinates
+    let mon_left = mon_pos_x as f64 / scale;
+    let mon_top = mon_pos_y as f64 / scale;
+    let mon_right = mon_left + mon_w as f64 / scale;
+    let mon_bottom = mon_top + mon_h as f64 / scale;
+    let margin = 4.0;
+
     let gap = 8.0;
 
-    // Screen bounds
-    let (screen_w, screen_h) = if let Some(monitor) = fab.current_monitor().ok().flatten() {
-        let size = monitor.size();
-        (size.width as f64 / scale, size.height as f64 / scale)
-    } else {
-        (1920.0, 1080.0)
-    };
-
-    // Try below FAB first (most common — panel drops down)
-    let mut x = fab_x + fab_w - quick_w; // right-aligned with FAB
+    // Try below FAB first (right-aligned)
+    let mut x = fab_x + fab_w - quick_w;
     let mut y = fab_y + fab_h + gap;
 
     // If below doesn't fit, try above
-    if y + quick_h > screen_h - 4.0 {
+    if y + quick_h > mon_bottom - margin {
         y = fab_y - quick_h - gap;
     }
 
     // If above doesn't fit, try left
-    if y < 4.0 {
+    if y < mon_top + margin {
         x = fab_x - quick_w - gap;
         y = fab_y;
     }
 
     // If left doesn't fit, try right
-    if x < 4.0 {
+    if x < mon_left + margin {
         x = fab_x + fab_w + gap;
         y = fab_y;
     }
 
-    // Clamp to screen
-    if x < 4.0 { x = 4.0; }
-    if x + quick_w > screen_w - 4.0 { x = screen_w - quick_w - 4.0; }
-    if y < 4.0 { y = 4.0; }
-    if y + quick_h > screen_h - 4.0 { y = screen_h - quick_h - 4.0; }
+    // Clamp to monitor bounds
+    if x < mon_left + margin { x = mon_left + margin; }
+    if x + quick_w > mon_right - margin { x = mon_right - quick_w - margin; }
+    if y < mon_top + margin { y = mon_top + margin; }
+    if y + quick_h > mon_bottom - margin { y = mon_bottom - quick_h - margin; }
 
     let pos = tauri::Position::Physical(tauri::PhysicalPosition::new(
-        x as i32,
-        y as i32,
+        (x * scale) as i32,
+        (y * scale) as i32,
     ));
     quick.set_position(pos).map_err(|e| e.to_string())?;
     Ok(())

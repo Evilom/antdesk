@@ -103,12 +103,18 @@ export default function Settings() {
       if (update?.available) {
         setUpdateStatus(`发现 v${update.version}，下载中...`);
         try {
-          await update.downloadAndInstall();
+          await update.downloadAndInstall((progress) => {
+            if (progress.event === "Started" && progress.data.contentLength) {
+              const mb = (progress.data.contentLength / 1024 / 1024).toFixed(1);
+              setUpdateStatus(`发现 v${update.version}，下载 ${mb} MB...`);
+            }
+          });
           setUpdateStatus("安装完成，即将重启...");
           const { relaunch } = await import("@tauri-apps/plugin-process");
           await relaunch();
-        } catch {
-          setUpdateStatus("下载失败，请手动下载");
+        } catch (e: any) {
+          console.error("Update download failed:", e);
+          setUpdateStatus(`下载失败: ${e?.message || e}`);
         }
       } else {
         setUpdateStatus("已是最新版本");

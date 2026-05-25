@@ -96,6 +96,27 @@ export default function QuickPanel() {
     })();
   }, []);
 
+  // Re-fetch todos when window becomes visible (e.g. main window added a todo)
+  useEffect(() => {
+    let unlistenFn: (() => void) | null = null;
+    (async () => {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      const win = getCurrentWindow();
+      unlistenFn = await win.onFocusChanged(({ payload: focused }) => {
+        if (focused) {
+          // Re-fetch on focus to pick up changes from main window
+          (async () => {
+            try {
+              const archived = await fetchProjects();
+              await fetchTodos(archived);
+            } catch {}
+          })();
+        }
+      });
+    })();
+    return () => { if (unlistenFn) unlistenFn(); };
+  }, []);
+
   // Listen for pie menu filter events from FAB
   useEffect(() => {
     const unlisten = listen<{ tag: string }>("pie-filter-changed", (event) => {
