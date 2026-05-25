@@ -242,11 +242,14 @@ jobs:
           VERSION: ${{ steps.version.outputs.value }}
         run: |
           TAG="v${VERSION}"
-          # Upload renamed updater bundles
+          # Upload renamed updater bundles to versioned release
           for f in upload/*; do
-            echo "Uploading $(basename $f)..."
+            echo "Uploading $(basename $f) to $TAG..."
             gh release upload "$TAG" "$f" --repo Evilom/antdesk --clobber || true
           done
-          # Upload latest.json
-          echo "Uploading latest.json..."
-          gh release upload "$TAG" latest.json --repo Evilom/antdesk --clobber
+          # Upload latest.json to BOTH versioned release AND updater release
+          echo "Uploading latest.json to $TAG..."
+          gh release upload "$TAG" latest.json --repo Evilom/antdesk --clobber || true
+          echo "Uploading latest.json to updater release..."
+          gh release delete-asset updater latest.json --repo Evilom/antdesk --yes 2>/dev/null || true
+          gh release upload updater latest.json --repo Evilom/antdesk --clobber

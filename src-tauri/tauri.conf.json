@@ -65,7 +65,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/Evilom/antdesk/releases/latest/download/latest.json"
+        "https://github.com/Evilom/antdesk/releases/download/updater/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg4OUIzQUFBQThCMjIzODMKUldTREk3S29xanFiaU5MdmVDWG9sZVRNN3gva1AzYmRaS3VTQUdYYXQySzNWSE1FdzFPU0VrS1EK"
     }
