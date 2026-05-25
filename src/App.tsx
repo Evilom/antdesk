@@ -80,7 +80,14 @@ export default function App() {
   }, [loadData]);
 
   const checkForUpdates = useCallback(async () => {
-    if (window.location.hostname === "localhost" || window.location.protocol === "http:") return;
+    // 跳过开发模式（web dev server 或 Tauri dev mode）
+    if (
+      window.location.hostname === "localhost" ||
+      window.location.protocol === "http:" ||
+      window.location.protocol === "tauri:" ||
+      !(window as any).__TAURI_INTERNALS__
+    )
+      return;
     try {
       const { check } = await import("@tauri-apps/plugin-updater");
       const update = await check();
