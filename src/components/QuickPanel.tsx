@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 interface Todo {
   id: string;
@@ -29,6 +30,7 @@ export default function QuickPanel() {
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
   const [exiting, setExiting] = useState<Set<string>>(new Set());
+  const [tagFilter, setTagFilter] = useState<string>("all");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const fetchProjects = useCallback(async () => {
@@ -92,6 +94,14 @@ export default function QuickPanel() {
       const archived = await fetchProjects();
       await fetchTodos(archived);
     })();
+  }, []);
+
+  // Listen for pie menu filter events from FAB
+  useEffect(() => {
+    const unlisten = listen<{ tag: string }>("pie-filter-changed", (event) => {
+      setTagFilter(event.payload.tag);
+    });
+    return () => { unlisten.then(fn => fn()); };
   }, []);
 
   // Close on blur
@@ -168,7 +178,11 @@ export default function QuickPanel() {
     }
   }, [newName, fetchTodos]);
 
-  const visibleTodos = todos.filter((t) => !t.status);
+  const visibleTodos = todos.filter((t) => {
+    if (t.status) return false;
+    if (tagFilter === "all") return true;
+    return t.tags.includes(tagFilter);
+  });
   const displayTodos = visibleTodos.slice(0, 6);
 
   return (
@@ -178,6 +192,11 @@ export default function QuickPanel() {
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span className="title">待办</span>
           <span className="count">{visibleTodos.length}</span>
+          {tagFilter !== "all" && (
+            <span className="filter-badge" onClick={() => setTagFilter("all")}>
+              {tagFilter} ✕
+            </span>
+          )}
         </div>
         <button className="expand-btn" onClick={handleExpand}>
           展开 ↗

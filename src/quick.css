@@ -316,3 +316,18 @@ body {
   33% { content: '.'; }
   66% { content: '..'; }
 }
+
+/* ── Filter badge ── */
+.filter-badge {
+  font-size: 8px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.filter-badge:hover {
+  background: rgba(255, 69, 58, 0.2);
+  color: rgba(255, 69, 58, 0.8);
+}
