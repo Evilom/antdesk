@@ -1,9 +1,13 @@
+export type TodoCategory = "工作" | "生活" | "项目";
+
 export interface Todo {
   id: string;
   name: string;
   status: boolean;
   priority: "High" | "Medium" | "Low";
   tags: string[];
+  category: TodoCategory;
+  paused: boolean;
   projectId?: string;
   dueDate?: string;
   createdTime?: string;

@@ -35,18 +35,31 @@ export async function fetchTodos(token: string) {
     token
   );
   const data = JSON.parse(raw);
-  return data.results.map((page: any) => ({
-    id: page.id,
-    name: page.properties.Name?.title?.[0]?.plain_text || "",
-    status: page.properties.Status?.checkbox === true,
-    priority: (page.properties.Priority?.select?.name || "Medium") as "High" | "Medium" | "Low",
-    tags:
-      page.properties.Tags?.multi_select?.map((t: any) => t.name) || [],
-    projectId:
-      page.properties.Project?.relation?.[0]?.id || undefined,
-    dueDate: page.properties["Due Date"]?.date?.start || undefined,
-    createdTime: page.created_time,
-  }));
+  return data.results
+    .filter((page: any) => !page.archived)
+    .map((page: any) => {
+      const tags: string[] =
+        page.properties.Tags?.multi_select?.map((t: any) => t.name) || [];
+
+      // 从 tags 推断 category
+      let category: "工作" | "生活" | "项目" = "项目";
+      if (tags.includes("工作")) category = "工作";
+      else if (tags.includes("生活")) category = "生活";
+
+      return {
+        id: page.id,
+        name: page.properties.Name?.title?.[0]?.plain_text || "",
+        status: page.properties.Status?.checkbox === true,
+        priority: (page.properties.Priority?.select?.name || "Medium") as "High" | "Medium" | "Low",
+        tags,
+        category,
+        paused: tags.includes("暂停"),
+        projectId:
+          page.properties.Project?.relation?.[0]?.id || undefined,
+        dueDate: page.properties["Due Date"]?.date?.start || undefined,
+        createdTime: page.created_time,
+      };
+    });
 }
 
 export async function createTodo(
@@ -75,12 +88,18 @@ export async function createTodo(
   });
   const raw = await notionFetch("/v1/pages", "POST", body, token);
   const page = JSON.parse(raw);
+  const finalTags = tags || [];
+  let category: "工作" | "生活" | "项目" = "项目";
+  if (finalTags.includes("工作")) category = "工作";
+  else if (finalTags.includes("生活")) category = "生活";
   return {
     id: page.id,
     name,
     status: false,
     priority,
-    tags: tags || [],
+    tags: finalTags,
+    category,
+    paused: finalTags.includes("暂停"),
     projectId,
     createdTime: page.created_time,
   };
