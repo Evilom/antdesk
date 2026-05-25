@@ -2,6 +2,192 @@ import { useState, useCallback, useMemo } from "react";
 import { useAppStore } from "../stores/appStore";
 import { fetchReportContent, createReport, fetchReports } from "../lib/notion";
 
+/* ── Markdown-ish renderer for daily reports ── */
+function ReportContent({ content }: { content: string }) {
+  const lines = content.split("\n");
+  const elements: React.ReactElement[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // --- separator
+    if (/^-{3,}$/.test(line.trim())) {
+      elements.push(
+        <hr
+          key={`hr-${i}`}
+          style={{
+            border: "none",
+            borderTop: "1px solid rgba(255,255,255,0.08)",
+            margin: "8px 0",
+          }}
+        />
+      );
+      i++;
+      continue;
+    }
+
+    // ## heading
+    if (line.trim().startsWith("## ")) {
+      elements.push(
+        <div
+          key={`h-${i}`}
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: "rgba(255,255,255,0.9)",
+            marginTop: elements.length > 0 ? 10 : 0,
+            marginBottom: 4,
+          }}
+        >
+          {line.trim().slice(3)}
+        </div>
+      );
+      i++;
+      continue;
+    }
+
+    // ### subheading
+    if (line.trim().startsWith("### ")) {
+      elements.push(
+        <div
+          key={`h3-${i}`}
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: "rgba(255,255,255,0.75)",
+            marginTop: 8,
+            marginBottom: 3,
+          }}
+        >
+          {line.trim().slice(4)}
+        </div>
+      );
+      i++;
+      continue;
+    }
+
+    // - list item
+    if (line.trim().startsWith("- ")) {
+      const items: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith("- ")) {
+        items.push(lines[i].trim().slice(2));
+        i++;
+      }
+      elements.push(
+        <ul key={`ul-${i}`} style={{ margin: "2px 0", paddingLeft: 14 }}>
+          {items.map((item, j) => (
+            <li
+              key={j}
+              style={{
+                fontSize: 12,
+                lineHeight: 1.6,
+                color: "rgba(255,255,255,0.7)",
+                listStyleType: "'›  '",
+                marginLeft: 2,
+              }}
+            >
+              {renderInline(item)}
+            </li>
+          ))}
+        </ul>
+      );
+      continue;
+    }
+
+    // Blank line
+    if (!line.trim()) {
+      i++;
+      continue;
+    }
+
+    // Normal paragraph
+    elements.push(
+      <p
+        key={`p-${i}`}
+        style={{
+          fontSize: 12,
+          lineHeight: 1.6,
+          color: "rgba(255,255,255,0.65)",
+          margin: "2px 0",
+        }}
+      >
+        {renderInline(line)}
+      </p>
+    );
+    i++;
+  }
+
+  return <>{elements}</>;
+}
+
+/** Render **bold** and `code` inline */
+function renderInline(text: string): (string | React.ReactElement)[] {
+  const parts: (string | React.ReactElement)[] = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+    const codeMatch = remaining.match(/`(.+?)`/);
+
+    let firstMatch: RegExpMatchArray | null = null;
+    let type = "";
+
+    if (boldMatch && codeMatch) {
+      if ((boldMatch.index ?? 0) < (codeMatch.index ?? 0)) {
+        firstMatch = boldMatch;
+        type = "bold";
+      } else {
+        firstMatch = codeMatch;
+        type = "code";
+      }
+    } else if (boldMatch) {
+      firstMatch = boldMatch;
+      type = "bold";
+    } else if (codeMatch) {
+      firstMatch = codeMatch;
+      type = "code";
+    }
+
+    if (!firstMatch || firstMatch.index === undefined) {
+      parts.push(remaining);
+      break;
+    }
+
+    if (firstMatch.index > 0) {
+      parts.push(remaining.slice(0, firstMatch.index));
+    }
+
+    if (type === "bold") {
+      parts.push(
+        <strong key={key++} style={{ color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>
+          {firstMatch[1]}
+        </strong>
+      );
+    } else {
+      parts.push(
+        <code
+          key={key++}
+          style={{
+            fontSize: 11,
+            padding: "1px 4px",
+            borderRadius: 3,
+            background: "rgba(255,255,255,0.08)",
+            color: "#ff9f0a",
+          }}
+        >
+          {firstMatch[1]}
+        </code>
+      );
+    }
+
+    remaining = remaining.slice(firstMatch.index + firstMatch[0].length);
+  }
+
+  return parts;
+}
+
 export default function Reports() {
   const reports = useAppStore((s) => s.reports);
   const todos = useAppStore((s) => s.todos);
@@ -91,6 +277,8 @@ export default function Reports() {
     return `${d.getFullYear()}年${d.getMonth() + 1}月`;
   }, []);
 
+  const weekHeaders = ["日", "一", "二", "三", "四", "五", "六"];
+
   return (
     <div className="space-y-3 fade-in">
       <div className="flex items-center justify-between">
@@ -119,8 +307,9 @@ export default function Reports() {
             <textarea
               value={writeContent}
               onChange={(e) => setWriteContent(e.target.value)}
-              placeholder="今天完成了什么？"
+              placeholder={"今天完成了什么？\n\n## 完成事项\n- 任务1\n- 任务2"}
               className="w-full h-24 bg-white/5 rounded-lg p-2 text-xs text-text-primary placeholder:text-text-muted resize-none outline-none border border-white/10 focus:border-white/20"
+              style={{ fontFamily: "monospace" }}
             />
             <div className="flex gap-2">
               <button
@@ -144,7 +333,22 @@ export default function Reports() {
       {/* Calendar heatmap */}
       <div className="bg-bg-card rounded-card p-3">
         <div className="text-[10px] text-text-muted mb-2">{monthLabel}</div>
-        <div className="grid grid-cols-6 gap-1">
+        <div className="grid grid-cols-7 gap-0.5 mb-1">
+          {weekHeaders.map((d) => (
+            <div key={d} className="text-center text-[9px] text-text-muted">
+              {d}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-0.5">
+          {/* Pad to start on correct weekday */}
+          {(() => {
+            const firstDay = new Date();
+            firstDay.setDate(firstDay.getDate() - 29);
+            const startWeekday = firstDay.getDay();
+            const pads = Array(startWeekday).fill(null);
+            return pads.map((_, i) => <div key={`pad-${i}`} />);
+          })()}
           {heatmapDays.map((day) => (
             <div
               key={day.date}
@@ -177,9 +381,17 @@ export default function Reports() {
               className="w-full p-3 text-left hover:bg-bg-hover transition-colors"
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-text-primary">
-                  {report.date}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-text-primary">
+                    {report.date}
+                  </span>
+                  <span className="text-[9px] text-text-muted">
+                    {(() => {
+                      const d = new Date(report.date + "T00:00:00");
+                      return ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][d.getDay()];
+                    })()}
+                  </span>
+                </div>
                 <span className="text-[10px] text-text-muted">
                   {expandedId === report.id ? "收起" : "展开"}
                 </span>
@@ -198,8 +410,8 @@ export default function Reports() {
                     加载中...
                   </div>
                 ) : (
-                  <div className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
-                    {expandedContent || "无内容"}
+                  <div className="max-h-64 overflow-y-auto">
+                    <ReportContent content={expandedContent || "无内容"} />
                   </div>
                 )}
               </div>

@@ -119,7 +119,7 @@ export default function ProjectView() {
     if (projectSections.length > 0) {
       result.push({
         id: "__projects",
-        name: "项目",
+        name: "目标",
         icon: " ",
         todos: [],
         projects: projectSections,
@@ -212,7 +212,7 @@ export default function ProjectView() {
     <div className="space-y-3 fade-in">
       {/* Top Bar */}
       <div className="bg-bg-card rounded-card p-3 flex items-center justify-between">
-        <h1 className="text-sm font-semibold text-text-primary">项目</h1>
+        <h1 className="text-sm font-semibold text-text-primary">目标</h1>
         <div className="flex items-center gap-2">
           <select
             value={priorityFilter}
@@ -251,7 +251,7 @@ export default function ProjectView() {
                   {section.name}
                 </span>
                 <span className="text-[10px] text-text-muted">
-                  {section.projects.length} 个项目
+                  {section.projects.length} 个目标
                 </span>
               </button>
 

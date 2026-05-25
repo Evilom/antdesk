@@ -10,6 +10,15 @@ interface Todo {
   projectId?: string;
 }
 
+type TagFilter = "all" | "工作" | "生活" | "项目";
+
+const TAG_TABS: { id: TagFilter; label: string; color: string }[] = [
+  { id: "all", label: "全部", color: "rgba(255,255,255,0.5)" },
+  { id: "工作", label: "工作", color: "#0a84ff" },
+  { id: "生活", label: "生活", color: "#30d158" },
+  { id: "项目", label: "项目", color: "#ff9f0a" },
+];
+
 export default function QuickPanel() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [projects, setProjects] = useState<Map<string, string>>(new Map());
@@ -17,6 +26,8 @@ export default function QuickPanel() {
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
   const [exiting, setExiting] = useState<Set<string>>(new Set());
+  const [tagFilter, setTagFilter] = useState<TagFilter>("all");
+  const [pinned, setPinned] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const fetchProjects = useCallback(async () => {
@@ -82,8 +93,9 @@ export default function QuickPanel() {
     })();
   }, []);
 
-  // Close on blur
+  // Close on blur (only when not pinned)
   useEffect(() => {
+    if (pinned) return;
     let blurTimer: ReturnType<typeof setTimeout>;
     const handleBlur = () => {
       blurTimer = setTimeout(async () => {
@@ -101,10 +113,9 @@ export default function QuickPanel() {
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("focus", handleFocus);
     };
-  }, []);
+  }, [pinned]);
 
   const handleToggle = useCallback(async (id: string) => {
-    // Optimistic: mark exiting for animation
     setExiting((prev) => new Set(prev).add(id));
     setTimeout(() => {
       setTodos((prev) => prev.filter((t) => t.id !== id));
@@ -157,7 +168,13 @@ export default function QuickPanel() {
     }
   }, [newName, fetchTodos]);
 
-  const visibleTodos = todos.filter((t) => !t.status);
+  // Filter by tag
+  const visibleTodos = todos.filter((t) => {
+    if (t.status) return false;
+    if (tagFilter === "all") return true;
+    return t.tags.includes(tagFilter);
+  });
+
   const displayTodos = visibleTodos.slice(0, 8);
   const remaining = visibleTodos.length - 8;
 
@@ -174,16 +191,41 @@ export default function QuickPanel() {
   };
 
   return (
-    <div className="quick-panel">
+    <div className={`quick-panel ${pinned ? "pinned" : ""}`}>
       {/* Header */}
       <div className="quick-header">
-        <div style={{ display: "flex", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span className="title">待办</span>
           <span className="count">{visibleTodos.length}</span>
+          <button
+            className={`pin-btn ${pinned ? "active" : ""}`}
+            onClick={() => setPinned(!pinned)}
+            title={pinned ? "取消固定" : "固定显示"}
+          >
+            {pinned ? "📌" : "📍"}
+          </button>
         </div>
         <button className="expand-btn" onClick={handleExpand}>
           展开 ↗
         </button>
+      </div>
+
+      {/* Tag filter tabs */}
+      <div className="quick-tag-tabs">
+        {TAG_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            className={`quick-tag-tab ${tagFilter === tab.id ? "active" : ""}`}
+            onClick={() => setTagFilter(tab.id)}
+            style={
+              tagFilter === tab.id
+                ? { background: `${tab.color}20`, color: tab.color, borderColor: `${tab.color}40` }
+                : {}
+            }
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Task bubbles */}
