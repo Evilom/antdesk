@@ -106,9 +106,18 @@ jobs:
 
           # Windows: compress -setup.exe into .nsis.zip + collect sig
           for exe in $(find "$BUNDLE_DIR" -name "*-setup.exe" 2>/dev/null); do
-            NSIS_ZIP="${exe%.exe}.nsis.zip"
+            NSIS_ZIP="${exe%-setup.exe}.nsis.zip"
             echo "Windows: compressing $exe -> $NSIS_ZIP"
-            (cd "$(dirname "$exe")" && zip -j "$(basename "$NSIS_ZIP")" "$(basename "$exe")")
+            if command -v zip &>/dev/null; then
+              (cd "$(dirname "$exe")" && zip -j "$(basename "$NSIS_ZIP")" "$(basename "$exe")")
+            elif command -v 7z &>/dev/null; then
+              7z a -tzip "$NSIS_ZIP" "$exe" >/dev/null
+            elif command -v 7za &>/dev/null; then
+              7za a -tzip "$NSIS_ZIP" "$exe" >/dev/null
+            else
+              # Use PowerShell Compress-Archive as fallback
+              powershell -Command "Compress-Archive -Path '$exe' -DestinationPath '$NSIS_ZIP' -Force"
+            fi
             cp "$NSIS_ZIP" updater-artifacts/
             # Copy the .exe.sig (same signature content)
             if [ -f "${exe}.sig" ]; then
