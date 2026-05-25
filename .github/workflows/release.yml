@@ -98,10 +98,28 @@ jobs:
           BUNDLE_DIR=$(find src-tauri/target -type d -name "bundle" | head -1)
           echo "Bundle dir: $BUNDLE_DIR"
 
-          # macOS: already has .app.tar.gz + .sig
-          for f in $(find "$BUNDLE_DIR" -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" 2>/dev/null); do
+          # macOS: .app.tar.gz needs arch-specific naming
+          MACOS_ARCH=""
+          if [[ "${{ matrix.label }}" == "macos-arm64" ]]; then
+            MACOS_ARCH="aarch64"
+          elif [[ "${{ matrix.label }}" == "macos-x64" ]]; then
+            MACOS_ARCH="x64"
+          fi
+
+          for f in $(find "$BUNDLE_DIR" \( -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" \) 2>/dev/null); do
             echo "macOS: $f"
-            cp "$f" updater-artifacts/
+            fname=$(basename "$f")
+            if [ -n "$MACOS_ARCH" ] && [[ "$fname" == AntDesk.app.tar.gz ]]; then
+              # Rename to arch-specific name
+              new_name="AntDesk_${MACOS_ARCH}.app.tar.gz"
+              if [[ "$fname" == *.sig ]]; then
+                new_name="${new_name}.sig"
+              fi
+              echo "  Renaming to $new_name"
+              cp "$f" "updater-artifacts/$new_name"
+            else
+              cp "$f" updater-artifacts/
+            fi
           done
 
           # Windows: compress -setup.exe into .nsis.zip + collect sig
