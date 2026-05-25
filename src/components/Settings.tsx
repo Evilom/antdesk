@@ -81,7 +81,7 @@ export default function Settings() {
     }
   };
 
-  const isDev = window.location.hostname === "localhost" || window.location.protocol === "http:";
+  const isDev = import.meta.env.DEV;
 
   const handleCheckUpdate = async () => {
     if (isDev) {
