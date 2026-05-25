@@ -17,26 +17,16 @@ jobs:
       version: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v4
-
       - name: Get app version
         id: version
         run: echo "value=$(jq -r .version src-tauri/tauri.conf.json)" >> "$GITHUB_OUTPUT"
-
       - name: Create release if not exists
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="v${{ steps.version.outputs.value }}"
           if ! gh release view "$TAG" --repo Evilom/antdesk >/dev/null 2>&1; then
-            echo "Creating release $TAG..."
-            gh release create "$TAG" \
-              --repo Evilom/antdesk \
-              --title "AntDesk $TAG" \
-              --notes "See the assets below to download and install." \
-              --draft=false \
-              --prerelease=false
-          else
-            echo "Release $TAG already exists, skipping."
+            gh release create "$TAG" --repo Evilom/antdesk --title "AntDesk $TAG" --notes "See the assets below to download and install."
           fi
 
   publish:
@@ -59,7 +49,6 @@ jobs:
             label: linux-x64
 
     runs-on: ${{ matrix.platform }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -99,27 +88,47 @@ jobs:
           includeUpdaterJson: false
           args: ${{ matrix.args }}
 
-      - name: Collect updater artifacts
+      - name: Create updater bundles + collect sigs
         shell: bash
         run: |
           set -ex
           mkdir -p updater-artifacts
 
-          # Find ALL updater bundles and their sig files
-          find src-tauri/target \( \
-            -name "*.app.tar.gz" -o \
-            -name "*.app.tar.gz.sig" -o \
-            -name "*.nsis.zip" -o \
-            -name "*.nsis.zip.sig" -o \
-            -name "*.AppImage.tar.gz" -o \
-            -name "*.AppImage.tar.gz.sig" \
-          \) -print0 | while IFS= read -r -d '' f; do
-            echo "Found: $f"
+          # Find the bundle directory
+          BUNDLE_DIR=$(find src-tauri/target -type d -name "bundle" | head -1)
+          echo "Bundle dir: $BUNDLE_DIR"
+
+          # macOS: already has .app.tar.gz + .sig
+          for f in $(find "$BUNDLE_DIR" -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" 2>/dev/null); do
+            echo "macOS: $f"
             cp "$f" updater-artifacts/
           done
 
-          echo "=== Collected ==="
-          ls -la updater-artifacts/ || echo "WARNING: No updater artifacts!"
+          # Windows: compress -setup.exe into .nsis.zip + collect sig
+          for exe in $(find "$BUNDLE_DIR" -name "*-setup.exe" 2>/dev/null); do
+            NSIS_ZIP="${exe%.exe}.nsis.zip"
+            echo "Windows: compressing $exe -> $NSIS_ZIP"
+            (cd "$(dirname "$exe")" && zip -j "$(basename "$NSIS_ZIP")" "$(basename "$exe")")
+            cp "$NSIS_ZIP" updater-artifacts/
+            # Copy the .exe.sig (same signature content)
+            if [ -f "${exe}.sig" ]; then
+              cp "${exe}.sig" "updater-artifacts/$(basename "$NSIS_ZIP").sig"
+            fi
+          done
+
+          # Linux: compress .AppImage into .AppImage.tar.gz + collect sig
+          for img in $(find "$BUNDLE_DIR" -name "*.AppImage" 2>/dev/null); do
+            TAR_GZ="${img}.tar.gz"
+            echo "Linux: compressing $img -> $TAR_GZ"
+            tar czf "$TAR_GZ" -C "$(dirname "$img")" "$(basename "$img")"
+            cp "$TAR_GZ" updater-artifacts/
+            if [ -f "${img}.sig" ]; then
+              cp "${img}.sig" "updater-artifacts/$(basename "$TAR_GZ").sig"
+            fi
+          done
+
+          echo "=== Collected updater artifacts ==="
+          ls -la updater-artifacts/
 
       - name: Upload updater artifacts
         uses: actions/upload-artifact@v4
@@ -141,55 +150,26 @@ jobs:
           pattern: updater-*
           merge-multiple: false
 
-      - name: Generate latest.json
+      - name: Generate latest.json and upload
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.create-release.outputs.version }}
         run: |
           set -e
+          VERSION=$(jq -r .version src-tauri/tauri.conf.json)
           TAG="v${VERSION}"
           REPO="Evilom/antdesk"
+          BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
 
-          echo "=== Available sig files ==="
-          find all-artifacts -name "*.sig" | sort
+          echo "=== Available artifacts ==="
+          find all-artifacts -type f | sort
 
-          echo ""
-          echo "=== Release assets ==="
-          gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name'
+          python3 - "$VERSION" "$TAG" "$BASE_URL" << 'PYEOF'
+          import json, os, sys, shutil
 
-          python3 << 'PYEOF'
-          import json, os, subprocess
+          version = sys.argv[1]
+          tag = sys.argv[2]
+          base_url = sys.argv[3]
 
-          version = os.environ["VERSION"]
-          tag = os.environ["TAG"]
-          repo = os.environ["REPO"]
-          base_url = f"https://github.com/{repo}/releases/download/{tag}"
-
-          # Get actual release asset names
-          result = subprocess.run(
-              ["gh", "release", "view", tag, "--repo", repo, "--json", "assets", "--jq", ".assets[].name"],
-              capture_output=True, text=True
-          )
-          release_assets = result.stdout.strip().split("\n")
-          print(f"Release assets: {release_assets}")
-
-          # Map platform key to patterns for matching release assets
-          platform_release_patterns = {
-              "darwin-aarch64": lambda n: "aarch64" in n.lower() and n.endswith(".app.tar.gz") and not n.endswith(".sig"),
-              "darwin-x86_64": lambda n: ("x64" in n.lower() or "x86_64" in n.lower()) and n.endswith(".app.tar.gz") and not n.endswith(".sig"),
-              "windows-x86_64": lambda n: n.endswith(".nsis.zip") and not n.endswith(".sig"),
-              "linux-x86_64": lambda n: n.endswith(".AppImage.tar.gz") and not n.endswith(".sig"),
-          }
-
-          # Map platform key to patterns for matching artifact sig files
-          platform_sig_patterns = {
-              "darwin-aarch64": lambda n: n.endswith(".app.tar.gz.sig"),
-              "darwin-x86_64": lambda n: n.endswith(".app.tar.gz.sig"),
-              "windows-x86_64": lambda n: n.endswith(".nsis.zip.sig"),
-              "linux-x86_64": lambda n: n.endswith(".AppImage.tar.gz.sig"),
-          }
-
-          # Artifact directory mapping
           label_to_key = {
               "updater-macos-arm64": "darwin-aarch64",
               "updater-macos-x64": "darwin-x86_64",
@@ -197,71 +177,60 @@ jobs:
               "updater-linux-x64": "linux-x86_64",
           }
 
-          platforms = {}
+          platform_bundle_ext = {
+              "darwin-aarch64": ".app.tar.gz",
+              "darwin-x86_64": ".app.tar.gz",
+              "windows-x86_64": ".nsis.zip",
+              "linux-x86_64": ".AppImage.tar.gz",
+          }
+
           os.makedirs("upload", exist_ok=True)
+          platforms = {}
 
-          for platform_key, match_fn in platform_release_patterns.items():
-              # Find the bundle name in release assets
-              bundle_name = None
-              for asset in release_assets:
-                  if match_fn(asset):
-                      bundle_name = asset
-                      break
-
-              if not bundle_name:
-                  print(f"WARN: No release asset for {platform_key}")
+          for label, key in label_to_key.items():
+              adir = os.path.join("all-artifacts", label)
+              if not os.path.isdir(adir):
+                  print(f"WARN: no dir {label}")
                   continue
 
-              # Find the matching sig file in artifacts
-              # macOS: both arm64 and x64 have same filename (AntDesk.app.tar.gz.sig)
-              # Need to look in the correct artifact directory
-              artifact_label = [k for k, v in label_to_key.items() if v == platform_key]
-              if not artifact_label:
-                  print(f"WARN: No artifact label for {platform_key}")
+              ext = platform_bundle_ext[key]
+              bundle = sig = None
+              for f in os.listdir(adir):
+                  fp = os.path.join(adir, f)
+                  if f.endswith(ext + ".sig"):
+                      sig = fp
+                  elif f.endswith(ext):
+                      bundle = fp
+
+              if not bundle or not sig:
+                  print(f"WARN: {key} bundle={bundle} sig={sig}")
                   continue
 
-              artifact_dir = os.path.join("all-artifacts", artifact_label[0])
-              sig_content = None
-              sig_path = None
+              with open(sig) as f:
+                  sig_content = f.read().strip()
 
-              if os.path.isdir(artifact_dir):
-                  for root, dirs, files in os.walk(artifact_dir):
-                      for f in files:
-                          if platform_sig_patterns[platform_key](f):
-                              sig_path = os.path.join(root, f)
-                              with open(sig_path) as sf:
-                                  sig_content = sf.read().strip()
-                              break
+              upload_name = os.path.basename(bundle)
+              shutil.copy2(bundle, f"upload/{upload_name}")
+              shutil.copy2(sig, f"upload/{upload_name}.sig")
 
-              if not sig_content:
-                  print(f"WARN: No sig for {platform_key} (bundle: {bundle_name})")
-                  continue
-
-              # Upload sig file to release with matching name
-              sig_upload_name = bundle_name + ".sig"
-              with open(f"upload/{sig_upload_name}", "w") as sf:
-                  sf.write(sig_content)
-
-              platforms[platform_key] = {
+              platforms[key] = {
                   "signature": sig_content,
-                  "url": f"{base_url}/{bundle_name}"
+                  "url": f"{base_url}/{upload_name}"
               }
-              print(f"OK: {platform_key} -> {bundle_name}")
+              print(f"OK: {key} -> {upload_name}")
 
           if not platforms:
-              print("\nERROR: No platforms found!")
-              exit(1)
+              print("ERROR: No platforms!")
+              sys.exit(1)
 
           latest = {
               "version": version,
               "notes": f"AntDesk v{version}",
               "pub_date": "2026-01-01T00:00:00Z",
-              "platforms": platforms
+              "platforms": platforms,
           }
-
           with open("latest.json", "w") as f:
               json.dump(latest, f, indent=2)
-
           print(f"\nGenerated latest.json with {len(platforms)} platforms:")
           print(json.dumps(latest, indent=2))
           PYEOF
@@ -269,21 +238,19 @@ jobs:
       - name: Upload to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.create-release.outputs.version }}
         run: |
+          VERSION=$(jq -r .version src-tauri/tauri.conf.json)
           TAG="v${VERSION}"
 
-          # Upload .sig files to release
-          for f in upload/*.sig; do
+          for f in upload/*; do
             [ -f "$f" ] || continue
-            echo "Uploading $(basename $f) to $TAG..."
+            echo "Uploading $(basename $f)..."
             gh release upload "$TAG" "$f" --repo Evilom/antdesk --clobber || true
           done
 
-          # Upload latest.json to both releases
           echo "Uploading latest.json to $TAG..."
           gh release upload "$TAG" latest.json --repo Evilom/antdesk --clobber || true
-          echo "Uploading latest.json to updater release..."
+          echo "Updating updater release..."
           gh release delete-asset updater latest.json --repo Evilom/antdesk --yes 2>/dev/null || true
           gh release upload updater latest.json --repo Evilom/antdesk --clobber
           echo "Done!"
