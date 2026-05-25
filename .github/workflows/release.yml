@@ -11,7 +11,36 @@ permissions:
   contents: write
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get app version
+        id: version
+        run: echo "value=$(jq -r .version src-tauri/tauri.conf.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Create release if not exists
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.version.outputs.value }}"
+          if ! gh release view "$TAG" --repo Evilom/antdesk >/dev/null 2>&1; then
+            echo "Creating release $TAG..."
+            gh release create "$TAG" \
+              --repo Evilom/antdesk \
+              --title "AntDesk $TAG" \
+              --notes "See the assets below to download and install." \
+              --draft=false \
+              --prerelease=false
+          else
+            echo "Release $TAG already exists, skipping creation."
+          fi
+
   publish:
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -71,8 +100,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
-          tagName: v${{ steps.version.outputs.value }}
-          releaseName: "AntDesk v${{ steps.version.outputs.value }}"
+          tagName: v${{ needs.create-release.outputs.version }}
+          releaseName: "AntDesk v${{ needs.create-release.outputs.version }}"
           releaseBody: "See the assets below to download and install."
           releaseDraft: false
           prerelease: false
@@ -82,7 +111,6 @@ jobs:
         shell: bash
         run: |
           mkdir -p updater-artifacts
-          # Find .app.tar.gz, .nsis.zip, .AppImage.tar.gz and their .sig files
           find src-tauri/target -name "*.app.tar.gz" -o -name "*.nsis.zip" -o -name "*.AppImage.tar.gz" -o -name "*.app.tar.gz.sig" -o -name "*.nsis.zip.sig" -o -name "*.AppImage.tar.gz.sig" | while read f; do
             cp "$f" updater-artifacts/
           done
@@ -97,7 +125,7 @@ jobs:
           if-no-files-found: warn
 
   updater-json:
-    needs: publish
+    needs: [create-release, publish]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -118,7 +146,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          export VERSION="${{ steps.version.outputs.value }}"
+          export VERSION="${{ needs.create-release.outputs.version }}"
           export TAG="v${VERSION}"
           export REPO="Evilom/antdesk"
           export BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
@@ -126,7 +154,6 @@ jobs:
           echo "=== Artifact structure ==="
           find all-artifacts -type f | sort
 
-          # Merge all artifacts into flat dir for easier lookup
           mkdir -p merged
           for dir in all-artifacts/updater-*/; do
             cp "$dir"* merged/ 2>/dev/null || true
@@ -134,31 +161,18 @@ jobs:
           echo "=== Merged ==="
           ls -la merged/
 
-          # Generate latest.json with Python
           python3 << 'PYEOF'
-          import json, os, glob
+          import json, os, glob, shutil
 
           version = os.environ["VERSION"]
           base_url = os.environ["BASE_URL"]
           tag = os.environ["TAG"]
 
-          # Platform definitions: (file_glob, platform_key)
-          platform_defs = [
-              ("*.app.tar.gz", "darwin-aarch64"),
-              ("*.app.tar.gz", "darwin-x86_64"),
-              ("*.nsis.zip", "windows-x86_64"),
-              ("*.AppImage.tar.gz", "linux-x86_64"),
-          ]
-
-          merged_dir = "merged"
           platforms = {}
 
-          # For macOS, we have two .app.tar.gz from different builds
-          # They'll have the same name, so use artifact directories instead
           for artifact_dir in sorted(glob.glob("all-artifacts/updater-*")):
-              label = os.path.basename(artifact_dir)  # e.g. updater-macos-arm64
+              label = os.path.basename(artifact_dir)
 
-              # Determine platform key from label
               if "macos-arm64" in label:
                   platform_key = "darwin-aarch64"
               elif "macos-x64" in label:
@@ -170,7 +184,6 @@ jobs:
               else:
                   continue
 
-              # Find bundle and sig
               bundles = []
               sigs = []
               for root, dirs, files in os.walk(artifact_dir):
@@ -188,13 +201,11 @@ jobs:
               bundle_path = bundles[0]
               bundle_name = os.path.basename(bundle_path)
 
-              # For macOS, add arch suffix to avoid name collision
               if platform_key.startswith("darwin"):
                   upload_name = f"AntDesk_{platform_key.replace('darwin-', '')}.app.tar.gz"
               else:
                   upload_name = bundle_name
 
-              # Read signature
               sig_content = ""
               sig_path = bundle_path + ".sig"
               if os.path.exists(sig_path):
@@ -208,8 +219,6 @@ jobs:
                   print(f"WARN: No signature for {platform_key}")
                   continue
 
-              # Copy to renamed file for upload
-              import shutil
               os.makedirs("upload", exist_ok=True)
               shutil.copy2(bundle_path, f"upload/{upload_name}")
 
@@ -239,15 +248,13 @@ jobs:
       - name: Upload to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.value }}
+          VERSION: ${{ needs.create-release.outputs.version }}
         run: |
           TAG="v${VERSION}"
-          # Upload renamed updater bundles to versioned release
           for f in upload/*; do
             echo "Uploading $(basename $f) to $TAG..."
             gh release upload "$TAG" "$f" --repo Evilom/antdesk --clobber || true
           done
-          # Upload latest.json to BOTH versioned release AND updater release
           echo "Uploading latest.json to $TAG..."
           gh release upload "$TAG" latest.json --repo Evilom/antdesk --clobber || true
           echo "Uploading latest.json to updater release..."
