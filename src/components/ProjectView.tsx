@@ -131,7 +131,7 @@ export default function ProjectView() {
       (t) => !t.tags.includes("工作") && !t.tags.includes("生活")
     );
     if (otherTodos.length > 0) {
-      result.push({ id: "__other", name: "其他", todos: otherTodos });
+      result.push({ id: "__other", name: "其他", icon: " ", todos: otherTodos });
     }
 
     return result;

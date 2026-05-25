@@ -21,6 +21,7 @@ const TAG_COLORS: Record<string, string> = {
   工作: "#0a84ff",
   生活: "#30d158",
   项目: "#ff9f0a",
+  其他: "#8e8e93",
 };
 
 export default function QuickPanel() {
@@ -31,7 +32,32 @@ export default function QuickPanel() {
   const [newName, setNewName] = useState("");
   const [exiting, setExiting] = useState<Set<string>>(new Set());
   const [tagFilter, setTagFilter] = useState<string>("all");
+  const [bgAlpha, setBgAlpha] = useState(0.6);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Read transparency from localStorage (shared with main panel)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("antdesk-settings");
+      if (raw) {
+        const s = JSON.parse(raw);
+        const t = s.transparency ?? 100;
+        setBgAlpha((255 - t) / 255);
+      }
+    } catch {}
+    // Listen for changes from main window
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "antdesk-settings" && e.newValue) {
+        try {
+          const s = JSON.parse(e.newValue);
+          const t = s.transparency ?? 100;
+          setBgAlpha((255 - t) / 255);
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -207,7 +233,7 @@ export default function QuickPanel() {
   const displayTodos = visibleTodos.slice(0, 6);
 
   return (
-    <div className="quick-panel">
+    <div className="quick-panel" style={{ "--bg-alpha": bgAlpha } as React.CSSProperties}>
       {/* Header */}
       <div className="quick-header">
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

@@ -53,7 +53,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 5px 10px;
-  background: rgba(30, 30, 40, 0.7);
+  background: rgba(30, 30, 40, var(--bg-alpha, 0.7));
   backdrop-filter: blur(40px) saturate(150%);
   -webkit-backdrop-filter: blur(40px) saturate(150%);
   border-radius: 10px;
@@ -112,7 +112,7 @@ body {
   align-items: center;
   gap: 7px;
   padding: 6px 8px;
-  background: rgba(30, 30, 40, 0.6);
+  background: rgba(30, 30, 40, calc(var(--bg-alpha, 0.6) * 0.85));
   backdrop-filter: blur(30px) saturate(130%);
   -webkit-backdrop-filter: blur(30px) saturate(130%);
   border-radius: 10px;
@@ -127,7 +127,7 @@ body {
 }
 
 .quick-bubble:hover {
-  background: rgba(40, 40, 55, 0.7);
+  background: rgba(40, 40, 55, var(--bg-alpha, 0.7));
   border-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -265,7 +265,7 @@ body {
 
 .quick-add input {
   width: 100%;
-  background: rgba(30, 30, 40, 0.55);
+  background: rgba(30, 30, 40, calc(var(--bg-alpha, 0.55) * 0.8));
   backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -283,7 +283,7 @@ body {
 
 .quick-add input:focus {
   border-color: rgba(10, 132, 255, 0.35);
-  background: rgba(35, 35, 50, 0.6);
+  background: rgba(35, 35, 50, calc(var(--bg-alpha, 0.6) * 0.85));
   box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.08);
 }
 
