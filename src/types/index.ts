@@ -54,4 +54,5 @@ export interface AppSettings {
   accent: AccentColor;
   fontSize: FontSize;
   glass: GlassIntensity;
+  transparency: number; // 0-175, 0=opaque, 175=very transparent
 }

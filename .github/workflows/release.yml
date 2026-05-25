@@ -118,10 +118,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          VERSION="${{ steps.version.outputs.value }}"
-          TAG="v${VERSION}"
-          REPO="Evilom/antdesk"
-          BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+          export VERSION="${{ steps.version.outputs.value }}"
+          export TAG="v${VERSION}"
+          export REPO="Evilom/antdesk"
+          export BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
 
           echo "=== Artifact structure ==="
           find all-artifacts -type f | sort

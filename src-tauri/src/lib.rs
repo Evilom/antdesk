@@ -287,41 +287,50 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
         .get_webview_window("quick")
         .ok_or("Quick window not found")?;
 
+    // Read ACTUAL window sizes from the OS
     let fab_pos = fab.outer_position().map_err(|e| e.to_string())?;
+    let fab_size_rect = fab.outer_size().map_err(|e| e.to_string())?;
+    let quick_size = quick.outer_size().map_err(|e| e.to_string())?;
+
+    let scale = fab.current_monitor().ok().flatten()
+        .map(|m| m.scale_factor())
+        .unwrap_or(1.0);
+
     let fab_x = fab_pos.x as f64;
     let fab_y = fab_pos.y as f64;
-    let fab_size = 64.0;
-    let quick_w = 260.0;
-    let quick_h = 360.0;
-    let gap = 36.0; // Enough gap so FAB is never covered
+    let fab_w = fab_size_rect.width as f64 / scale;
+    let fab_h = fab_size_rect.height as f64 / scale;
+    let quick_w = quick_size.width as f64 / scale;
+    let quick_h = quick_size.height as f64 / scale;
+    let gap = 8.0;
 
-    // Get actual screen bounds
+    // Screen bounds
     let (screen_w, screen_h) = if let Some(monitor) = fab.current_monitor().ok().flatten() {
         let size = monitor.size();
-        let scale = monitor.scale_factor();
         (size.width as f64 / scale, size.height as f64 / scale)
     } else {
         (1920.0, 1080.0)
     };
 
-    // Try left of FAB first (most natural — panel opens like a drawer)
-    let mut x = fab_x - quick_w - gap;
-    let mut y = fab_y + fab_size - quick_h; // bottom-aligned with FAB
+    // Try below FAB first (most common — panel drops down)
+    let mut x = fab_x + fab_w - quick_w; // right-aligned with FAB
+    let mut y = fab_y + fab_h + gap;
 
-    // If not enough space on left, try right
-    if x < 4.0 {
-        x = fab_x + fab_size + gap;
-    }
-
-    // If neither side works, position above
-    if x + quick_w > screen_w - 4.0 {
-        x = fab_x + fab_size - quick_w;
+    // If below doesn't fit, try above
+    if y + quick_h > screen_h - 4.0 {
         y = fab_y - quick_h - gap;
     }
 
-    // If above doesn't fit, go below
+    // If above doesn't fit, try left
     if y < 4.0 {
-        y = fab_y + fab_size + gap;
+        x = fab_x - quick_w - gap;
+        y = fab_y;
+    }
+
+    // If left doesn't fit, try right
+    if x < 4.0 {
+        x = fab_x + fab_w + gap;
+        y = fab_y;
     }
 
     // Clamp to screen

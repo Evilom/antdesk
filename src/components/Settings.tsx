@@ -190,24 +190,23 @@ export default function Settings() {
           ))}
         </div>
 
-        {/* 玻璃效果 */}
-        <Label>玻璃效果</Label>
-        <div className="flex gap-1.5">
-          {GLASS_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => updateSettings({ glass: opt.id })}
-              className={`flex-1 py-1.5 rounded-lg text-[10px] transition-all ${
-                settings.glass === opt.id ? "text-white" : "text-text-muted"
-              }`}
-              style={{
-                background: settings.glass === opt.id ? "var(--accent-primary)" : "var(--bg-input)",
-                border: `1px solid ${settings.glass === opt.id ? "var(--accent-primary)" : "var(--border-card)"}`,
-              }}
-            >
-              {opt.label}<br/><span className="text-[8px] opacity-60">{opt.desc}</span>
-            </button>
-          ))}
+        {/* 透明度 */}
+        <Label>透明度</Label>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] text-text-muted w-6">实</span>
+          <input
+            type="range"
+            min={0}
+            max={175}
+            value={settings.transparency ?? 100}
+            onChange={(e) => updateSettings({ transparency: Number(e.target.value) })}
+            className="flex-1 accent-accent h-1"
+            style={{ accentColor: "var(--accent-primary)" }}
+          />
+          <span className="text-[9px] text-text-muted w-6 text-right">透</span>
+          <span className="text-[9px] text-text-muted w-6 text-right">
+            {settings.transparency ?? 100}
+          </span>
         </div>
       </Section>
 

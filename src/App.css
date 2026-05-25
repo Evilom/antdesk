@@ -35,6 +35,7 @@ body {
   --glass-blur: 50px;
   --glass-opacity: 0.70;
   --glass-border: 0.08;
+  --bg-alpha: 0.61; /* default for transparency=100 */
 
   /* Spring curves */
   --spring: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -44,7 +45,7 @@ body {
 
 /* ── Dark theme (default) ── */
 [data-theme="dark"] {
-  --bg-root: rgba(10, 10, 15, var(--glass-opacity));
+  --bg-root: rgba(10, 10, 15, var(--bg-alpha));
   --bg-card: rgba(255, 255, 255, 0.06);
   --bg-card-hover: rgba(255, 255, 255, 0.09);
   --bg-input: rgba(255, 255, 255, 0.06);

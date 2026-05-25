@@ -39,6 +39,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   accent: "blue",
   fontSize: "medium",
   glass: "medium",
+  transparency: 100,
 };
 
 function loadSettings(): AppSettings {
@@ -151,4 +152,8 @@ export function applyTheme(settings: AppSettings) {
   root.style.setProperty("--glass-blur", `${glass.blur}px`);
   root.style.setProperty("--glass-opacity", String(glass.opacity));
   root.style.setProperty("--glass-border", String(glass.border));
+
+  // Transparency (0=opaque, 175=very transparent)
+  const t = settings.transparency ?? 100;
+  root.style.setProperty("--bg-alpha", String((255 - t) / 255));
 }
