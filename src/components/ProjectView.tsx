@@ -89,24 +89,10 @@ export default function ProjectView() {
 
     const result: Section[] = [];
 
-    // 工作 section — includes both inbox work tasks AND tasks from work projects
+    // 工作 section — inbox tasks tagged 工作
     const workTodos = inboxTodos.filter((t) => t.tags.includes("工作"));
-    // Also collect tasks from projects tagged as work
-    const workProjectTodos: Todo[] = [];
-    for (const proj of activeProjects) {
-      const projTodos = projectTodosMap.get(proj.id);
-      if (projTodos) {
-        // Check if project name contains work-related keywords or tasks have 工作 tag
-        const hasWorkTasks = projTodos.some((t) => t.tags.includes("工作"));
-        if (hasWorkTasks) {
-          workProjectTodos.push(...projTodos);
-          projectTodosMap.delete(proj.id); // Remove from project sections
-        }
-      }
-    }
-    const allWorkTodos = [...workTodos, ...workProjectTodos];
-    if (allWorkTodos.length > 0) {
-      result.push({ id: "__work", name: "工作待办", icon: " ", todos: allWorkTodos });
+    if (workTodos.length > 0) {
+      result.push({ id: "__work", name: "工作", icon: " ", todos: workTodos });
     }
 
     // 生活 section
@@ -142,7 +128,7 @@ export default function ProjectView() {
 
     // 其他 — inbox tasks with no matching category
     const otherTodos = inboxTodos.filter(
-      (t) => !t.tags.includes("工作") && !t.tags.includes("生活") && !workProjectTodos.some((w) => w.id === t.id)
+      (t) => !t.tags.includes("工作") && !t.tags.includes("生活")
     );
     if (otherTodos.length > 0) {
       result.push({ id: "__other", name: "其他", todos: otherTodos });
