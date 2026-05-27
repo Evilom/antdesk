@@ -295,15 +295,14 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
     let monitor = fab.current_monitor().ok().flatten();
     let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
 
-    // FAB is 200x200 in config, visual dot is 64x64 centered
-    // Visual dot center and edges
+    // FAB is 200x200 window, button is 48x48 centered
     let fab_center_x = fab_x + 100.0 * scale;
-    let dot_top = fab_y + 68.0 * scale;     // 100 - 32
-    let dot_bottom = fab_y + 132.0 * scale;  // 100 + 32
+    let dot_top = fab_y + 76.0 * scale;      // 100 - 24 (button radius)
+    let dot_bottom = fab_y + 124.0 * scale;   // 100 + 24
 
     let quick_w = 260.0 * scale;
     let quick_h = 200.0 * scale; // initial guess; ResizeObserver adjusts
-    let gap = 4.0 * scale;  // tight gap to visual dot
+    let gap = 2.0 * scale;  // tight gap to button edge
     let margin = 8.0 * scale;
 
     // Monitor bounds
