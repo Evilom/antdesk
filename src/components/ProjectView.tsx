@@ -388,28 +388,44 @@ export default function ProjectView() {
                     className="flex-1 bg-bg-input text-text-primary text-xs rounded-button px-2 py-1.5 outline-none border border-accent-blue/50"
                   />
                   <button
+                    onClick={async () => {
+                      if (!newProjectName.trim()) return;
+                      try {
+                        const proj = await createProject(token!, newProjectName.trim());
+                        const fresh = await fetchProjects(token!);
+                        setProjects(fresh);
+                        setNewProjectId(proj.id);
+                        setShowNewProject(false);
+                        setNewProjectName("");
+                      } catch (err) {
+                        console.error("Failed to create project:", err);
+                      }
+                    }}
+                    className="text-xs text-white bg-accent-blue px-2.5 py-1.5 rounded-button hover:bg-accent-blue/80 transition-colors flex-shrink-0"
+                  >创建</button>
+                  <button
                     onClick={() => { setShowNewProject(false); setNewProjectName(""); }}
                     className="text-xs text-text-muted hover:text-text-secondary px-1.5"
                   >取消</button>
                 </div>
               ) : (
-                <select
-                  value={newProjectId}
-                  onChange={(e) => {
-                    if (e.target.value === "__create__") {
-                      setShowNewProject(true);
-                    } else {
-                      setNewProjectId(e.target.value);
-                    }
-                  }}
-                  className="w-full bg-bg-input text-text-primary text-xs rounded-button px-2 py-1.5 outline-none border border-white/5 cursor-pointer"
-                >
-                  <option value="">不关联项目</option>
-                  {activeProjects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                  <option value="__create__" style={{ color: "#0a84ff" }}>＋ 新建项目...</option>
-                </select>
+                <div className="flex gap-1.5 items-center">
+                  <select
+                    value={newProjectId}
+                    onChange={(e) => setNewProjectId(e.target.value)}
+                    className="flex-1 bg-bg-input text-text-primary text-xs rounded-button px-2 py-1.5 outline-none border border-white/5 cursor-pointer"
+                  >
+                    <option value="">不关联项目</option>
+                    {activeProjects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => setShowNewProject(true)}
+                    className="text-accent-blue text-xs px-2 py-1.5 bg-accent-blue/10 rounded-button hover:bg-accent-blue/20 transition-colors flex-shrink-0"
+                    title="新建项目"
+                  >＋</button>
+                </div>
               )}
             </>
           )}
