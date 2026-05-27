@@ -17,9 +17,10 @@ export default function FAB() {
   const [connected, setConnected] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [showPie, setShowPie] = useState(false);
-  const [pieAbove, setPieAbove] = useState(true); // pie goes upward by default
+  const [pieAbove, setPieAbove] = useState(true);
   const didDrag = useRef(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     invoke<string>("get_notion_token")
@@ -43,9 +44,25 @@ export default function FAB() {
     try {
       const pos = await invoke<[number, number]>("get_fab_position");
       const screenH = window.screen.height;
-      const fabCenterY = pos[1] + 100; // 200/2 = 100 (FAB window center)
+      const fabCenterY = pos[1] + 100;
       setPieAbove(fabCenterY > screenH / 2);
     } catch {}
+  }, []);
+
+  // Start polling FAB position → reposition QuickPanel while dragging
+  const startDragPolling = useCallback(() => {
+    if (pollTimerRef.current) return;
+    pollTimerRef.current = setInterval(() => {
+      invoke("update_quick_panel_position").catch(() => {});
+    }, 48); // ~20fps, smooth enough
+  }, []);
+
+  // Stop polling
+  const stopDragPolling = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -58,6 +75,8 @@ export default function FAB() {
         didDrag.current = true;
         document.removeEventListener("mousemove", onMouseMove);
         document.removeEventListener("mouseup", onMouseUp);
+        // Start position polling BEFORE native drag takes over
+        startDragPolling();
         getCurrentWindow().startDragging();
       }
     };
@@ -65,11 +84,19 @@ export default function FAB() {
     const onMouseUp = () => {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
+      stopDragPolling();
     };
 
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
-  }, []);
+  }, [startDragPolling, stopDragPolling]);
+
+  // Also stop polling when window gains focus (drag ended)
+  useEffect(() => {
+    const handleFocus = () => stopDragPolling();
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [stopDragPolling]);
 
   const handleClick = useCallback(async () => {
     if (didDrag.current) return;
@@ -116,14 +143,12 @@ export default function FAB() {
     }
   }, []);
 
-  // Calculate pie item positions — adapt arc based on direction
+  // Calculate pie item positions
   const piePositions = PIE_ITEMS.map((_, i) => {
     let angleDeg: number;
     if (pieAbove) {
-      // FAB in bottom half → pie arcs upward (left to top)
       angleDeg = -180 + (-90 - (-180)) * (i / (PIE_ITEMS.length - 1));
     } else {
-      // FAB in top half → pie arcs downward (left to bottom)
       angleDeg = 180 + (90 - 180) * (i / (PIE_ITEMS.length - 1));
     }
     const angleRad = (angleDeg * Math.PI) / 180;

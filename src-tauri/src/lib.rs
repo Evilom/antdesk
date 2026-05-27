@@ -374,6 +374,17 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn update_quick_panel_position(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(quick) = app.get_webview_window("quick") {
+        if quick.is_visible().unwrap_or(false) {
+            position_quick_near_fab_inner(&app)?;
+            let _ = app.emit("quick-panel-shown", ());
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
 async fn open_full_panel(app: tauri::AppHandle) -> Result<(), String> {
     // Hide quick panel
     if let Some(quick) = app.get_webview_window("quick") {
@@ -505,6 +516,7 @@ pub fn run() {
             get_pending_count,
             quit_app,
             show_fab,
+            update_quick_panel_position,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
