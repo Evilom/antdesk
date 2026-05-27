@@ -20,15 +20,18 @@ const PRIORITY_COLORS: Record<string, string> = {
 const priorityOrder: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
 
 export default function QuickPanel() {
-  const [allTodos, setAllTodos] = useState<Todo[]>([]);       // 全量缓存
+  const [allTodos, setAllTodos] = useState<Todo[]>([]);
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [exiting, setExiting] = useState<Set<string>>(new Set());
   const [bgAlpha, setBgAlpha] = useState(0.6);
   const [filterTag, setFilterTag] = useState<string>("all");
   const [direction, setDirection] = useState<"above" | "below">("below");
+  const [locked, setLocked] = useState(false);
+  const [hiding, setHiding] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const dataRef = useRef<{ todos: Todo[]; archived: Set<string> } | null>(null);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // ── Transparency ──
   useEffect(() => {
@@ -82,10 +85,9 @@ export default function QuickPanel() {
     return () => observer.disconnect();
   }, []);
 
-  // ── 一次性拉取全部 todos（只在首次加载时调用）──
+  // ── 一次性拉取全部 todos ──
   const fetchAll = useCallback(async () => {
     try {
-      // 1. 拉项目，过滤归档
       const projRaw = await invoke<string>("fetch_notion", {
         path: "/v1/databases/2d51ba51-3457-8127-840e-d8b43c0e5e21/query",
         method: "POST",
@@ -98,7 +100,6 @@ export default function QuickPanel() {
       }
       setArchivedIds(archived);
 
-      // 2. 拉全部待办（不过滤 tag，一次拿完）
       const todoRaw = await invoke<string>("fetch_notion", {
         path: "/v1/databases/2d51ba51-3457-8125-9d4c-f28ffa2fff14/query",
         method: "POST",
@@ -120,7 +121,6 @@ export default function QuickPanel() {
         }))
         .filter((t: Todo) => !(t.projectId && archived.has(t.projectId)));
 
-      // 缓存到 ref 和 state
       dataRef.current = { todos: items, archived };
       setAllTodos(items);
     } catch (e) {
@@ -133,11 +133,11 @@ export default function QuickPanel() {
   // ── 初始加载 + 监听面板显示时刷新 ──
   useEffect(() => {
     fetchAll();
-    // 监听面板被重新打开时刷新数据
     let unlisten: (() => void) | null = null;
     (async () => {
       try {
         unlisten = await listen("quick-panel-shown", () => {
+          setHiding(false); // Reset hiding state when shown
           fetchAll();
         });
       } catch {}
@@ -145,7 +145,7 @@ export default function QuickPanel() {
     return () => { if (unlisten) unlisten(); };
   }, [fetchAll]);
 
-  // ── 客户端筛选：瞬间完成，零网络请求 ──
+  // ── 客户端筛选 ──
   const displayTodos = useMemo(() => {
     return allTodos
       .filter((t) => filterTag === "all" || t.tags.includes(filterTag))
@@ -153,45 +153,55 @@ export default function QuickPanel() {
       .slice(0, 10);
   }, [allTodos, filterTag]);
 
-  // ── 监听饼菜单筛选（只改 tag，不请求网络）──
+  // ── 监听饼菜单筛选 ──
   useEffect(() => {
     let unlisten: (() => void) | null = null;
     (async () => {
       try {
         unlisten = await listen<{ tag: string }>("pie-filter-changed", (e) => {
           setFilterTag(e.payload.tag);
-          // 纯客户端筛选，瞬间响应
         });
       } catch {}
     })();
     return () => { if (unlisten) unlisten(); };
   }, []);
 
-  // ── Close on blur ──
+  // ── Close on blur (unless locked) ──
   useEffect(() => {
     let blurTimer: ReturnType<typeof setTimeout>;
     const handleBlur = () => {
+      if (locked) return;
       blurTimer = setTimeout(async () => {
-        try {
-          const { getCurrentWindow } = await import("@tauri-apps/api/window");
-          await getCurrentWindow().hide();
-        } catch {}
+        // Trigger exit animation
+        setHiding(true);
+        // Wait for animation to complete, then hide window
+        hideTimerRef.current = setTimeout(async () => {
+          try {
+            const { getCurrentWindow } = await import("@tauri-apps/api/window");
+            await getCurrentWindow().hide();
+            setHiding(false);
+          } catch {}
+        }, 200);
       }, 400);
     };
-    const handleFocus = () => clearTimeout(blurTimer);
+    const handleFocus = () => {
+      clearTimeout(blurTimer);
+      clearTimeout(hideTimerRef.current);
+      setHiding(false);
+    };
     window.addEventListener("blur", handleBlur);
     window.addEventListener("focus", handleFocus);
     return () => {
       clearTimeout(blurTimer);
+      clearTimeout(hideTimerRef.current);
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("focus", handleFocus);
     };
-  }, []);
+  }, [locked]);
 
   // ── Toggle todo ──
   const handleToggle = useCallback(async (id: string) => {
     setExiting((prev) => new Set(prev).add(id));
-    // 立即从列表移除（乐观更新）
     setAllTodos((prev) => prev.filter((t) => t.id !== id));
     setTimeout(() => {
       setExiting((prev) => {
@@ -212,7 +222,18 @@ export default function QuickPanel() {
   }, []);
 
   return (
-    <div ref={panelRef} className={`quick-panel ${direction}`} style={{ "--bg-alpha": bgAlpha } as React.CSSProperties}>
+    <div ref={panelRef} className={`quick-panel ${direction} ${hiding ? "hiding" : ""}`} style={{ "--bg-alpha": bgAlpha } as React.CSSProperties}>
+      {/* Lock bar */}
+      <div className="quick-lock-bar">
+        <button
+          className={`quick-lock-btn ${locked ? "locked" : ""}`}
+          onClick={() => setLocked(!locked)}
+          title={locked ? "解锁（失焦自动关闭）" : "锁定（保持显示）"}
+        >
+          {locked ? "🔒" : "🔓"}
+        </button>
+      </div>
+
       {loading ? (
         <div className="quick-loading">加载中</div>
       ) : displayTodos.length === 0 ? (

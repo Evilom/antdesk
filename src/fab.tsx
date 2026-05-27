@@ -11,15 +11,13 @@ const PIE_ITEMS = [
   { tag: "__expand", label: "展开", emoji: "⬆️", color: "rgba(255,255,255,0.3)" },
 ];
 
-// Pie items positioned in an arc above-left of center
 const PIE_RADIUS = 62;
-const PIE_START_ANGLE = -180; // left
-const PIE_END_ANGLE = -90;   // top
 
 export default function FAB() {
   const [connected, setConnected] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [showPie, setShowPie] = useState(false);
+  const [pieAbove, setPieAbove] = useState(true); // pie goes upward by default
   const didDrag = useRef(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -38,6 +36,16 @@ export default function FAB() {
     fetchCount();
     const interval = setInterval(fetchCount, 30000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Determine pie direction based on FAB position on screen
+  const updatePieDirection = useCallback(async () => {
+    try {
+      const pos = await invoke<[number, number]>("get_fab_position");
+      const screenH = window.screen.height;
+      const fabCenterY = pos[1] + 100; // 200/2 = 100 (FAB window center)
+      setPieAbove(fabCenterY > screenH / 2);
+    } catch {}
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -81,8 +89,9 @@ export default function FAB() {
 
   const handleMouseEnter = useCallback(() => {
     clearTimeout(hideTimer.current);
+    updatePieDirection();
     setShowPie(true);
-  }, []);
+  }, [updatePieDirection]);
 
   const handleMouseLeave = useCallback(() => {
     hideTimer.current = setTimeout(() => setShowPie(false), 300);
@@ -101,16 +110,22 @@ export default function FAB() {
     }
     try {
       await emit("pie-filter-changed", { tag });
-      // Also tell Rust to show the quick panel with this filter
       await invoke("toggle_quick_panel");
     } catch (e) {
       console.error("pie filter emit failed:", e);
     }
   }, []);
 
-  // Calculate pie item positions
+  // Calculate pie item positions — adapt arc based on direction
   const piePositions = PIE_ITEMS.map((_, i) => {
-    const angleDeg = PIE_START_ANGLE + (PIE_END_ANGLE - PIE_START_ANGLE) * (i / (PIE_ITEMS.length - 1));
+    let angleDeg: number;
+    if (pieAbove) {
+      // FAB in bottom half → pie arcs upward (left to top)
+      angleDeg = -180 + (-90 - (-180)) * (i / (PIE_ITEMS.length - 1));
+    } else {
+      // FAB in top half → pie arcs downward (left to bottom)
+      angleDeg = 180 + (90 - 180) * (i / (PIE_ITEMS.length - 1));
+    }
     const angleRad = (angleDeg * Math.PI) / 180;
     return {
       x: Math.cos(angleRad) * PIE_RADIUS,
