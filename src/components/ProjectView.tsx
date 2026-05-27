@@ -422,9 +422,9 @@ export default function ProjectView() {
                   </select>
                   <button
                     onClick={() => setShowNewProject(true)}
-                    className="text-accent-blue text-xs px-2 py-1.5 bg-accent-blue/10 rounded-button hover:bg-accent-blue/20 transition-colors flex-shrink-0"
+                    className="text-white text-sm px-3 py-1.5 bg-accent-blue rounded-button hover:bg-accent-blue/80 transition-colors flex-shrink-0 font-medium"
                     title="新建项目"
-                  >＋</button>
+                  >＋ 新建</button>
                 </div>
               )}
             </>

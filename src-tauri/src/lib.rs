@@ -320,19 +320,30 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
     };
 
     // ── Step 1: Decide above or below ──
-    // Try below first
-    let mut y = dot_bottom + gap;
-    let mut is_above = false;
+    // If FAB is in the lower half of the screen → open upward (above)
+    // If FAB is in the upper half → open downward (below)
+    let screen_mid_y = (mon_top + mon_bottom) / 2.0;
+    let fab_center_y = (dot_top + dot_bottom) / 2.0;
+    let mut is_above = fab_center_y > screen_mid_y;
 
-    // If below doesn't fit, try above
-    if y + quick_h > mon_bottom - margin {
+    let mut y = if is_above {
+        dot_top - gap - quick_h
+    } else {
+        dot_bottom + gap
+    };
+
+    // If preferred direction doesn't fit, flip
+    if is_above && y < mon_top + margin {
+        y = dot_bottom + gap;
+        is_above = false;
+    } else if !is_above && y + quick_h > mon_bottom - margin {
         y = dot_top - gap - quick_h;
         is_above = true;
     }
 
-    // If above doesn't fit either, clamp to below (panel will overlap screen edge)
+    // Final safety: clamp to screen
     if y < mon_top + margin {
-        y = dot_bottom + gap;
+        y = mon_top + margin;
         is_above = false;
     }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
@@ -17,8 +17,10 @@ const PRIORITY_COLORS: Record<string, string> = {
   Low: "#30d158",
 };
 
+const priorityOrder: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+
 export default function QuickPanel() {
-  const [todos, setTodos] = useState<Todo[]>([]);
+  const [allTodos, setAllTodos] = useState<Todo[]>([]);       // 全量缓存
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [exiting, setExiting] = useState<Set<string>>(new Set());
@@ -26,9 +28,7 @@ export default function QuickPanel() {
   const [filterTag, setFilterTag] = useState<string>("all");
   const [direction, setDirection] = useState<"above" | "below">("below");
   const panelRef = useRef<HTMLDivElement>(null);
-  const fetchingRef = useRef(false);
-  const filterTagRef = useRef(filterTag);
-  filterTagRef.current = filterTag;
+  const dataRef = useRef<{ todos: Todo[]; archived: Set<string> } | null>(null);
 
   // ── Transparency ──
   useEffect(() => {
@@ -82,32 +82,24 @@ export default function QuickPanel() {
     return () => observer.disconnect();
   }, []);
 
-  // ── Fetch helpers ──
-  const fetchProjects = useCallback(async () => {
+  // ── 一次性拉取全部 todos（只在首次加载时调用）──
+  const fetchAll = useCallback(async () => {
     try {
-      const raw = await invoke<string>("fetch_notion", {
+      // 1. 拉项目，过滤归档
+      const projRaw = await invoke<string>("fetch_notion", {
         path: "/v1/databases/2d51ba51-3457-8127-840e-d8b43c0e5e21/query",
         method: "POST",
         body: JSON.stringify({ page_size: 50 }),
       });
-      const data = JSON.parse(raw);
+      const projData = JSON.parse(projRaw);
       const archived = new Set<string>();
-      for (const page of data.results) {
+      for (const page of projData.results) {
         if (page.archived) archived.add(page.id);
       }
       setArchivedIds(archived);
-      return archived;
-    } catch (e) {
-      console.error("QuickPanel fetchProjects error:", e);
-      return new Set<string>();
-    }
-  }, []);
 
-  const doFetchTodos = useCallback(async (archived: Set<string>, tag: string) => {
-    if (fetchingRef.current) return;
-    fetchingRef.current = true;
-    try {
-      const raw = await invoke<string>("fetch_notion", {
+      // 2. 拉全部待办（不过滤 tag，一次拿完）
+      const todoRaw = await invoke<string>("fetch_notion", {
         path: "/v1/databases/2d51ba51-3457-8125-9d4c-f28ffa2fff14/query",
         method: "POST",
         body: JSON.stringify({
@@ -116,9 +108,8 @@ export default function QuickPanel() {
           page_size: 100,
         }),
       });
-      const data = JSON.parse(raw);
-      const priorityOrder: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
-      const items: Todo[] = data.results
+      const todoData = JSON.parse(todoRaw);
+      const items: Todo[] = todoData.results
         .map((page: any) => ({
           id: page.id,
           name: page.properties.Name?.title?.[0]?.plain_text || "",
@@ -127,46 +118,56 @@ export default function QuickPanel() {
           tags: page.properties.Tags?.multi_select?.map((t: any) => t.name) || [],
           projectId: page.properties.Project?.relation?.[0]?.id || undefined,
         }))
-        .filter((t: Todo) => {
-          if (t.projectId && archived.has(t.projectId)) return false;
-          if (tag !== "all" && !t.tags.includes(tag)) return false;
-          return true;
-        })
-        .sort((a: Todo, b: Todo) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
-      setTodos(items);
+        .filter((t: Todo) => !(t.projectId && archived.has(t.projectId)));
+
+      // 缓存到 ref 和 state
+      dataRef.current = { todos: items, archived };
+      setAllTodos(items);
     } catch (e) {
-      console.error("QuickPanel fetch error:", e);
+      console.error("QuickPanel fetchAll error:", e);
     } finally {
       setLoading(false);
-      fetchingRef.current = false;
     }
   }, []);
 
-  // ── Initial load ──
+  // ── 初始加载 + 监听面板显示时刷新 ──
   useEffect(() => {
-    (async () => {
-      const archived = await fetchProjects();
-      await doFetchTodos(archived, "all");
-    })();
-  }, []);
-
-  // ── Listen for pie filter changes ──
-  useEffect(() => {
+    fetchAll();
+    // 监听面板被重新打开时刷新数据
     let unlisten: (() => void) | null = null;
     (async () => {
       try {
-        unlisten = await listen<{ tag: string }>("pie-filter-changed", async (e) => {
-          const tag = e.payload.tag;
-          setFilterTag(tag);
-          // Re-fetch with new tag immediately (no need to wait for state update)
-          await doFetchTodos(archivedIds, tag);
+        unlisten = await listen("quick-panel-shown", () => {
+          fetchAll();
         });
       } catch {}
     })();
     return () => { if (unlisten) unlisten(); };
-  }, [archivedIds, doFetchTodos]);
+  }, [fetchAll]);
 
-  // ── Close on blur (with longer delay to avoid race with pie menu) ──
+  // ── 客户端筛选：瞬间完成，零网络请求 ──
+  const displayTodos = useMemo(() => {
+    return allTodos
+      .filter((t) => filterTag === "all" || t.tags.includes(filterTag))
+      .sort((a, b) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1))
+      .slice(0, 10);
+  }, [allTodos, filterTag]);
+
+  // ── 监听饼菜单筛选（只改 tag，不请求网络）──
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    (async () => {
+      try {
+        unlisten = await listen<{ tag: string }>("pie-filter-changed", (e) => {
+          setFilterTag(e.payload.tag);
+          // 纯客户端筛选，瞬间响应
+        });
+      } catch {}
+    })();
+    return () => { if (unlisten) unlisten(); };
+  }, []);
+
+  // ── Close on blur ──
   useEffect(() => {
     let blurTimer: ReturnType<typeof setTimeout>;
     const handleBlur = () => {
@@ -190,8 +191,9 @@ export default function QuickPanel() {
   // ── Toggle todo ──
   const handleToggle = useCallback(async (id: string) => {
     setExiting((prev) => new Set(prev).add(id));
+    // 立即从列表移除（乐观更新）
+    setAllTodos((prev) => prev.filter((t) => t.id !== id));
     setTimeout(() => {
-      setTodos((prev) => prev.filter((t) => t.id !== id));
       setExiting((prev) => {
         const next = new Set(prev);
         next.delete(id);
@@ -208,8 +210,6 @@ export default function QuickPanel() {
       console.error("Toggle failed:", e);
     }
   }, []);
-
-  const displayTodos = todos.filter((t) => !t.status).slice(0, 10);
 
   return (
     <div ref={panelRef} className={`quick-panel ${direction}`} style={{ "--bg-alpha": bgAlpha } as React.CSSProperties}>
