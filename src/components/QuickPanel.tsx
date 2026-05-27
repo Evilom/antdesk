@@ -85,7 +85,7 @@ export default function QuickPanel() {
     return () => observer.disconnect();
   }, []);
 
-  // ── 一次性拉取全部 todos ──
+  // ── Fetch all todos ──
   const fetchAll = useCallback(async () => {
     try {
       const projRaw = await invoke<string>("fetch_notion", {
@@ -130,14 +130,14 @@ export default function QuickPanel() {
     }
   }, []);
 
-  // ── 初始加载 + 监听面板显示时刷新 ──
+  // ── Initial load + refresh on panel show ──
   useEffect(() => {
     fetchAll();
     let unlisten: (() => void) | null = null;
     (async () => {
       try {
         unlisten = await listen("quick-panel-shown", () => {
-          setHiding(false); // Reset hiding state when shown
+          setHiding(false);
           fetchAll();
         });
       } catch {}
@@ -145,7 +145,7 @@ export default function QuickPanel() {
     return () => { if (unlisten) unlisten(); };
   }, [fetchAll]);
 
-  // ── 客户端筛选 ──
+  // ── Client-side filter ──
   const displayTodos = useMemo(() => {
     return allTodos
       .filter((t) => filterTag === "all" || t.tags.includes(filterTag))
@@ -153,7 +153,7 @@ export default function QuickPanel() {
       .slice(0, 10);
   }, [allTodos, filterTag]);
 
-  // ── 监听饼菜单筛选 ──
+  // ── Listen for pie menu filter ──
   useEffect(() => {
     let unlisten: (() => void) | null = null;
     (async () => {
@@ -166,38 +166,31 @@ export default function QuickPanel() {
     return () => { if (unlisten) unlisten(); };
   }, []);
 
-  // ── Close on blur (unless locked) ──
+  // ── NO auto-close on blur — DesktopAnt behavior: stay open until explicitly closed ──
+  // Only close on explicit "close-panel" event from Rust
   useEffect(() => {
-    let blurTimer: ReturnType<typeof setTimeout>;
-    const handleBlur = () => {
-      if (locked) return;
-      blurTimer = setTimeout(async () => {
-        // Trigger exit animation
-        setHiding(true);
-        // Wait for animation to complete, then hide window
-        hideTimerRef.current = setTimeout(async () => {
-          try {
-            const { getCurrentWindow } = await import("@tauri-apps/api/window");
-            await getCurrentWindow().hide();
-            setHiding(false);
-          } catch {}
-        }, 200);
-      }, 400);
-    };
-    const handleFocus = () => {
-      clearTimeout(blurTimer);
-      clearTimeout(hideTimerRef.current);
-      setHiding(false);
-    };
-    window.addEventListener("blur", handleBlur);
-    window.addEventListener("focus", handleFocus);
-    return () => {
-      clearTimeout(blurTimer);
-      clearTimeout(hideTimerRef.current);
-      window.removeEventListener("blur", handleBlur);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [locked]);
+    let unlisten: (() => void) | null = null;
+    (async () => {
+      try {
+        unlisten = await listen("close-quick-panel", () => {
+          handleClose();
+        });
+      } catch {}
+    })();
+    return () => { if (unlisten) unlisten(); };
+  }, []);
+
+  // ── Close with animation ──
+  const handleClose = useCallback(async () => {
+    setHiding(true);
+    hideTimerRef.current = setTimeout(async () => {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        await getCurrentWindow().hide();
+        setHiding(false);
+      } catch {}
+    }, 200);
+  }, []);
 
   // ── Toggle todo ──
   const handleToggle = useCallback(async (id: string) => {
@@ -221,16 +214,30 @@ export default function QuickPanel() {
     }
   }, []);
 
+  const panelClasses = [
+    "quick-panel",
+    direction,
+    hiding ? "hiding" : "",
+    locked ? "passthrough" : "",
+  ].filter(Boolean).join(" ");
+
   return (
-    <div ref={panelRef} className={`quick-panel ${direction} ${hiding ? "hiding" : ""}`} style={{ "--bg-alpha": bgAlpha } as React.CSSProperties}>
-      {/* Lock bar */}
+    <div ref={panelRef} className={panelClasses} style={{ "--bg-alpha": bgAlpha } as React.CSSProperties}>
+      {/* Top bar: lock + close */}
       <div className="quick-lock-bar">
         <button
           className={`quick-lock-btn ${locked ? "locked" : ""}`}
           onClick={() => setLocked(!locked)}
-          title={locked ? "解锁（失焦自动关闭）" : "锁定（保持显示）"}
+          title={locked ? "解锁（恢复正常交互）" : "锁定（鼠标穿透）"}
         >
           {locked ? "🔒" : "🔓"}
+        </button>
+        <button
+          className="quick-lock-btn"
+          onClick={handleClose}
+          title="关闭面板"
+        >
+          ✕
         </button>
       </div>
 

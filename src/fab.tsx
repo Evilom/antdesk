@@ -71,7 +71,7 @@ export default function FAB() {
     const startY = e.screenY;
 
     const onMouseMove = (me: MouseEvent) => {
-      if (Math.abs(me.screenX - startX) > 3 || Math.abs(me.screenY - startY) > 3) {
+      if (Math.abs(me.screenX - startX) > 5 || Math.abs(me.screenY - startY) > 5) {
         didDrag.current = true;
         document.removeEventListener("mousemove", onMouseMove);
         document.removeEventListener("mouseup", onMouseUp);

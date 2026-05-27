@@ -269,7 +269,8 @@ async fn get_pending_count(state: tauri::State<'_, AppState>) -> Result<u32, Str
 async fn toggle_quick_panel(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(quick) = app.get_webview_window("quick") {
         if quick.is_visible().unwrap_or(false) {
-            quick.hide().map_err(|e| e.to_string())?;
+            // Emit close event — frontend handles exit animation then hides
+            let _ = app.emit("close-quick-panel", ());
             return Ok(());
         }
         // Position near FAB and show — FAB stays visible
@@ -386,7 +387,7 @@ async fn update_quick_panel_position(app: tauri::AppHandle) -> Result<(), String
 
 #[tauri::command]
 async fn open_full_panel(app: tauri::AppHandle) -> Result<(), String> {
-    // Hide quick panel
+    // Hide quick panel (no animation needed — switching to main)
     if let Some(quick) = app.get_webview_window("quick") {
         let _ = quick.hide();
     }
