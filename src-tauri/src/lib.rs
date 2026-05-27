@@ -296,16 +296,14 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
     let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
 
     // FAB is 200x200 in config, visual dot is 64x64 centered
+    // Visual dot center and edges
     let fab_center_x = fab_x + 100.0 * scale;
-    let fab_center_y = fab_y + 100.0 * scale;
-    let fab_visual_r = 32.0 * scale; // radius of visual dot
+    let dot_top = fab_y + 68.0 * scale;     // 100 - 32
+    let dot_bottom = fab_y + 132.0 * scale;  // 100 + 32
 
-    // QuickPanel config size
     let quick_w = 260.0 * scale;
-    // Pure bubble list only — no header/input/title
-    // Use a reasonable default; ResizeObserver in frontend will adjust
-    let quick_h = 400.0 * scale;
-    let gap = 10.0 * scale;
+    let quick_h = 200.0 * scale; // initial guess; ResizeObserver adjusts
+    let gap = 4.0 * scale;  // tight gap to visual dot
     let margin = 8.0 * scale;
 
     // Monitor bounds
@@ -324,18 +322,18 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
 
     // ── Step 1: Decide above or below ──
     // Try below first
-    let mut y = fab_center_y + fab_visual_r + gap;
+    let mut y = dot_bottom + gap;
     let mut is_above = false;
 
     // If below doesn't fit, try above
     if y + quick_h > mon_bottom - margin {
-        y = fab_center_y - fab_visual_r - gap - quick_h;
+        y = dot_top - gap - quick_h;
         is_above = true;
     }
 
     // If above doesn't fit either, clamp to below (panel will overlap screen edge)
     if y < mon_top + margin {
-        y = fab_center_y + fab_visual_r + gap;
+        y = dot_bottom + gap;
         is_above = false;
     }
 

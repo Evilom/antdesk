@@ -24,6 +24,7 @@ export default function QuickPanel() {
   const [loading, setLoading] = useState(true);
   const [exiting, setExiting] = useState<Set<string>>(new Set());
   const [bgAlpha, setBgAlpha] = useState(0.6);
+  const [filterTag, setFilterTag] = useState<string>("all");
 
 
   // Read transparency from localStorage (shared with main panel)
@@ -123,7 +124,7 @@ export default function QuickPanel() {
     }
   }, []);
 
-  const fetchTodos = useCallback(async (archived?: Set<string>) => {
+  const fetchTodos = useCallback(async (archived?: Set<string>, tag?: string) => {
     try {
       const body = JSON.stringify({
         filter: { property: "Status", checkbox: { equals: false } },
@@ -146,7 +147,12 @@ export default function QuickPanel() {
           tags: page.properties.Tags?.multi_select?.map((t: any) => t.name) || [],
           projectId: page.properties.Project?.relation?.[0]?.id || undefined,
         }))
-        .filter((t: Todo) => !t.projectId || !(archived || archivedIds).has(t.projectId))
+        .filter((t: Todo) => {
+          if (t.projectId && (archived || archivedIds).has(t.projectId)) return false;
+          const activeTag = tag ?? filterTag;
+          if (activeTag !== "all" && !t.tags.includes(activeTag)) return false;
+          return true;
+        })
         .sort((a: Todo, b: Todo) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
       setTodos(items);
     } catch (e) {
@@ -154,7 +160,7 @@ export default function QuickPanel() {
     } finally {
       setLoading(false);
     }
-  }, [archivedIds]);
+  }, [archivedIds, filterTag]);
 
   useEffect(() => {
     (async () => {
@@ -223,9 +229,27 @@ export default function QuickPanel() {
       });
     } catch (e) {
       console.error("Toggle failed:", e);
-      fetchTodos();
+      fetchTodos(archivedIds, filterTag);
     }
-  }, [fetchTodos]);
+  }, [fetchTodos, archivedIds, filterTag]);
+
+  // Listen for pie filter changes
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    (async () => {
+      try {
+        unlisten = await listen<{ tag: string }>("pie-filter-changed", (e) => {
+          setFilterTag(e.payload.tag);
+        });
+      } catch {}
+    })();
+    return () => { if (unlisten) unlisten(); };
+  }, []);
+
+  // Re-fetch when filterTag changes
+  useEffect(() => {
+    if (!loading) fetchTodos(archivedIds, filterTag);
+  }, [filterTag]);
 
   const visibleTodos = todos.filter((t) => !t.status);
   const displayTodos = visibleTodos.slice(0, 10);
