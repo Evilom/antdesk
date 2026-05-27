@@ -288,28 +288,27 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
         .get_webview_window("quick")
         .ok_or("Quick window not found")?;
 
-    // FAB position in physical pixels (top-left of window frame)
     let fab_pos = fab.outer_position().map_err(|e| e.to_string())?;
     let fab_x = fab_pos.x as f64;
     let fab_y = fab_pos.y as f64;
 
-    // Use config sizes (outer_size() unreliable on transparent macOS windows)
     let monitor = fab.current_monitor().ok().flatten();
     let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
 
-    // FAB is 200x200 in config, but visual content is ~64x64 centered
-    // The center of the FAB dot is roughly at the center of the window
-    let fab_visual_size = 64.0 * scale;
-    let fab_center_x = fab_x + 100.0 * scale; // center of 200px window
+    // FAB is 200x200 in config, visual dot is 64x64 centered
+    let fab_center_x = fab_x + 100.0 * scale;
     let fab_center_y = fab_y + 100.0 * scale;
+    let fab_visual_r = 32.0 * scale; // radius of visual dot
 
-    // QuickPanel: 260 wide, ~360 tall (or less with fewer items)
+    // QuickPanel config size
     let quick_w = 260.0 * scale;
-    let quick_h = 360.0 * scale;
-    let gap = 8.0 * scale;
-    let margin = 4.0 * scale;
+    // Pure bubble list only — no header/input/title
+    // Use a reasonable default; ResizeObserver in frontend will adjust
+    let quick_h = 400.0 * scale;
+    let gap = 10.0 * scale;
+    let margin = 8.0 * scale;
 
-    // Monitor bounds in physical pixels
+    // Monitor bounds
     let (mon_left, mon_top, mon_right, mon_bottom) = if let Some(ref m) = monitor {
         let p = m.position();
         let s = m.size();
@@ -323,38 +322,44 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
         (0.0, 0.0, 1920.0 * scale, 1080.0 * scale)
     };
 
-    // Position: right-aligned with FAB center, below FAB
-    let mut x = fab_center_x - quick_w + fab_visual_size / 2.0;
-    let mut y = fab_center_y + fab_visual_size / 2.0 + gap;
+    // ── Step 1: Decide above or below ──
+    // Try below first
+    let mut y = fab_center_y + fab_visual_r + gap;
+    let mut is_above = false;
 
     // If below doesn't fit, try above
     if y + quick_h > mon_bottom - margin {
-        y = fab_center_y - fab_visual_size / 2.0 - quick_h - gap;
+        y = fab_center_y - fab_visual_r - gap - quick_h;
+        is_above = true;
     }
 
-    // If above doesn't fit, try left
+    // If above doesn't fit either, clamp to below (panel will overlap screen edge)
     if y < mon_top + margin {
-        x = fab_center_x - fab_visual_size / 2.0 - quick_w - gap;
-        y = fab_center_y - quick_h / 2.0;
+        y = fab_center_y + fab_visual_r + gap;
+        is_above = false;
     }
 
-    // If left doesn't fit, try right
+    // ── Step 2: Horizontally center on FAB, then shift if off-edge ──
+    let mut x = fab_center_x - quick_w / 2.0;
+
+    // If panel goes off left edge, shift right
     if x < mon_left + margin {
-        x = fab_center_x + fab_visual_size / 2.0 + gap;
-        y = fab_center_y - quick_h / 2.0;
+        x = mon_left + margin;
+    }
+    // If panel goes off right edge, shift left
+    if x + quick_w > mon_right - margin {
+        x = mon_right - quick_w - margin;
     }
 
-    // Clamp to monitor bounds
+    // Final clamp
     if x < mon_left + margin { x = mon_left + margin; }
-    if x + quick_w > mon_right - margin { x = mon_right - quick_w - margin; }
     if y < mon_top + margin { y = mon_top + margin; }
     if y + quick_h > mon_bottom - margin { y = mon_bottom - quick_h - margin; }
 
     let pos = tauri::Position::Physical(tauri::PhysicalPosition::new(x as i32, y as i32));
     quick.set_position(pos).map_err(|e| e.to_string())?;
 
-    // Tell frontend whether panel is above or below FAB for drawer direction
-    let is_above = y + quick_h < fab_center_y;
+    // Emit direction so frontend can reverse layout
     let _ = app.emit("quick-panel-direction", if is_above { "above" } else { "below" });
 
     Ok(())

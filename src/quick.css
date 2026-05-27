@@ -52,51 +52,6 @@ body {
 }
 
 /* ── Header pill ── */
-.quick-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 5px 10px;
-  background: rgba(30, 30, 40, var(--bg-alpha, 0.7));
-  backdrop-filter: blur(40px) saturate(150%);
-  -webkit-backdrop-filter: blur(40px) saturate(150%);
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-  opacity: 0;
-  transform: translateY(-8px) scale(0.97);
-  animation: pill-in 0.35s var(--spring) forwards;
-  animation-delay: 0.02s;
-  flex-shrink: 0;
-}
-
-.quick-header .title {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.85);
-  letter-spacing: 0.02em;
-}
-
-.quick-header .count {
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.35);
-  font-weight: 400;
-}
-
-.quick-header .expand-btn {
-  font-size: 9px;
-  color: #0a84ff;
-  background: rgba(10, 132, 255, 0.1);
-  border: none;
-  cursor: pointer;
-  padding: 2px 7px;
-  border-radius: 5px;
-  transition: all 0.2s var(--spring-smooth);
-}
-
-.quick-header .expand-btn:hover {
-  background: rgba(10, 132, 255, 0.2);
-}
 
 /* ── List: hugs content, no flex:1 ── */
 .quick-list {
@@ -259,37 +214,6 @@ body {
 }
 
 /* ── Add input pill ── */
-.quick-add {
-  opacity: 0;
-  transform: translateY(-4px) scale(0.97);
-  animation: pill-in 0.3s var(--spring) forwards;
-  animation-delay: 0.1s;
-  flex-shrink: 0;
-}
-
-.quick-add input {
-  width: 100%;
-  background: rgba(30, 30, 40, calc(var(--bg-alpha, 0.55) * 0.8));
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 10px;
-  padding: 6px 10px;
-  font-size: 11px;
-  color: #fff;
-  outline: none;
-  transition: all 0.25s var(--spring);
-}
-
-.quick-add input::placeholder {
-  color: rgba(255, 255, 255, 0.2);
-}
-
-.quick-add input:focus {
-  border-color: rgba(10, 132, 255, 0.35);
-  background: rgba(35, 35, 50, calc(var(--bg-alpha, 0.6) * 0.85));
-  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.08);
-}
 
 /* ── Empty / Loading ── */
 .quick-empty {

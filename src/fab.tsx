@@ -8,6 +8,7 @@ const PIE_ITEMS = [
   { tag: "工作", label: "工作", emoji: "💼", color: "#0a84ff" },
   { tag: "生活", label: "生活", emoji: "🏠", color: "#30d158" },
   { tag: "项目", label: "项目", emoji: "🎯", color: "#ff9f0a" },
+  { tag: "__expand", label: "展开", emoji: "⬆️", color: "rgba(255,255,255,0.3)" },
 ];
 
 // Pie items positioned in an arc above-left of center
@@ -89,6 +90,15 @@ export default function FAB() {
 
   const handlePieClick = useCallback(async (tag: string) => {
     setShowPie(false);
+    if (tag === "__expand") {
+      try {
+        await invoke("toggle_quick_panel");
+        await invoke("open_full_panel");
+      } catch (e) {
+        console.error("expand failed:", e);
+      }
+      return;
+    }
     try {
       await emit("pie-filter-changed", { tag });
       // Also tell Rust to show the quick panel with this filter

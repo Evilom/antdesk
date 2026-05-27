@@ -17,23 +17,14 @@ const PRIORITY_COLORS: Record<string, string> = {
   Low: "#30d158",
 };
 
-const TAG_COLORS: Record<string, string> = {
-  工作: "#0a84ff",
-  生活: "#30d158",
-  项目: "#ff9f0a",
-  其他: "#8e8e93",
-};
-
 export default function QuickPanel() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [projects, setProjects] = useState<Map<string, string>>(new Map());
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [newName, setNewName] = useState("");
   const [exiting, setExiting] = useState<Set<string>>(new Set());
-  const [tagFilter, setTagFilter] = useState<string>("all");
   const [bgAlpha, setBgAlpha] = useState(0.6);
-  const inputRef = useRef<HTMLInputElement>(null);
+
 
   // Read transparency from localStorage (shared with main panel)
   useEffect(() => {
@@ -193,14 +184,6 @@ export default function QuickPanel() {
     return () => { if (unlistenFn) unlistenFn(); };
   }, []);
 
-  // Listen for pie menu filter events from FAB
-  useEffect(() => {
-    const unlisten = listen<{ tag: string }>("pie-filter-changed", (event) => {
-      setTagFilter(event.payload.tag);
-    });
-    return () => { unlisten.then(fn => fn()); };
-  }, []);
-
   // Close on blur
   useEffect(() => {
     let blurTimer: ReturnType<typeof setTimeout>;
@@ -244,63 +227,12 @@ export default function QuickPanel() {
     }
   }, [fetchTodos]);
 
-  const handleExpand = useCallback(async () => {
-    try {
-      await invoke("open_full_panel");
-    } catch (e) {
-      console.error("open_full_panel failed:", e);
-    }
-  }, []);
-
-  const handleAdd = useCallback(async () => {
-    const name = newName.trim();
-    if (!name) return;
-    setNewName("");
-    try {
-      await invoke("fetch_notion", {
-        path: "/v1/pages",
-        method: "POST",
-        body: JSON.stringify({
-          parent: { database_id: "2d51ba51-3457-8125-9d4c-f28ffa2fff14" },
-          properties: {
-            Name: { title: [{ text: { content: name } }] },
-            Priority: { select: { name: "Medium" } },
-            Status: { checkbox: false },
-          },
-        }),
-      });
-      fetchTodos();
-    } catch (e) {
-      console.error("Add todo failed:", e);
-    }
-  }, [newName, fetchTodos]);
-
-  const visibleTodos = todos.filter((t) => {
-    if (t.status) return false;
-    if (tagFilter === "all") return true;
-    return t.tags.includes(tagFilter);
-  });
-  const displayTodos = visibleTodos.slice(0, 6);
+  const visibleTodos = todos.filter((t) => !t.status);
+  const displayTodos = visibleTodos.slice(0, 10);
 
   return (
     <div ref={panelRef} className={`quick-panel ${direction}`} style={{ "--bg-alpha": bgAlpha } as React.CSSProperties}>
-      {/* Header */}
-      <div className="quick-header">
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span className="title">待办</span>
-          <span className="count">{visibleTodos.length}</span>
-          {tagFilter !== "all" && (
-            <span className="filter-badge" onClick={() => setTagFilter("all")}>
-              {tagFilter} ✕
-            </span>
-          )}
-        </div>
-        <button className="expand-btn" onClick={handleExpand}>
-          展开 ↗
-        </button>
-      </div>
-
-      {/* Task list — compact, no wasted space */}
+      {/* Pure bubbles — no header, no input */}
       {loading ? (
         <div className="quick-loading">加载中</div>
       ) : displayTodos.length === 0 ? (
@@ -321,22 +253,6 @@ export default function QuickPanel() {
                 />
                 <div className="quick-bubble-info">
                   <span className="name">{todo.name}</span>
-                  {todo.tags.length > 0 && (
-                    <div className="quick-bubble-meta">
-                      {todo.tags.slice(0, 1).map((tag) => (
-                        <span
-                          key={tag}
-                          className="quick-tag"
-                          style={{
-                            background: `${TAG_COLORS[tag] || "#0a84ff"}18`,
-                            color: TAG_COLORS[tag] || "#0a84ff",
-                          }}
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
                 <span
                   className="dot"
@@ -347,25 +263,12 @@ export default function QuickPanel() {
           })}
           {visibleTodos.length > 6 && (
             <div className="quick-more">
-              还有 {visibleTodos.length - 6} 项
+              还有 {visibleTodos.length - 10} 项
             </div>
           )}
         </div>
       )}
 
-      {/* Quick add — always at bottom, no gap */}
-      <div className="quick-add">
-        <input
-          ref={inputRef}
-          type="text"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleAdd();
-          }}
-          placeholder="快速新增..."
-        />
-      </div>
     </div>
   );
 }
