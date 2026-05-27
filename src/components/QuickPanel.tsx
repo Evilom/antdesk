@@ -25,6 +25,8 @@ export default function QuickPanel() {
   const [exiting, setExiting] = useState<Set<string>>(new Set());
   const [bgAlpha, setBgAlpha] = useState(0.6);
   const [filterTag, setFilterTag] = useState<string>("all");
+  const filterTagRef = useRef(filterTag);
+  filterTagRef.current = filterTag;
 
 
   // Read transparency from localStorage (shared with main panel)
@@ -181,7 +183,7 @@ export default function QuickPanel() {
           (async () => {
             try {
               const archived = await fetchProjects();
-              await fetchTodos(archived);
+              await fetchTodos(archived, filterTagRef.current);
             } catch {}
           })();
         }

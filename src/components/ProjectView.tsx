@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { useAppStore } from "../stores/appStore";
-import { createTodo, toggleTodoStatus, closeProject, fetchProjects } from "../lib/notion";
+import { createTodo, toggleTodoStatus, closeProject, fetchProjects, createProject } from "../lib/notion";
 import type { Todo, Priority, Project } from "../types";
 
 const PRIORITY_COLORS: Record<Priority, string> = {
@@ -55,6 +55,8 @@ export default function ProjectView() {
   const [newProjectId, setNewProjectId] = useState("");
   const [newTag, setNewTag] = useState<string>("");
   const [adding, setAdding] = useState(false);
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
 
   // Archived project IDs
   const archivedIds = useMemo(
@@ -353,16 +355,63 @@ export default function ProjectView() {
           </div>
           {/* Project selector — only show when tag is 项目 or no tag */}
           {(newTag === "项目" || newTag === "") && (
-            <select
-              value={newProjectId}
-              onChange={(e) => setNewProjectId(e.target.value)}
-              className="w-full bg-bg-input text-text-primary text-xs rounded-button px-2 py-1.5 outline-none border border-white/5 cursor-pointer"
-            >
-              <option value="">不关联项目</option>
-              {activeProjects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+            <>
+              {showNewProject ? (
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newProjectName.trim()) {
+                        // Create project and select it
+                        (async () => {
+                          try {
+                            const proj = await createProject(token!, newProjectName.trim());
+                            const fresh = await fetchProjects(token!);
+                            setProjects(fresh);
+                            setNewProjectId(proj.id);
+                            setShowNewProject(false);
+                            setNewProjectName("");
+                          } catch (err) {
+                            console.error("Failed to create project:", err);
+                          }
+                        })();
+                      }
+                      if (e.key === "Escape") {
+                        setShowNewProject(false);
+                        setNewProjectName("");
+                      }
+                    }}
+                    placeholder="新项目名称..."
+                    autoFocus
+                    className="flex-1 bg-bg-input text-text-primary text-xs rounded-button px-2 py-1.5 outline-none border border-accent-blue/50"
+                  />
+                  <button
+                    onClick={() => { setShowNewProject(false); setNewProjectName(""); }}
+                    className="text-xs text-text-muted hover:text-text-secondary px-1.5"
+                  >取消</button>
+                </div>
+              ) : (
+                <select
+                  value={newProjectId}
+                  onChange={(e) => {
+                    if (e.target.value === "__create__") {
+                      setShowNewProject(true);
+                    } else {
+                      setNewProjectId(e.target.value);
+                    }
+                  }}
+                  className="w-full bg-bg-input text-text-primary text-xs rounded-button px-2 py-1.5 outline-none border border-white/5 cursor-pointer"
+                >
+                  <option value="">不关联项目</option>
+                  {activeProjects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                  <option value="__create__" style={{ color: "#0a84ff" }}>＋ 新建项目...</option>
+                </select>
+              )}
+            </>
           )}
           {/* Priority + buttons */}
           <div className="flex gap-2 items-center justify-between">
