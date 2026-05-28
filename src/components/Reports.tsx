@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useAppStore } from "../stores/appStore";
 import { fetchReportContent, createReport, fetchReports } from "../lib/notion";
+import KamiReport from "./KamiReport";
 
 /* ── Markdown renderer for daily reports ── */
 function ReportContent({ content }: { content: string }) {
@@ -221,6 +222,7 @@ function getMonthDays(year: number, month: number) {
 export default function Reports() {
   const reports = useAppStore((s) => s.reports);
   const todos = useAppStore((s) => s.todos);
+  const projects = useAppStore((s) => s.projects);
   const token = useAppStore((s) => s.settings.notionToken);
   const setReports = useAppStore((s) => s.setReports);
 
@@ -237,6 +239,9 @@ export default function Reports() {
   const [writeOpen, setWriteOpen] = useState(false);
   const [writeContent, setWriteContent] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Kami view toggle
+  const [kamiView, setKamiView] = useState(false);
 
   // Build date → report map
   const reportMap = useMemo(() => {
@@ -333,6 +338,17 @@ export default function Reports() {
         <h2 className="text-sm font-medium">日报</h2>
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-text-muted">{reports.length} 条</span>
+          <button
+            onClick={() => setKamiView(!kamiView)}
+            className={`text-[10px] px-2 py-0.5 rounded-md transition-colors ${
+              kamiView
+                ? "bg-[#1B365D]/30 text-[#8BA4C9] border border-[#1B365D]/40"
+                : "bg-white/5 text-text-muted hover:bg-white/10"
+            }`}
+            title="Kami 排版视图"
+          >
+            {kamiView ? "标准" : "Kami"}
+          </button>
           <button
             onClick={() => setWriteOpen(!writeOpen)}
             className="text-[10px] px-2 py-0.5 rounded-md bg-accent/20 text-accent hover:bg-accent/30 transition-colors"
@@ -462,7 +478,17 @@ export default function Reports() {
                 <div className="text-center text-text-muted text-xs py-6">加载中...</div>
               ) : reportMap.has(selectedDate) ? (
                 selectedContent ? (
-                  <ReportContent content={selectedContent} />
+                  kamiView ? (
+                    <KamiReport
+                      content={selectedContent}
+                      date={selectedDate}
+                      todos={todos}
+                      reports={reports}
+                      projects={projects}
+                    />
+                  ) : (
+                    <ReportContent content={selectedContent} />
+                  )
                 ) : (
                   <div className="text-center text-text-muted text-xs py-4">无内容</div>
                 )
