@@ -119,7 +119,7 @@ function generateKamiHTML(
               .map(
                 (item) => `<li style="position:relative;padding-left:14pt;margin-bottom:3pt;line-height:1.45;font-size:10pt;color:var(--dark-warm)"><span style="position:absolute;left:0;color:var(--brand)">–</span>${item
                   .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--near-black)">$1</strong>')
-                  .replace(/`(.+?)`/g, '<code style="font-size:9pt;background:var(--sand);padding:1pt 3pt;border-radius:2pt">$1</code>')
+                  .replace(/`(.+?)`/g, '<code style="font-size:9pt;background:var(--bg-card-hover);padding:1pt 3pt;border-radius:2pt;color:var(--accent-warm)">$1</code>')
                 }</li>`
               )
               .join("")}</ul>`
@@ -139,18 +139,27 @@ function generateKamiHTML(
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600&display=swap');
 
-  @page { size: A4; margin: 12mm 16mm; background: #f5f4ed; }
+  @page { size: A4; margin: 12mm 16mm; background: rgba(10, 10, 15, 0.92); }
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --parchment: #f5f4ed; --ivory: #faf9f5; --sand: #e8e6dc;
-    --near-black: #141413; --dark-warm: #3d3d3a; --olive: #504e49;
-    --stone: #6b6a64; --brand: #1B365D; --border: #e8e6dc;
-    --border-soft: #e5e3d8; --tag-bg: #E4ECF5;
+    --bg: rgba(10, 10, 15, 0.85);
+    --bg-card: rgba(255, 255, 255, 0.06);
+    --bg-card-hover: rgba(255, 255, 255, 0.09);
+    --near-black: rgba(255, 255, 255, 0.92);
+    --dark-warm: rgba(255, 255, 255, 0.72);
+    --olive: rgba(255, 255, 255, 0.50);
+    --stone: rgba(255, 255, 255, 0.35);
+    --brand: #0a84ff;
+    --brand-dim: rgba(10, 132, 255, 0.18);
+    --border: rgba(255, 255, 255, 0.08);
+    --border-soft: rgba(255, 255, 255, 0.05);
+    --tag-bg: rgba(10, 132, 255, 0.12);
+    --accent-warm: #ff9f0a;
     --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", Georgia, serif;
   }
 
-  html, body { background: var(--parchment); margin: 0; padding: 0; }
+  html, body { background: var(--bg); margin: 0; padding: 0; }
   body {
     color: var(--near-black); font-family: var(--serif); font-size: 10pt;
     line-height: 1.45; letter-spacing: 0.3pt;
