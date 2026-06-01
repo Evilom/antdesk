@@ -1,13 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
   getCurrentWindow,
-  PhysicalPosition,
   currentMonitor,
 } from "@tauri-apps/api/window";
 import { useEffect, useState, useCallback, useRef } from "react";
 import SpinePet, { type SpinePetHandle } from "./components/SpinePet";
 import { PhysicsEngine } from "./lib/PhysicsEngine";
-import { PetBrain, MODE_PHYSICS, type PetMode } from "./lib/PetBrain";
+import {
+  PetBrain,
+  MODE_PHYSICS,
+  type PetMode,
+  type BehaviorState,
+} from "./lib/PetBrain";
 
 type PetSize = "tiny" | "small" | "medium" | "large";
 
@@ -18,13 +22,12 @@ const SIZES: Record<PetSize, { w: number; h: number }> = {
   large: { w: 360, h: 360 },
 };
 
-// Mood emoji by mode
-const MODE_EMOJI: Record<PetMode, string> = {
-  leisure: "😊",
-  busy: "😤",
-  anxious: "😰",
-  alert: "🚨",
-  celebrate: "🎉",
+// 行为状态 → 显示 emoji
+const BEHAVIOR_EMOJI: Record<BehaviorState, string> = {
+  idle: "😊",
+  walk: "🚶",
+  interact: "😄",
+  sleep: "😴",
 };
 
 export default function Pet() {
@@ -38,9 +41,8 @@ export default function Pet() {
   const [moodText, setMoodText] = useState("");
   const [moodEmoji, setMoodEmoji] = useState("😊");
   const [petName, setPetName] = useState("moshumao");
-  const [petState, setPetState] = useState<"idle" | "walk" | "dragged">("idle");
+  const [petBehavior, setPetBehavior] = useState<BehaviorState>("idle");
   const [petMode, setPetMode] = useState<PetMode>("leisure");
-  const [sleeping, setSleeping] = useState(false);
   const [notifyMsg, setNotifyMsg] = useState<string | null>(null);
 
   const didDrag = useRef(false);
@@ -54,7 +56,9 @@ export default function Pet() {
   const lockedRef = useRef(false);
 
   // Keep lockedRef in sync
-  useEffect(() => { lockedRef.current = locked; }, [locked]);
+  useEffect(() => {
+    lockedRef.current = locked;
+  }, [locked]);
 
   // Check connection on mount
   useEffect(() => {
@@ -73,13 +77,32 @@ export default function Pet() {
     if (savedPet) setPetName(savedPet);
   }, []);
 
-  // ── Initialize PetBrain (mode/mood/sleep/todo advisor) ──
+  // ── Initialize PetBrain (behavior state machine + todo advisor) ──
   useEffect(() => {
     const brain = new PetBrain({
+      onBehaviorChange: (state, anim) => {
+        setPetBehavior(state);
+        setMoodEmoji(BEHAVIOR_EMOJI[state] || "😊");
+
+        // Drive SpinePet animation
+        const isLoop = state !== "interact";
+        spineRef.current?.setAnimation(anim, isLoop);
+
+        // Control PhysicsEngine based on behavior
+        if (state === "sleep") {
+          physicsRef.current?.stop();
+        } else if (state === "interact") {
+          // Brief pause — PhysicsEngine keeps its current state
+        } else if (state === "walk") {
+          if (!lockedRef.current) {
+            physicsRef.current?.start();
+          }
+        }
+        // "idle" — let PhysicsEngine do its own idle/walk cycle
+      },
       onModeChange: (mode) => {
         setPetMode(mode);
-        setMoodEmoji(MODE_EMOJI[mode] || "😊");
-        // Adjust PhysicsEngine params based on mode
+        // Adjust PhysicsEngine params based on todo mode
         const params = MODE_PHYSICS[mode];
         physicsRef.current?.configure(params);
       },
@@ -88,15 +111,6 @@ export default function Pet() {
         setNotifyMsg(message);
         if (notifyTimer.current) clearTimeout(notifyTimer.current);
         notifyTimer.current = setTimeout(() => setNotifyMsg(null), 6000);
-      },
-      onSleepChange: (isSleeping) => {
-        setSleeping(isSleeping);
-        if (isSleeping) {
-          physicsRef.current?.stop();
-          spineRef.current?.setAnimation("stand", true);
-        } else if (!lockedRef.current) {
-          physicsRef.current?.start();
-        }
       },
     });
 
@@ -117,23 +131,24 @@ export default function Pet() {
       walkSpeed: 40,
       idleProbability: 0.3,
       onStateChange: (state) => {
-        setPetState(state);
-        if (state === "walk") {
-          spineRef.current?.setAnimation("walk", true);
-        } else if (state === "idle") {
-          spineRef.current?.setAnimation("stand", true);
+        // Only override SpinePet animation if brain is in idle or walk
+        const brainBehavior = brainRef.current?.getBehavior();
+        if (brainBehavior === "idle" || brainBehavior === "walk") {
+          if (state === "walk") {
+            spineRef.current?.setAnimation("walk", true);
+          } else if (state === "idle") {
+            spineRef.current?.setAnimation("stand", true);
+          }
         }
-        // "dragged" animation is set by drag handler directly
       },
       onFacingChange: (dir) => {
-        // Don't override facing during hover — user is looking at pet
         if (!isHovering.current) {
           spineRef.current?.setFacingDirection(dir);
         }
       },
     });
 
-    // Apply current mode params from PetBrain (may have polled todos already)
+    // Apply current mode params from PetBrain
     if (brainRef.current) {
       physics.configure(MODE_PHYSICS[brainRef.current.getMode()]);
     }
@@ -152,12 +167,12 @@ export default function Pet() {
 
   // ── Handle locked state changes ──
   useEffect(() => {
-    if (locked || sleeping) {
+    if (locked || brainRef.current?.isSleeping()) {
       physicsRef.current?.stop();
     } else {
       physicsRef.current?.start();
     }
-  }, [locked, sleeping]);
+  }, [locked]);
 
   // ── Handle size changes ──
   useEffect(() => {
@@ -180,7 +195,7 @@ export default function Pet() {
   const handleMouseEnter = useCallback(() => {
     if (isDragging) return;
     isHovering.current = true;
-    brainRef.current?.notifyInteraction();
+    brainRef.current?.notifyInteraction("hover");
 
     hoverTimer.current = setTimeout(() => {
       setShowMood(true);
@@ -205,7 +220,7 @@ export default function Pet() {
       const startX = e.screenX;
       const startY = e.screenY;
 
-      brainRef.current?.notifyInteraction();
+      brainRef.current?.notifyInteraction("drag");
       physicsRef.current?.onDragStart();
 
       const onMouseMove = (me: MouseEvent) => {
@@ -234,13 +249,12 @@ export default function Pet() {
     [locked]
   );
 
-  // Restore roaming when drag ends (window regains focus after drag)
+  // Restore roaming when drag ends
   useEffect(() => {
     const handleFocus = () => {
       if (isDragging) {
         setIsDragging(false);
         spineRef.current?.setAnimation("stand", true);
-        // PhysicsEngine reads new position and resumes walking
         physicsRef.current?.onDragEnd();
       }
     };
@@ -252,7 +266,7 @@ export default function Pet() {
   const handleClick = useCallback(async () => {
     if (didDrag.current) return;
     setShowMenu(false);
-    brainRef.current?.notifyInteraction();
+    brainRef.current?.notifyInteraction("click");
     try {
       await invoke("toggle_notepad");
     } catch (e) {
@@ -299,14 +313,11 @@ export default function Pet() {
     });
   }, []);
 
-  const switchPet = useCallback(
-    async (name: string) => {
-      setShowMenu(false);
-      setPetName(name);
-      localStorage.setItem("pet-name", name);
-    },
-    []
-  );
+  const switchPet = useCallback(async (name: string) => {
+    setShowMenu(false);
+    setPetName(name);
+    localStorage.setItem("pet-name", name);
+  }, []);
 
   const handleShowPanel = useCallback(async () => {
     setShowMenu(false);
@@ -328,16 +339,24 @@ export default function Pet() {
   }, []);
 
   // ── State indicator text ──
-  const stateLabel = sleeping
-    ? "💤"
-    : petState === "walk"
-      ? "🚶"
-      : petState === "dragged"
-        ? "💬"
-        : "";
+  const stateLabel =
+    petBehavior === "sleep"
+      ? "💤"
+      : petBehavior === "walk"
+        ? "🚶"
+        : petBehavior === "interact"
+          ? "💬"
+          : "";
+
+  const sleeping = petBehavior === "sleep";
 
   return (
-    <div className="pet-container" data-size={size} data-state={sleeping ? "sleep" : petState} data-mode={petMode}>
+    <div
+      className="pet-container"
+      data-size={size}
+      data-state={sleeping ? "sleep" : petBehavior}
+      data-mode={petMode}
+    >
       <div
         ref={petBodyRef}
         className={`pet-body ${isDragging ? "dragging" : ""} ${sleeping ? "sleeping" : ""} mode-${petMode}`}
@@ -347,9 +366,11 @@ export default function Pet() {
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
-        title={`AntDesk Pet [${sleeping ? "sleep" : petState}/${petMode}]`}
+        title={`AntDesk Pet [${sleeping ? "sleep" : petBehavior}/${petMode}]`}
       >
-        <span className={`pet-status ${connected ? "connected" : "disconnected"}`} />
+        <span
+          className={`pet-status ${connected ? "connected" : "disconnected"}`}
+        />
         <SpinePet
           ref={spineRef}
           petName={petName}
@@ -357,12 +378,12 @@ export default function Pet() {
           height={SIZES[size].h * 0.7}
         />
 
-        {/* State label (small, top-left) */}
+        {/* State label */}
         {stateLabel && (
           <div className="pet-state-label">{stateLabel}</div>
         )}
 
-        {/* Mood bubble — uses brain's mood text */}
+        {/* Mood bubble — hover to show */}
         {showMood && !isDragging && (
           <div className="pet-mood-bubble">
             <span className="mood-emoji">{moodEmoji}</span>{" "}
@@ -376,7 +397,10 @@ export default function Pet() {
 
       {/* Notification banner */}
       {notifyMsg && (
-        <div className="pet-notify-banner" onClick={() => setNotifyMsg(null)}>
+        <div
+          className="pet-notify-banner"
+          onClick={() => setNotifyMsg(null)}
+        >
           <span className="pet-notify-icon">⚠️</span>
           <span className="pet-notify-text">{notifyMsg}</span>
         </div>
