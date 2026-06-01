@@ -1,6 +1,6 @@
 {
   "productName": "AntDesk",
-  "version": "2.6.0",
+  "version": "2.6.1",
   "identifier": "com.antdesk.app",
   "build": {
     "beforeDevCommand": "yarn dev",
@@ -11,22 +11,6 @@
   "app": {
     "withGlobalTauri": true,
     "windows": [
-      {
-        "label": "fab",
-        "title": "AntDesk FAB",
-        "url": "/fab.html",
-        "width": 200,
-        "height": 200,
-        "resizable": false,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "x": 100,
-        "y": 100,
-        "visible": true,
-        "shadow": false
-      },
       {
         "label": "main",
         "title": "AntDesk",
@@ -42,20 +26,6 @@
         "transparent": true,
         "center": true,
         "visible": false
-      },
-      {
-        "label": "quick",
-        "title": "AntDesk Quick",
-        "url": "/quick.html",
-        "width": 260,
-        "height": 360,
-        "resizable": false,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "visible": false,
-        "shadow": false
       },
       {
         "label": "pet",
