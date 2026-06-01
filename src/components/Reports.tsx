@@ -1,6 +1,7 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useAppStore } from "../stores/appStore";
 import { fetchReportContent, createReport, fetchReports } from "../lib/notion";
+import { sendChatMessage } from "../lib/chat";
 import KamiReport from "./KamiReport";
 
 /* ── Markdown renderer for daily reports ── */
@@ -243,6 +244,57 @@ export default function Reports() {
   // Kami view toggle
   const [kamiView, setKamiView] = useState(false);
 
+  // Auto-generate draft
+  const [generating, setGenerating] = useState(false);
+  const settings = useAppStore((s) => s.settings);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const handleAutoGenerate = useCallback(async () => {
+    if (generating) return;
+    setGenerating(true);
+    setWriteOpen(true);
+
+    const todayISO = today.toISOString().slice(0, 10);
+    const doneToday = todos.filter((t) => t.status && t.dueDate === todayISO);
+    const allDone = todos.filter((t) => t.status);
+    const pending = todos.filter((t) => !t.status);
+    const completedList = (doneToday.length > 0 ? doneToday : allDone).map((t) => `- ${t.name}`).join("\n") || "（暂无已完成任务）";
+    const pendingList = pending.slice(0, 10).map((t) => `- ${t.name}（${t.priority}）`).join("\n") || "（无）";
+
+    const prompt = `帮我生成今天的日报草稿，用 markdown 格式，包含以下章节：
+## 完成事项
+（基于以下已完成任务）
+${completedList}
+
+## 进行中
+（基于以下未完成任务，简述进展）
+${pendingList}
+
+## 明日计划
+（根据未完成任务给出 2-3 条建议）
+
+请简洁，每条一行。`;
+
+    abortRef.current = new AbortController();
+    let result = "";
+
+    try {
+      await sendChatMessage(
+        settings.aiEndpoint,
+        settings.aiModel,
+        [{ role: "user", content: prompt }],
+        (chunk) => { result += chunk; },
+        abortRef.current.signal
+      );
+      setWriteContent(result || "生成失败，请手动编写");
+    } catch {
+      setWriteContent("生成失败，请手动编写");
+    } finally {
+      setGenerating(false);
+      abortRef.current = null;
+    }
+  }, [generating, todos, settings, today]);
+
   // Build date → report map
   const reportMap = useMemo(() => {
     const map = new Map<string, { id: string; summary?: string }>();
@@ -354,6 +406,13 @@ export default function Reports() {
             className="text-[10px] px-2 py-0.5 rounded-md bg-accent/20 text-accent hover:bg-accent/30 transition-colors"
           >
             {writeOpen ? "收起" : "写日报"}
+          </button>
+          <button
+            onClick={handleAutoGenerate}
+            disabled={generating}
+            className="text-[10px] px-2 py-0.5 rounded-md bg-accent-blue/15 text-accent-blue hover:bg-accent-blue/25 transition-colors disabled:opacity-40"
+          >
+            {generating ? "生成中..." : "AI 草稿"}
           </button>
         </div>
       </div>

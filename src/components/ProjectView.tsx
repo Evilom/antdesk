@@ -229,6 +229,43 @@ export default function ProjectView() {
         </div>
       </div>
 
+      {/* Project Progress Rings */}
+      {activeProjects.length > 0 && (
+        <div className="bg-bg-card rounded-card p-3 anim-card" style={{ animationDelay: "0.06s" }}>
+          <h3 className="text-xs font-medium text-text-secondary mb-2">项目进度</h3>
+          <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1">
+            {activeProjects.map((proj) => {
+              const projTodos = todos.filter((t) => t.projectId === proj.id);
+              const done = projTodos.filter((t) => t.status).length;
+              const total = projTodos.length;
+              const pct = total > 0 ? done / total : 0;
+              const r = 18;
+              const circ = 2 * Math.PI * r;
+              const offset = circ * (1 - pct);
+              return (
+                <div key={proj.id} className="flex flex-col items-center gap-1 flex-shrink-0">
+                  <svg width="44" height="44" className="-rotate-90">
+                    <circle cx="22" cy="22" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="3" />
+                    <circle
+                      cx="22" cy="22" r={r}
+                      fill="none"
+                      stroke={pct >= 0.8 ? "#30d158" : pct >= 0.4 ? "#0a84ff" : "#ff9f0a"}
+                      strokeWidth="3"
+                      strokeDasharray={circ}
+                      strokeDashoffset={offset}
+                      strokeLinecap="round"
+                      className="transition-all duration-700"
+                    />
+                  </svg>
+                  <span className="text-[9px] text-text-muted text-center leading-tight max-w-[52px] truncate">{proj.name}</span>
+                  <span className="text-[9px] text-text-secondary">{done}/{total}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Sections */}
       {sections.length === 0 && (
         <div className="text-center text-text-muted text-xs py-8">

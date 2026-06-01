@@ -61,7 +61,7 @@ function saveSettings(settings: AppSettings) {
 const initialSettings = loadSettings();
 
 export const useAppStore = create<AppState>((set) => ({
-  currentPage: "today",
+  currentPage: "agenda",
   setCurrentPage: (page) => set({ currentPage: page }),
 
   todos: [],

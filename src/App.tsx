@@ -3,22 +3,20 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalSize, LogicalPosition } from "@tauri-apps/api/window";
 import { useAppStore, applyTheme } from "./stores/appStore";
 import { getNotionToken, fetchTodos, fetchReports, fetchProjects } from "./lib/notion";
-import Today from "./components/Today";
 import ProjectView from "./components/ProjectView";
 import Reports from "./components/Reports";
-import Chat from "./components/Chat";
+import Agenda from "./components/Agenda";
 import Settings from "./components/Settings";
 import SearchModal from "./components/SearchModal";
 import type { Page } from "./types";
 
 const NAV_ITEMS: { id: Page; label: string; icon: string }[] = [
-  { id: "today", label: "今日", icon: "\u{1F4C5}" },
-  { id: "projects", label: "目标", icon: "\u{1F4CB}" },
+  { id: "agenda", label: "日程", icon: "\u{1F4C5}" },
   { id: "reports", label: "日报", icon: "\u{1F4DD}" },
-  { id: "chat", label: "助理", icon: "\u{1F916}" },
+  { id: "goals", label: "目标", icon: "\u{1F4CB}" },
 ];
 
-const PAGE_INDEX: Record<Page, number> = { today: 0, projects: 1, reports: 2, chat: 3 };
+const PAGE_INDEX: Record<Page, number> = { agenda: 0, reports: 1, goals: 2 };
 
 export default function App() {
   const currentPage = useAppStore((s) => s.currentPage);
@@ -192,14 +190,12 @@ export default function App() {
 
   const renderPage = () => {
     switch (currentPage) {
-      case "today":
-        return <Today onRefresh={loadData} />;
-      case "projects":
+      case "agenda":
+        return <Agenda onRefresh={loadData} />;
+      case "goals":
         return <ProjectView />;
       case "reports":
         return <Reports />;
-      case "chat":
-        return <Chat />;
     }
   };
 
@@ -286,8 +282,8 @@ export default function App() {
         <div
           className="nav-indicator"
           style={{
-            left: `${PAGE_INDEX[currentPage] * 25 + 12}%`,
-            width: "12%",
+            left: `${PAGE_INDEX[currentPage] * 33.33 + 10}%`,
+            width: "16%",
           }}
         />
       </div>

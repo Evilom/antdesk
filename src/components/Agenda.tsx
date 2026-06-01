@@ -1,6 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { useAppStore } from "../stores/appStore";
-import type { Todo, Page } from "../types";
+import { sendChatMessage } from "../lib/chat";
+import type { Todo, Page, ChatMessage } from "../types";
+import { v4 } from "./_uuid";
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 
@@ -16,14 +18,19 @@ interface Props {
   onRefresh: () => void;
 }
 
-export default function Today({ onRefresh }: Props) {
+export default function Agenda({ onRefresh }: Props) {
   const todos = useAppStore((s) => s.todos);
   const projects = useAppStore((s) => s.projects);
   const notionConnected = useAppStore((s) => s.notionConnected);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
+  const settings = useAppStore((s) => s.settings);
+  const addChatMessage = useAppStore((s) => s.addChatMessage);
+  const updateLastAssistantMessage = useAppStore((s) => s.updateLastAssistantMessage);
+  const chatMessages = useAppStore((s) => s.chatMessages);
 
   const today = todayStr();
 
+  // ── Task categorization (from Today.tsx) ──
   const archivedProjectIds = useMemo(
     () => new Set(projects.filter((p) => p.archived).map((p) => p.id)),
     [projects]
@@ -63,7 +70,62 @@ export default function Today({ onRefresh }: Props) {
     });
   }, [activeTodos, projects]);
 
+  // ── AI Suggestion Card ──
+  const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const generateSuggestion = useCallback(async () => {
+    if (suggestLoading) return;
+    setSuggestLoading(true);
+    setSuggestion(null);
+
+    const overdueList = overdue.map((t) => `- [逾期] ${t.name}（优先级: ${t.priority}）`).join("\n");
+    const dueList = dueToday.map((t) => `- [今日截止] ${t.name}（优先级: ${t.priority}）`).join("\n");
+    const highList = highPriority.map((t) => `- [高优] ${t.name}`).join("\n");
+    const taskSummary = [overdueList, dueList, highList].filter(Boolean).join("\n") || "（暂无紧急任务）";
+
+    const prompt = `根据以下任务状态，给出今天的工作建议（简洁，2-3句话，估算处理时间）：\n${taskSummary}`;
+
+    const userMsg: ChatMessage = { id: v4(), role: "user", content: prompt, timestamp: Date.now() };
+    const assistantMsg: ChatMessage = { id: v4(), role: "assistant", content: "", timestamp: Date.now() };
+
+    abortRef.current = new AbortController();
+    let result = "";
+
+    try {
+      await sendChatMessage(
+        settings.aiEndpoint,
+        settings.aiModel,
+        [{ role: "user", content: prompt }],
+        (chunk) => { result += chunk; },
+        abortRef.current.signal
+      );
+      setSuggestion(result || "暂无建议");
+    } catch {
+      setSuggestion("获取建议失败，请稍后重试");
+    } finally {
+      setSuggestLoading(false);
+      abortRef.current = null;
+    }
+  }, [overdue, dueToday, highPriority, settings, suggestLoading]);
+
+  // Auto-generate suggestion on mount if there are actionable tasks
+  useEffect(() => {
+    if ((overdue.length > 0 || dueToday.length > 0 || highPriority.length > 0) && !suggestion && !suggestionDismissed) {
+      generateSuggestion();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAdopt = useCallback(() => {
+    // Sort tasks: overdue first, then due today, then high priority
+    // This is a UX hint — just navigate to projects with the suggestion context
+    setCurrentPage("goals");
+  }, [setCurrentPage]);
+
   const navigate = (page: Page) => setCurrentPage(page);
+  const hasUrgentTasks = overdue.length > 0 || dueToday.length > 0 || highPriority.length > 0;
 
   let idx = 0;
   const delay = () => `${(idx++) * 0.06}s`;
@@ -73,7 +135,7 @@ export default function Today({ onRefresh }: Props) {
       {/* Header */}
       <div className="bg-bg-card rounded-card p-3 flex items-center justify-between anim-card" style={{ animationDelay: "0s" }}>
         <h1 className="text-sm font-semibold text-text-primary">
-          今日 · {formatChineseDate(new Date())}
+          日程 · {formatChineseDate(new Date())}
         </h1>
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full transition-colors duration-500 ${notionConnected ? "bg-accent-green" : "bg-accent-red"}`} />
@@ -85,7 +147,7 @@ export default function Today({ onRefresh }: Props) {
 
       {/* Overdue */}
       {overdue.length > 0 && (
-        <Section title="逾期任务" accent="border-accent-red" delay={delay()}>
+        <Section title={`逾期任务 (${overdue.length})`} accent="border-accent-red" delay={delay()}>
           {overdue.map((t) => (
             <TaskItem key={t.id} todo={t} dotColor="bg-accent-red" />
           ))}
@@ -94,7 +156,7 @@ export default function Today({ onRefresh }: Props) {
 
       {/* Due Today */}
       {dueToday.length > 0 && (
-        <Section title="今日截止" accent="border-accent-yellow" delay={delay()}>
+        <Section title={`今日截止 (${dueToday.length})`} accent="border-accent-yellow" delay={delay()}>
           {dueToday.map((t) => (
             <TaskItem key={t.id} todo={t} dotColor="bg-accent-yellow" />
           ))}
@@ -103,11 +165,20 @@ export default function Today({ onRefresh }: Props) {
 
       {/* High Priority */}
       {highPriority.length > 0 && (
-        <Section title="高优先级" accent="border-accent-orange" delay={delay()}>
+        <Section title={`高优先级 (${highPriority.length})`} accent="border-accent-orange" delay={delay()}>
           {highPriority.map((t) => (
             <TaskItem key={t.id} todo={t} dotColor="bg-accent-orange" />
           ))}
         </Section>
+      )}
+
+      {/* Empty state */}
+      {!hasUrgentTasks && (
+        <div className="bg-bg-card rounded-card p-6 text-center anim-card" style={{ animationDelay: delay() }}>
+          <div className="text-2xl mb-2">✨</div>
+          <div className="text-xs text-text-secondary">今天没有紧急任务</div>
+          <div className="text-[10px] text-text-muted mt-1">可以处理低优先级事项或休息一下</div>
+        </div>
       )}
 
       {/* Project Overview */}
@@ -119,6 +190,54 @@ export default function Today({ onRefresh }: Props) {
               <ProjectRow key={p.id} project={p} />
             ))}
           </div>
+        </div>
+      )}
+
+      {/* AI Suggestion Card */}
+      {!suggestionDismissed && hasUrgentTasks && (
+        <div
+          className="bg-bg-card rounded-card p-3 border-l-2 border-accent-blue/40 anim-card"
+          style={{ animationDelay: delay() }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm"> </span>
+              <h3 className="text-xs font-medium text-text-secondary">AI 建议</h3>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={generateSuggestion}
+                disabled={suggestLoading}
+                className="text-[10px] text-text-muted hover:text-accent-blue transition-colors disabled:opacity-40"
+                title="刷新建议"
+              >
+                ↻
+              </button>
+              <button
+                onClick={() => setSuggestionDismissed(true)}
+                className="text-[10px] text-text-muted hover:text-text-secondary transition-colors"
+                title="关闭"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+          {suggestLoading ? (
+            <div className="flex items-center gap-2 py-2">
+              <span className="inline-block w-3 h-3 border-2 border-accent-blue/30 border-t-accent-blue rounded-full animate-spin" />
+              <span className="text-[11px] text-text-muted">分析任务中...</span>
+            </div>
+          ) : suggestion ? (
+            <div>
+              <p className="text-[11px] text-text-secondary leading-relaxed">{suggestion}</p>
+              <button
+                onClick={handleAdopt}
+                className="mt-2 px-3 py-1 text-[10px] bg-accent-blue/15 text-accent-blue rounded-lg hover:bg-accent-blue/25 transition-colors"
+              >
+                采纳 → 查看任务
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
 

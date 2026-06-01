@@ -44,15 +44,15 @@
 
 # UI/UX Design Spec (v2.1)
 
-## Navigation: 4 Tabs (bottom bar)
+## Navigation: 3 Tabs (bottom bar)
 ```
- 今日  |  项目  |  日报  |  助理
+ 日程  |  日报  |  目标
 ```
 - Settings moved to title bar gear icon (top-right)
 - Each tab icon + 10px label text
 
-## Page 1: 今日 (Today — replaces Dashboard)
-Action-oriented "what to do today" view:
+## Page 1: 日程 (Agenda — merged Today + Assistant)
+Action-oriented daily view with AI suggestions:
 ```
 ┌─────────────────────────┐
 │  今日 · 5月21日 周三      │
@@ -77,7 +77,7 @@ Action-oriented "what to do today" view:
 - Project overview: group todos by Project relation, show done/total per project
 - Quick actions at bottom
 
-## Page 2: 项目 (Projects — replaces Tasks)
+## Page 3: 目标 (Goals — project/task management)
 Tasks grouped by project:
 ```
 ┌─────────────────────────┐
@@ -105,7 +105,7 @@ Tasks grouped by project:
 - Filter dropdown: by priority, by project, show done toggle
 - Add task: name input + priority select + project select
 
-## Page 3: 日报 (Reports — enhanced)
+## Page 2: 日报 (Reports — enhanced)
 ```
 ┌─────────────────────────┐
 │  日报           [写日报]  │
@@ -128,26 +128,12 @@ Tasks grouped by project:
 - Calendar heatmap: 30-day grid, color by report existence
 - Report list below with expandable content
 
-## Page 4: 助理 (Assistant — enhanced Chat)
-```
-┌─────────────────────────┐
-│  AI 助理    [清空] [模型] │
-├─────────────────────────┤
-│  快捷指令:               │
-│  [规划今日] [总结项目]    │
-│  [生成日报] [整理任务]    │
-├─────────────────────────┤
-│  聊天消息区...            │
-│                          │
-├─────────────────────────┤
-│  [输入框]           [发送]│
-└─────────────────────────┘
-```
-- Quick command buttons at top that inject prompts with Notion context
-- "规划今日": sends "根据以下未完成任务，帮我规划今天的优先级: {todos}"
-- "总结项目": sends "总结以下项目的进展: {projects}"
-- "生成日报": sends "根据今日完成的任务生成日报: {completed_today}"
-- Chat history preserved in store
+## AI Integration (embedded in 日程 tab)
+- AI suggestion card auto-appears at bottom of 日程 tab when urgent tasks exist
+- Analyzes overdue + due-today + high-priority tasks
+- Shows concise suggestion with estimated time
+- "采纳" button navigates to goals tab
+- 日报 tab has "AI 草稿" button for auto-generating daily report drafts
 
 ## Title Bar (enhanced)
 ```

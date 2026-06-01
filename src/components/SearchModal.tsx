@@ -39,7 +39,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
         type: "todo" as const,
         label: t.name,
         sublabel: t.status ? "已完成" : "未完成",
-        page: "projects" as Page,
+        page: "goals" as Page,
       }));
 
     const projectResults: SearchResult[] = projects
@@ -48,7 +48,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
         id: p.id,
         type: "project" as const,
         label: p.name,
-        page: "projects" as Page,
+        page: "goals" as Page,
       }));
 
     const reportResults: SearchResult[] = reports
