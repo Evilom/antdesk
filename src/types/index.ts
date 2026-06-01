@@ -34,7 +34,7 @@ export interface ChatMessage {
   timestamp: number;
 }
 
-export type Page = "today" | "projects" | "reports" | "chat";
+export type Page = "agenda" | "reports" | "goals";
 
 export type Priority = "High" | "Medium" | "Low";
 

@@ -69,7 +69,11 @@ export const useAppStore = create<AppState>((set) => ({
   projects: [],
   notionConnected: false,
 
-  setTodos: (todos) => set({ todos }),
+  setTodos: (todos) => {
+    set({ todos });
+    // Persist for pet window's TodoSensor
+    try { localStorage.setItem("antdesk_todos", JSON.stringify(todos)); } catch {}
+  },
   addTodo: (todo) => set((state) => ({ todos: [todo, ...state.todos] })),
   updateTodo: (id, updates) =>
     set((state) => ({

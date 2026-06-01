@@ -10,6 +10,8 @@ export default defineConfig({
         main: resolve(__dirname, "index.html"),
         fab: resolve(__dirname, "fab.html"),
         quick: resolve(__dirname, "quick.html"),
+        pet: resolve(__dirname, "pet.html"),
+        notepad: resolve(__dirname, "notepad.html"),
       },
     },
   },

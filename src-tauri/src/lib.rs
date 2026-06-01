@@ -276,6 +276,8 @@ async fn toggle_quick_panel(app: tauri::AppHandle) -> Result<(), String> {
         // Position near FAB and show — FAB stays visible
         position_quick_near_fab_inner(&app)?;
         quick.show().map_err(|e| e.to_string())?;
+        // Quick panel below FAB in z-order — FAB covers panel corner
+        let _ = quick.set_always_on_top(false);
         quick.set_focus().map_err(|e| e.to_string())?;
     }
     Ok(())
@@ -301,9 +303,13 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
     let dot_top = fab_y + 76.0 * scale;      // 100 - 24 (button radius)
     let dot_bottom = fab_y + 124.0 * scale;   // 100 + 24
 
+    // Panel edge aligns to FAB center — no gap, grow from center
     let quick_w = 260.0 * scale;
-    let quick_h = 200.0 * scale; // initial guess; ResizeObserver adjusts
-    let gap = 2.0 * scale;  // tight gap to button edge
+    // Use actual window size if available, fallback to 200
+    let quick_h = quick
+        .outer_size()
+        .map(|s| s.height as f64)
+        .unwrap_or(200.0 * scale);
     let margin = 8.0 * scale;
 
     // Monitor bounds
@@ -327,18 +333,19 @@ fn position_quick_near_fab_inner(app: &tauri::AppHandle) -> Result<(), String> {
     let fab_center_y = (dot_top + dot_bottom) / 2.0;
     let mut is_above = fab_center_y > screen_mid_y;
 
+    // Panel edge sits exactly at FAB center — no gap, grows outward
     let mut y = if is_above {
-        dot_top - gap - quick_h
+        fab_center_y - quick_h
     } else {
-        dot_bottom + gap
+        fab_center_y
     };
 
     // If preferred direction doesn't fit, flip
     if is_above && y < mon_top + margin {
-        y = dot_bottom + gap;
+        y = fab_center_y;
         is_above = false;
     } else if !is_above && y + quick_h > mon_bottom - margin {
-        y = dot_top - gap - quick_h;
+        y = fab_center_y - quick_h;
         is_above = true;
     }
 
@@ -379,7 +386,6 @@ async fn update_quick_panel_position(app: tauri::AppHandle) -> Result<(), String
     if let Some(quick) = app.get_webview_window("quick") {
         if quick.is_visible().unwrap_or(false) {
             position_quick_near_fab_inner(&app)?;
-            let _ = app.emit("quick-panel-shown", ());
         }
     }
     Ok(())
@@ -395,6 +401,94 @@ async fn open_full_panel(app: tauri::AppHandle) -> Result<(), String> {
     expand_panel(app).await
 }
 
+// ── Notepad panel commands ──
+
+fn position_notepad_near_pet_inner(app: &tauri::AppHandle) -> Result<(), String> {
+    let pet = app
+        .get_webview_window("pet")
+        .ok_or("Pet window not found")?;
+    let notepad = app
+        .get_webview_window("notepad")
+        .ok_or("Notepad window not found")?;
+
+    let pet_pos = pet.outer_position().map_err(|e| e.to_string())?;
+    let pet_size = pet.outer_size().map_err(|e| e.to_string())?;
+    let monitor = pet.current_monitor().ok().flatten();
+    let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
+
+    let notepad_w = 280.0 * scale;
+    let notepad_h = 320.0 * scale;
+    let margin = 8.0 * scale;
+
+    let pet_x = pet_pos.x as f64;
+    let pet_y = pet_pos.y as f64;
+    let pet_w = pet_size.width as f64;
+    let pet_h = pet_size.height as f64;
+
+    // Monitor bounds
+    let (mon_left, mon_top, mon_right, mon_bottom) = if let Some(ref m) = monitor {
+        let p = m.position();
+        let s = m.size();
+        (
+            p.x as f64,
+            p.y as f64,
+            p.x as f64 + s.width as f64,
+            p.y as f64 + s.height as f64,
+        )
+    } else {
+        (0.0, 0.0, 1920.0 * scale, 1080.0 * scale)
+    };
+
+    // Try left of pet first, then right, then above
+    let mut x = pet_x - notepad_w - margin;
+    let mut y = pet_y + pet_h / 2.0 - notepad_h / 2.0;
+
+    // If off left edge, try right side
+    if x < mon_left + margin {
+        x = pet_x + pet_w + margin;
+    }
+    // If off right edge, try above
+    if x + notepad_w > mon_right - margin {
+        x = pet_x + pet_w / 2.0 - notepad_w / 2.0;
+        y = pet_y - notepad_h - margin;
+    }
+    // Clamp vertically
+    if y < mon_top + margin {
+        y = mon_top + margin;
+    }
+    if y + notepad_h > mon_bottom - margin {
+        y = mon_bottom - notepad_h - margin;
+    }
+    // Clamp horizontally
+    if x < mon_left + margin {
+        x = mon_left + margin;
+    }
+    if x + notepad_w > mon_right - margin {
+        x = mon_right - notepad_w - margin;
+    }
+
+    let pos = tauri::Position::Physical(tauri::PhysicalPosition::new(x as i32, y as i32));
+    notepad.set_position(pos).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn toggle_notepad(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(notepad) = app.get_webview_window("notepad") {
+        if notepad.is_visible().unwrap_or(false) {
+            let _ = notepad.hide();
+        } else {
+            position_notepad_near_pet_inner(&app)?;
+            let _ = notepad.show();
+            let _ = notepad.set_focus();
+            // Emit event so frontend can refresh data
+            let _ = app.emit("notepad-shown", ());
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 async fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
     app.exit(0);
@@ -407,6 +501,143 @@ async fn show_fab(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(fab) = app.get_webview_window("fab") {
         fab.show().map_err(|e| e.to_string())?;
     }
+    Ok(())
+}
+
+// ── Pet window commands ──
+
+#[tauri::command]
+async fn pet_drag(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(pet) = app.get_webview_window("pet") {
+        pet.start_dragging().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn pet_click(app: tauri::AppHandle) -> Result<(), String> {
+    toggle_panel(app).await
+}
+
+#[tauri::command]
+async fn show_pet(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(pet) = app.get_webview_window("pet") {
+        pet.show().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn hide_pet(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(pet) = app.get_webview_window("pet") {
+        pet.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Get screen available bounds (excluding Dock/menu bar) for the pet's current monitor.
+/// Returns { x, y, width, height } in physical pixels.
+#[tauri::command]
+async fn get_screen_bounds(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let pet = app
+        .get_webview_window("pet")
+        .ok_or("Pet window not found")?;
+
+    let monitor = pet.current_monitor().ok().flatten()
+        .ok_or("No monitor found")?;
+
+    let scale = monitor.scale_factor();
+    let pos = monitor.position();
+    let size = monitor.size();
+
+    // Full monitor bounds in physical pixels
+    let mon_x = pos.x as f64;
+    let mon_y = pos.y as f64;
+    let mon_w = size.width as f64;
+    let mon_h = size.height as f64;
+
+    // macOS: estimate safe area (menu bar ~25pt, Dock ~65pt)
+    // Available = monitor minus top menu bar minus bottom dock
+    let menu_bar_h = 25.0 * scale;
+    let dock_h = 65.0 * scale;
+
+    let avail_x = mon_x;
+    let avail_y = mon_y + menu_bar_h;
+    let avail_w = mon_w;
+    let avail_h = mon_h - menu_bar_h - dock_h;
+
+    Ok(serde_json::json!({
+        "x": avail_x,
+        "y": avail_y,
+        "width": avail_w,
+        "height": avail_h,
+        "scale": scale,
+    }))
+}
+
+const PET_SIZES: &[(&str, f64, f64)] = &[
+    ("tiny", 120.0, 120.0),
+    ("small", 200.0, 200.0),
+    ("medium", 260.0, 260.0),
+    ("large", 360.0, 360.0),
+];
+
+#[tauri::command]
+async fn set_pet_size(app: tauri::AppHandle, size: String) -> Result<(), String> {
+    let pet = app
+        .get_webview_window("pet")
+        .ok_or("Pet window not found")?;
+
+    let (_, w, h) = PET_SIZES
+        .iter()
+        .find(|(name, _, _)| *name == size.as_str())
+        .copied()
+        .unwrap_or(("medium", 260.0, 260.0));
+
+    let scale = pet
+        .current_monitor()
+        .ok()
+        .flatten()
+        .map(|m| m.scale_factor())
+        .unwrap_or(1.0);
+
+    let logical = tauri::Size::Logical(tauri::LogicalSize::new(w, h));
+    pet.set_size(logical).map_err(|e| e.to_string())?;
+
+    // Reposition to keep bottom-right anchored
+    position_pet_bottom_right_inner(&app, w * scale, h * scale)?;
+
+    Ok(())
+}
+
+/// Position pet window at bottom-right of current monitor
+fn position_pet_bottom_right_inner(
+    app: &tauri::AppHandle,
+    pet_w: f64,
+    pet_h: f64,
+) -> Result<(), String> {
+    let pet = app
+        .get_webview_window("pet")
+        .ok_or("Pet window not found")?;
+
+    let monitor = pet.current_monitor().ok().flatten();
+    let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
+
+    let (mon_right, mon_bottom) = if let Some(ref m) = monitor {
+        let p = m.position();
+        let s = m.size();
+        (p.x as f64 + s.width as f64, p.y as f64 + s.height as f64)
+    } else {
+        (1920.0 * scale, 1080.0 * scale)
+    };
+
+    let margin = 24.0 * scale;
+    let x = mon_right - pet_w - margin;
+    let y = mon_bottom - pet_h - margin;
+
+    let pos = tauri::Position::Physical(tauri::PhysicalPosition::new(x as i32, y as i32));
+    pet.set_position(pos).map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
@@ -477,6 +708,27 @@ pub fn run() {
         .setup(|app| {
             setup_tray(app);
 
+            // Position pet window at bottom-right of primary monitor
+            let app_handle = app.handle().clone();
+            if let Some(pet) = app_handle.get_webview_window("pet") {
+                let monitor = pet.current_monitor().ok().flatten();
+                let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
+                let (mon_right, mon_bottom) = if let Some(ref m) = monitor {
+                    let p = m.position();
+                    let s = m.size();
+                    (p.x as f64 + s.width as f64, p.y as f64 + s.height as f64)
+                } else {
+                    (1920.0 * scale, 1080.0 * scale)
+                };
+                let pet_w = 260.0 * scale;
+                let pet_h = 260.0 * scale;
+                let margin = 24.0 * scale;
+                let x = mon_right - pet_w - margin;
+                let y = mon_bottom - pet_h - margin;
+                let pos = tauri::Position::Physical(tauri::PhysicalPosition::new(x as i32, y as i32));
+                let _ = pet.set_position(pos);
+            }
+
             let app_handle = app.handle().clone();
             app_handle.on_menu_event(move |app, event| {
                 match event.id().as_ref() {
@@ -515,9 +767,16 @@ pub fn run() {
             show_settings,
             toggle_panel,
             get_pending_count,
+            toggle_notepad,
             quit_app,
             show_fab,
             update_quick_panel_position,
+            pet_drag,
+            pet_click,
+            show_pet,
+            hide_pet,
+            set_pet_size,
+            get_screen_bounds,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

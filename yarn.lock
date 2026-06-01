@@ -295,6 +295,18 @@
   resolved "https://registry.yarnpkg.com/@esbuild/win32-x64/-/win32-x64-0.25.12.tgz#9bdad8176be7811ad148d1f8772359041f46c6c5"
   integrity sha512-alJC0uCZpTFrSL0CCDjcgleBXPnCrEAhTBILpeAp7M/OFgoqtAetfBzX0xM00MUsVVPpVjlPuMbREqnZCXaTnA==
 
+"@esotericsoftware/spine-core@4.2.119":
+  version "4.2.119"
+  resolved "https://registry.npmmirror.com/@esotericsoftware/spine-core/-/spine-core-4.2.119.tgz#20f655ab62f9a7ab88ea4dfa405ad27d0f331132"
+  integrity sha512-lvaRECaQDScO758ZSAR1Fj+GWkBKVZxPdgT/gCiKqdkrjZCDu2UzgbZtdPhxnLPcKG/zsaGJkfbN4OS0wHsxZQ==
+
+"@esotericsoftware/spine-webgl@4.2.119":
+  version "4.2.119"
+  resolved "https://registry.npmmirror.com/@esotericsoftware/spine-webgl/-/spine-webgl-4.2.119.tgz#eb911be2f478edbbf4b02cfe2b8b0af13943b430"
+  integrity sha512-8SaY+Ii1MMA8ZJOq1VxffzJ8ns/45M9wc0mjEMg/dHFWR/yvxsMx2fJhq2aRbRkYRobBr8Hu9jOleyUSkFD0Gw==
+  dependencies:
+    "@esotericsoftware/spine-core" "4.2.119"
+
 "@jridgewell/gen-mapping@^0.3.12", "@jridgewell/gen-mapping@^0.3.2", "@jridgewell/gen-mapping@^0.3.5":
   version "0.3.13"
   resolved "https://registry.yarnpkg.com/@jridgewell/gen-mapping/-/gen-mapping-0.3.13.tgz#6342a19f44347518c93e43b1ac69deb3c4656a1f"

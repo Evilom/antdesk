@@ -37,24 +37,24 @@ html, body {
   animation-delay: 0.02s;
 }
 
-/* Direction-based entry animation */
+/* Direction-based entry animation — grow outward from FAB center */
 .quick-panel.below {
   transform-origin: top center;
-  animation-name: quick-panel-slide-up;
+  animation-name: quick-panel-slide-down;
 }
 
 .quick-panel.above {
   transform-origin: bottom center;
-  animation-name: quick-panel-slide-down;
+  animation-name: quick-panel-slide-up;
 }
 
-/* Exit animation */
+/* Exit animation — shrink back to FAB center */
 .quick-panel.hiding.below {
-  animation: quick-panel-slide-out-up 0.2s ease-in both;
+  animation: quick-panel-slide-out-down 0.2s ease-in both;
 }
 
 .quick-panel.hiding.above {
-  animation: quick-panel-slide-out-down 0.2s ease-in both;
+  animation: quick-panel-slide-out-up 0.2s ease-in both;
 }
 
 /* Passthrough mode — locked, click-through */

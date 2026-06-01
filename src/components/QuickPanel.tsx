@@ -69,7 +69,7 @@ export default function QuickPanel() {
     return () => { if (unlisten) unlisten(); };
   }, []);
 
-  // ── ResizeObserver: auto-fit window height ──
+  // ── ResizeObserver: auto-fit window height + reposition ──
   useEffect(() => {
     if (!panelRef.current) return;
     const observer = new ResizeObserver(async (entries) => {
@@ -79,6 +79,8 @@ export default function QuickPanel() {
         const { getCurrentWindow } = await import("@tauri-apps/api/window");
         const { LogicalSize } = await import("@tauri-apps/api/dpi");
         await getCurrentWindow().setSize(new LogicalSize(260, Math.ceil(h + 8)));
+        // Reposition after resize so panel doesn't cover FAB
+        await invoke("update_quick_panel_position").catch(() => {});
       } catch {}
     });
     observer.observe(panelRef.current);

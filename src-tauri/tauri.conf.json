@@ -56,6 +56,34 @@
         "skipTaskbar": true,
         "visible": false,
         "shadow": false
+      },
+      {
+        "label": "pet",
+        "title": "AntDesk Pet",
+        "url": "/pet.html",
+        "width": 260,
+        "height": 260,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": true,
+        "shadow": false
+      },
+      {
+        "label": "notepad",
+        "title": "AntDesk Notepad",
+        "url": "/notepad.html",
+        "width": 280,
+        "height": 320,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "shadow": false
       }
     ],
     "security": {
