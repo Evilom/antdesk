@@ -55,4 +55,5 @@ export interface AppSettings {
   fontSize: FontSize;
   glass: GlassIntensity;
   transparency: number; // 0-175, 0=opaque, 175=very transparent
+  kanbanEndpoint: string;
 }

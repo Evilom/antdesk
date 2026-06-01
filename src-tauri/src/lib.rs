@@ -575,6 +575,47 @@ async fn get_screen_bounds(app: tauri::AppHandle) -> Result<serde_json::Value, S
     }))
 }
 
+// ── Kanban fetch from remote endpoint ──
+
+
+#[tauri::command]
+async fn fetch_kanban(url: Option<String>) -> Result<String, String> {
+    let endpoint = url
+        .filter(|u| !u.is_empty())
+        .or_else(|| {
+            std::env::var("KANBAN_ENDPOINT").ok()
+        })
+        .unwrap_or_default();
+
+    if endpoint.is_empty() {
+        // Return empty kanban if no endpoint configured
+        return Ok(r#"{
+            "actions": [],
+            "completedToday": [],
+            "exportedAt": "",
+            "stats": {"pending": 0, "active": 0, "blocked": 0, "completedToday": 0}
+        }"#.to_string());
+    }
+
+    let client = http_client();
+    let resp = client
+        .get(&endpoint)
+        .header("Accept", "application/json")
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("Kanban fetch error: {}", e))?;
+
+    let status = resp.status();
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+
+    if !status.is_success() {
+        return Err(format!("Kanban API error ({}): {}", status, text));
+    }
+
+    Ok(text)
+}
+
 const PET_SIZES: &[(&str, f64, f64)] = &[
     ("tiny", 120.0, 120.0),
     ("small", 200.0, 200.0),
@@ -777,6 +818,7 @@ pub fn run() {
             hide_pet,
             set_pet_size,
             get_screen_bounds,
+            fetch_kanban,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

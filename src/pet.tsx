@@ -2,9 +2,11 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   getCurrentWindow,
   currentMonitor,
+  LogicalSize,
 } from "@tauri-apps/api/window";
 import { useEffect, useState, useCallback, useRef } from "react";
 import SpinePet, { type SpinePetHandle } from "./components/SpinePet";
+import QuickChat from "./components/QuickChat";
 import { PhysicsEngine } from "./lib/PhysicsEngine";
 import {
   PetBrain,
@@ -12,6 +14,9 @@ import {
   type PetMode,
   type BehaviorState,
 } from "./lib/PetBrain";
+import { KanbanBridge } from "./lib/kanbanBridge";
+import { useKanbanStore } from "./stores/kanbanStore";
+import type { KanbanData } from "./types/kanban";
 
 type PetSize = "tiny" | "small" | "medium" | "large";
 
@@ -22,7 +27,9 @@ const SIZES: Record<PetSize, { w: number; h: number }> = {
   large: { w: 360, h: 360 },
 };
 
-// 行为状态 → 显示 emoji
+// Expanded size when QuickChat is open (pet + panel side by side)
+const EXPANDED_WIDTH = 560;
+
 const BEHAVIOR_EMOJI: Record<BehaviorState, string> = {
   idle: "😊",
   walk: "🚶",
@@ -44,6 +51,7 @@ export default function Pet() {
   const [petBehavior, setPetBehavior] = useState<BehaviorState>("idle");
   const [petMode, setPetMode] = useState<PetMode>("leisure");
   const [notifyMsg, setNotifyMsg] = useState<string | null>(null);
+  const [quickChatOpen, setQuickChatOpen] = useState(false);
 
   const didDrag = useRef(false);
   const spineRef = useRef<SpinePetHandle>(null);
@@ -51,16 +59,22 @@ export default function Pet() {
   const hoverTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const physicsRef = useRef<PhysicsEngine | null>(null);
   const brainRef = useRef<PetBrain | null>(null);
+  const kanbanBridgeRef = useRef<KanbanBridge | null>(null);
   const notifyTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const isHovering = useRef(false);
   const lockedRef = useRef(false);
 
-  // Keep lockedRef in sync
+  // Kanban store
+  const setKanbanData = useKanbanStore((s) => s.setData);
+  const setKanbanConnected = useKanbanStore((s) => s.setConnected);
+  const setKanbanError = useKanbanStore((s) => s.setError);
+  const kanbanEndpoint = useKanbanStore((s) => s.endpoint);
+
   useEffect(() => {
     lockedRef.current = locked;
   }, [locked]);
 
-  // Check connection on mount
+  // Check connection
   useEffect(() => {
     invoke<string>("get_notion_token")
       .then(() => setConnected(true))
@@ -77,32 +91,50 @@ export default function Pet() {
     if (savedPet) setPetName(savedPet);
   }, []);
 
-  // ── Initialize PetBrain (behavior state machine + todo advisor) ──
+  // ── Initialize KanbanBridge ──
+  useEffect(() => {
+    const bridge = new KanbanBridge({
+      endpoint: kanbanEndpoint || undefined,
+      onData: (data: KanbanData) => {
+        setKanbanData(data);
+        setKanbanConnected(true);
+        // Feed to PetBrain
+        brainRef.current?.updateKanban(data);
+      },
+      onError: (err) => {
+        setKanbanError(err);
+      },
+    });
+
+    bridge.start();
+    kanbanBridgeRef.current = bridge;
+
+    return () => {
+      bridge.dispose();
+      kanbanBridgeRef.current = null;
+    };
+  }, [kanbanEndpoint, setKanbanData, setKanbanConnected, setKanbanError]);
+
+  // ── Initialize PetBrain ──
   useEffect(() => {
     const brain = new PetBrain({
       onBehaviorChange: (state, anim) => {
         setPetBehavior(state);
         setMoodEmoji(BEHAVIOR_EMOJI[state] || "😊");
 
-        // Drive SpinePet animation
         const isLoop = state !== "interact";
         spineRef.current?.setAnimation(anim, isLoop);
 
-        // Control PhysicsEngine based on behavior
         if (state === "sleep") {
           physicsRef.current?.stop();
-        } else if (state === "interact") {
-          // Brief pause — PhysicsEngine keeps its current state
         } else if (state === "walk") {
           if (!lockedRef.current) {
             physicsRef.current?.start();
           }
         }
-        // "idle" — let PhysicsEngine do its own idle/walk cycle
       },
       onModeChange: (mode) => {
         setPetMode(mode);
-        // Adjust PhysicsEngine params based on todo mode
         const params = MODE_PHYSICS[mode];
         physicsRef.current?.configure(params);
       },
@@ -111,6 +143,12 @@ export default function Pet() {
         setNotifyMsg(message);
         if (notifyTimer.current) clearTimeout(notifyTimer.current);
         notifyTimer.current = setTimeout(() => setNotifyMsg(null), 6000);
+      },
+      onKanbanEvent: (event, detail) => {
+        // Show kanban event as notification
+        setNotifyMsg(detail);
+        if (notifyTimer.current) clearTimeout(notifyTimer.current);
+        notifyTimer.current = setTimeout(() => setNotifyMsg(null), 8000);
       },
     });
 
@@ -123,7 +161,7 @@ export default function Pet() {
     };
   }, []);
 
-  // ── Initialize PhysicsEngine (movement engine) ──
+  // ── Initialize PhysicsEngine ──
   useEffect(() => {
     const physics = new PhysicsEngine({
       windowWidth: SIZES.medium.w,
@@ -131,7 +169,6 @@ export default function Pet() {
       walkSpeed: 40,
       idleProbability: 0.3,
       onStateChange: (state) => {
-        // Only override SpinePet animation if brain is in idle or walk
         const brainBehavior = brainRef.current?.getBehavior();
         if (brainBehavior === "idle" || brainBehavior === "walk") {
           if (state === "walk") {
@@ -148,15 +185,7 @@ export default function Pet() {
       },
     });
 
-    // Apply current mode params from PetBrain
-    if (brainRef.current) {
-      physics.configure(MODE_PHYSICS[brainRef.current.getMode()]);
-    }
-
-    // Start if not locked and not sleeping
-    if (!locked && !brainRef.current?.isSleeping()) {
-      physics.start();
-    }
+    physics.start();
     physicsRef.current = physics;
 
     return () => {
@@ -165,63 +194,40 @@ export default function Pet() {
     };
   }, []);
 
-  // ── Handle locked state changes ──
-  useEffect(() => {
-    if (locked || brainRef.current?.isSleeping()) {
-      physicsRef.current?.stop();
-    } else {
-      physicsRef.current?.start();
-    }
-  }, [locked]);
+  // ── Window resize for QuickChat ──
+  const resizeWindow = useCallback(async (expanded: boolean) => {
+    try {
+      const win = getCurrentWindow();
+      const monitor = await currentMonitor();
+      const scale = monitor?.scaleFactor || 1;
+      const baseW = SIZES[size].w;
 
-  // ── Handle size changes ──
-  useEffect(() => {
-    const { w, h } = SIZES[size];
-    physicsRef.current?.updateWindowSize(w, h);
+      if (expanded) {
+        await win.setSize(new LogicalSize(EXPANDED_WIDTH, SIZES[size].h));
+      } else {
+        await win.setSize(new LogicalSize(baseW, SIZES[size].h));
+      }
+    } catch (e) {
+      console.warn("[Pet] resize failed:", e);
+    }
   }, [size]);
 
-  // ── Hover: pet faces mouse + mood bubble ──
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (isDragging || !petBodyRef.current) return;
-      const rect = petBodyRef.current.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const dir: 1 | -1 = e.clientX > centerX ? 1 : -1;
-      spineRef.current?.setFacingDirection(dir);
-    },
-    [isDragging]
-  );
+  const toggleQuickChat = useCallback(() => {
+    setQuickChatOpen((prev) => {
+      const next = !prev;
+      resizeWindow(next);
+      return next;
+    });
+  }, [resizeWindow]);
 
-  const handleMouseEnter = useCallback(() => {
-    if (isDragging) return;
-    isHovering.current = true;
-    brainRef.current?.notifyInteraction("hover");
-
-    hoverTimer.current = setTimeout(() => {
-      setShowMood(true);
-    }, 400);
-  }, [isDragging]);
-
-  const handleMouseLeave = useCallback(() => {
-    if (hoverTimer.current) {
-      clearTimeout(hoverTimer.current);
-      hoverTimer.current = null;
-    }
-    isHovering.current = false;
-    setShowMood(false);
-  }, []);
-
-  // ── Drag with animation ──
+  // ── Drag handling ──
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      if (e.button !== 0) return;
-      if (locked) return;
+      if (quickChatOpen) return; // Don't drag when panel is open
       didDrag.current = false;
       const startX = e.screenX;
       const startY = e.screenY;
-
-      brainRef.current?.notifyInteraction("drag");
-      physicsRef.current?.onDragStart();
+      setIsDragging(false);
 
       const onMouseMove = (me: MouseEvent) => {
         if (
@@ -230,8 +236,6 @@ export default function Pet() {
         ) {
           didDrag.current = true;
           setIsDragging(true);
-          setShowMood(false);
-          spineRef.current?.setAnimation("drag", true);
           document.removeEventListener("mousemove", onMouseMove);
           document.removeEventListener("mouseup", onMouseUp);
           getCurrentWindow().startDragging();
@@ -241,69 +245,59 @@ export default function Pet() {
       const onMouseUp = () => {
         document.removeEventListener("mousemove", onMouseMove);
         document.removeEventListener("mouseup", onMouseUp);
+        setTimeout(() => setIsDragging(false), 100);
       };
 
       document.addEventListener("mousemove", onMouseMove);
       document.addEventListener("mouseup", onMouseUp);
     },
-    [locked]
+    [quickChatOpen]
   );
 
-  // Restore roaming when drag ends
-  useEffect(() => {
-    const handleFocus = () => {
-      if (isDragging) {
-        setIsDragging(false);
-        spineRef.current?.setAnimation("stand", true);
-        physicsRef.current?.onDragEnd();
-      }
-    };
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [isDragging]);
+  const handleMouseMove = useCallback(() => {
+    if (lockedRef.current || quickChatOpen) return;
+  }, [quickChatOpen]);
 
-  // ── Click: open notepad panel ──
-  const handleClick = useCallback(async () => {
-    if (didDrag.current) return;
-    setShowMenu(false);
-    brainRef.current?.notifyInteraction("click");
-    try {
-      await invoke("toggle_notepad");
-    } catch (e) {
-      console.error("pet click failed:", e);
-    }
+  // ── Hover → mood bubble ──
+  const handleMouseEnter = useCallback(() => {
+    isHovering.current = true;
+    hoverTimer.current = setTimeout(() => {
+      setShowMood(true);
+    }, 800);
   }, []);
 
-  // ── Context menu ──
+  const handleMouseLeave = useCallback(() => {
+    isHovering.current = false;
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    setShowMood(false);
+  }, []);
+
+  // ── Click → toggle QuickChat ──
+  const handleClick = useCallback(() => {
+    if (didDrag.current) return;
+    brainRef.current?.interact();
+    toggleQuickChat();
+  }, [toggleQuickChat]);
+
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
-      if (didDrag.current) return;
+      setShowMenu(true);
       setMenuPos({ x: e.clientX, y: e.clientY });
-      setShowMenu((v) => !v);
     },
     []
   );
 
-  // Close menu on outside click
-  useEffect(() => {
-    if (!showMenu) return;
-    const close = () => setShowMenu(false);
-    window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
-  }, [showMenu]);
-
-  // ── Menu actions ──
-  const changeSize = useCallback(async (newSize: PetSize) => {
-    setShowMenu(false);
-    setSize(newSize);
-    localStorage.setItem("pet-size", newSize);
-    try {
-      await invoke("set_pet_size", { size: newSize });
-    } catch (e) {
-      console.error("set_pet_size failed:", e);
-    }
-  }, []);
+  // ── Context menu actions ──
+  const changeSize = useCallback(
+    (s: PetSize) => {
+      setShowMenu(false);
+      setSize(s);
+      localStorage.setItem("pet-size", s);
+      if (quickChatOpen) resizeWindow(true);
+    },
+    [quickChatOpen, resizeWindow]
+  );
 
   const toggleLock = useCallback(() => {
     setShowMenu(false);
@@ -313,7 +307,7 @@ export default function Pet() {
     });
   }, []);
 
-  const switchPet = useCallback(async (name: string) => {
+  const switchPet = useCallback((name: string) => {
     setShowMenu(false);
     setPetName(name);
     localStorage.setItem("pet-name", name);
@@ -338,7 +332,10 @@ export default function Pet() {
     invoke("quit_app").catch(() => {});
   }, []);
 
-  // ── State indicator text ──
+  // ── Kanban badge count ──
+  const kanbanStats = useKanbanStore((s) => s.data.stats);
+  const kanbanBadge = kanbanStats.active + kanbanStats.blocked;
+
   const stateLabel =
     petBehavior === "sleep"
       ? "💤"
@@ -352,11 +349,12 @@ export default function Pet() {
 
   return (
     <div
-      className="pet-container"
+      className={`pet-container ${quickChatOpen ? "expanded" : ""}`}
       data-size={size}
       data-state={sleeping ? "sleep" : petBehavior}
       data-mode={petMode}
     >
+      {/* Left: Pet body */}
       <div
         ref={petBodyRef}
         className={`pet-body ${isDragging ? "dragging" : ""} ${sleeping ? "sleeping" : ""} mode-${petMode}`}
@@ -378,22 +376,30 @@ export default function Pet() {
           height={SIZES[size].h * 0.7}
         />
 
-        {/* State label */}
         {stateLabel && (
           <div className="pet-state-label">{stateLabel}</div>
         )}
 
-        {/* Mood bubble — hover to show */}
-        {showMood && !isDragging && (
+        {showMood && !isDragging && !quickChatOpen && (
           <div className="pet-mood-bubble">
             <span className="mood-emoji">{moodEmoji}</span>{" "}
             {moodText || "(^・ω・^)"}
           </div>
         )}
 
-        {/* Lock indicator */}
         {locked && <div className="pet-lock-badge">🔒</div>}
+
+        {/* Kanban badge */}
+        {kanbanBadge > 0 && !quickChatOpen && (
+          <div className="pet-kanban-badge">{kanbanBadge}</div>
+        )}
       </div>
+
+      {/* Right: QuickChat panel (slides out) */}
+      <QuickChat open={quickChatOpen} onClose={() => {
+        setQuickChatOpen(false);
+        resizeWindow(false);
+      }} />
 
       {/* Notification banner */}
       {notifyMsg && (
@@ -409,19 +415,17 @@ export default function Pet() {
       {/* Context menu */}
       <div
         className={`pet-menu ${showMenu ? "" : "hidden"}`}
-        style={{
-          position: "absolute",
-          left: menuPos.x,
-          top: menuPos.y,
-        }}
+        style={{ position: "absolute", left: menuPos.x, top: menuPos.y }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="pet-menu-item" onClick={handleShowPanel}>
-          <span className="emoji">📋</span> 显示面板
+          <span className="emoji">📋</span> 显示主面板
+        </div>
+        <div className="pet-menu-item" onClick={toggleQuickChat}>
+          <span className="emoji">💬</span> {quickChatOpen ? "关闭面板" : "快捷面板"}
         </div>
         <div className="pet-menu-separator" />
 
-        {/* Switch pet */}
         <div className="pet-menu-item" onClick={() => switchPet("moshumao")}>
           <span className="emoji">🐱</span> 墨鼠猫
           {petName === "moshumao" && (
@@ -430,34 +434,24 @@ export default function Pet() {
         </div>
         <div className="pet-menu-separator" />
 
-        {/* Size submenu */}
         <div className="pet-menu-item" onClick={() => changeSize("tiny")}>
           <span className="emoji">🔹</span> 小 (120)
-          {size === "tiny" && (
-            <span style={{ marginLeft: "auto", opacity: 0.5 }}>✓</span>
-          )}
+          {size === "tiny" && <span style={{ marginLeft: "auto", opacity: 0.5 }}>✓</span>}
         </div>
         <div className="pet-menu-item" onClick={() => changeSize("small")}>
           <span className="emoji">🔸</span> 中 (200)
-          {size === "small" && (
-            <span style={{ marginLeft: "auto", opacity: 0.5 }}>✓</span>
-          )}
+          {size === "small" && <span style={{ marginLeft: "auto", opacity: 0.5 }}>✓</span>}
         </div>
         <div className="pet-menu-item" onClick={() => changeSize("medium")}>
           <span className="emoji">🟡</span> 大 (260)
-          {size === "medium" && (
-            <span style={{ marginLeft: "auto", opacity: 0.5 }}>✓</span>
-          )}
+          {size === "medium" && <span style={{ marginLeft: "auto", opacity: 0.5 }}>✓</span>}
         </div>
         <div className="pet-menu-item" onClick={() => changeSize("large")}>
           <span className="emoji">🟠</span> 特大 (360)
-          {size === "large" && (
-            <span style={{ marginLeft: "auto", opacity: 0.5 }}>✓</span>
-          )}
+          {size === "large" && <span style={{ marginLeft: "auto", opacity: 0.5 }}>✓</span>}
         </div>
         <div className="pet-menu-separator" />
 
-        {/* Lock position */}
         <div className="pet-menu-item" onClick={toggleLock}>
           <span className="emoji">{locked ? "🔓" : "🔒"}</span>{" "}
           {locked ? "解锁位置" : "锁定位置"}

@@ -257,6 +257,24 @@ export default function Settings() {
         </select>
       </Section>
 
+      {/* ── Kanban ── */}
+      <Section title=" 看板连接">
+        <Label>Hermes 看板端点</Label>
+        <input
+          type="text"
+          value={localStorage.getItem("antdesk_kanban_endpoint") || ""}
+          onChange={(e) => {
+            localStorage.setItem("antdesk_kanban_endpoint", e.target.value);
+            updateSettings({ kanbanEndpoint: e.target.value });
+          }}
+          placeholder="http://YOUR_IP:8765/kanban.json"
+          className="w-full bg-bg-input text-text-primary text-xs rounded-button px-2.5 py-1.5 outline-none border border-white/5 focus:border-accent-blue/50 transition-colors placeholder:text-text-muted"
+        />
+        <div className="text-[9px] text-text-muted mt-1">
+          运行 kanban-server.py 后填入地址
+        </div>
+      </Section>
+
       {/* ── 通用 ── */}
       <Section title="⚙️ 通用">
         <div className="flex items-center justify-between">

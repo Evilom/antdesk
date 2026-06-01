@@ -1,12 +1,14 @@
 /**
- * PetBrain — 桌面宠物行为状态机 + 待办感知
+ * PetBrain v2 — 桌面宠物行为状态机 + 双源感知 (Notion + Hermes Kanban)
  *
  * 双层架构:
  * - BehaviorState (idle/walk/interact/sleep) — 行为状态机，驱动动画
  * - PetMode (leisure/busy/anxious/alert/celebrate) — 待办感知模式，调节转换权重
  *
- * 设计参考 DesktopAnt PetBrain.js，简化为 4 核心状态
+ * v2: 新增 Hermes Kanban 感知，融合 Notion todos + agentmemory actions
  */
+
+import type { KanbanData } from "../types/kanban";
 
 // ========== 类型定义 ==========
 
@@ -22,6 +24,8 @@ export interface PetBrainCallbacks {
   onMoodChange: (mood: string) => void;
   /** 逾期通知 */
   onNotify: (message: string) => void;
+  /** 看板事件通知 (新任务/完成/阻塞) */
+  onKanbanEvent?: (event: string, detail: string) => void;
 }
 
 interface TodoStatus {
@@ -31,16 +35,19 @@ interface TodoStatus {
   dueToday: number;
 }
 
+interface KanbanStatus {
+  pending: number;
+  active: number;
+  blocked: number;
+  highPriority: number;
+  completedToday: number;
+}
+
 interface BehaviorConfig {
-  /** Spine 动画候选（按优先级） */
   anims: string[];
-  /** 状态持续时间 [min, max] ms */
   duration: [number, number];
-  /** 动画是否循环 */
   loop: boolean;
-  /** 默认心情 emoji */
   mood: string;
-  /** 转移到其他状态的权重 */
   transitions: Partial<Record<BehaviorState, number>>;
 }
 
@@ -115,39 +122,36 @@ export const MODE_PHYSICS: Record<
 
 // ========== 常量 ==========
 
-const SLEEP_TIMEOUT_MS = 30 * 60 * 1000; // 30 分钟无交互 → 睡眠
-const IDLE_OVER_60S_SLEEP_BONUS = 40; // 空闲超过 60s，增加 sleep 权重
+const SLEEP_TIMEOUT_MS = 30 * 60 * 1000;
+const IDLE_OVER_60S_SLEEP_BONUS = 40;
 
 // ========== PetBrain 类 ==========
 
 export class PetBrain {
-  // ── 行为状态 ──
   private behavior: BehaviorState = "idle";
   private behaviorTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // ── 待办模式 ──
   private mode: PetMode = "leisure";
   private mood = "(^・ω・^)";
   private prevMode: PetMode = "leisure";
 
-  // ── 睡眠检测 ──
   private lastInteraction = Date.now();
   private sleepCheckTimer: ReturnType<typeof setInterval> | null = null;
 
-  // ── 待办轮询 ──
   private todoPollTimer: ReturnType<typeof setInterval> | null = null;
   private todoStatus: TodoStatus = {
-    total: 0,
-    completed: 0,
-    overdue: 0,
-    dueToday: 0,
+    total: 0, completed: 0, overdue: 0, dueToday: 0,
   };
 
-  // ── 空闲计时 ──
+  // v2: Kanban status
+  private kanbanStatus: KanbanStatus = {
+    pending: 0, active: 0, blocked: 0, highPriority: 0, completedToday: 0,
+  };
+  private prevKanbanStats = { pending: 0, active: 0, blocked: 0, completedToday: 0 };
+
   private idleSeconds = 0;
   private idleCounterInterval: ReturnType<typeof setInterval> | null = null;
 
-  // ── 动画查询 ──
   private hasAnimation: ((name: string) => boolean) | null = null;
 
   private cb: PetBrainCallbacks;
@@ -157,7 +161,6 @@ export class PetBrain {
     this.cb = callbacks;
   }
 
-  /** 注入 Spine 动画查询函数（用于动画降级） */
   setAnimationChecker(checker: (name: string) => boolean) {
     this.hasAnimation = checker;
   }
@@ -169,8 +172,6 @@ export class PetBrain {
     this.scheduleTodoPoll();
     this.startIdleCounter();
     this.enterBehavior("idle");
-    this.cb.onMoodChange(this.mood);
-    this.cb.onModeChange(this.mode);
   }
 
   dispose() {
@@ -181,62 +182,78 @@ export class PetBrain {
     if (this.idleCounterInterval) clearInterval(this.idleCounterInterval);
   }
 
-  // ── Public API ──
-
-  /** 用户交互（hover/click/drag）— 重置空闲计时，触发 interact 状态 */
-  notifyInteraction(type?: string) {
+  /** Manual interaction — resets sleep timer, may trigger interact */
+  interact() {
     this.lastInteraction = Date.now();
     this.idleSeconds = 0;
-
-    // 如果在睡眠，唤醒
     if (this.behavior === "sleep") {
-      this.enterBehavior("idle");
-      return;
+      this.enterBehavior("interact");
     }
+  }
 
-    // 用户交互 → 进入 interact 状态（短暂）
-    if (type === "click" || type === "hover") {
-      if (this.behavior !== "interact") {
+  getBehavior(): BehaviorState {
+    return this.behavior;
+  }
+
+  getMode(): PetMode {
+    return this.mode;
+  }
+
+  // v2: Accept kanban data from external source
+  updateKanban(data: KanbanData) {
+    const prev = this.prevKanbanStats;
+
+    this.kanbanStatus = {
+      pending: data.stats.pending,
+      active: data.stats.active,
+      blocked: data.stats.blocked,
+      highPriority: data.actions.filter((a) => a.priority >= 7 && a.status !== "done").length,
+      completedToday: data.stats.completedToday,
+    };
+
+    // Detect kanban events → notify
+    if (data.stats.completedToday > prev.completedToday) {
+      const diff = data.stats.completedToday - prev.completedToday;
+      this.cb.onKanbanEvent?.("completed", `${diff} 个任务完成了！`);
+      // Brief celebration
+      if (this.behavior !== "sleep") {
         this.enterBehavior("interact");
       }
     }
+
+    if (data.stats.blocked > prev.blocked) {
+      this.cb.onKanbanEvent?.("blocked", `有 ${data.stats.blocked} 个任务被阻塞了`);
+    }
+
+    if (data.stats.active > prev.active) {
+      const newActions = data.actions
+        .filter((a) => a.status === "active")
+        .slice(0, 2)
+        .map((a) => a.title)
+        .join(", ");
+      if (newActions) {
+        this.cb.onKanbanEvent?.("new", `新任务: ${newActions}`);
+      }
+    }
+
+    this.prevKanbanStats = { ...data.stats };
+    this.updateMode();
   }
 
-  isSleeping() {
-    return this.behavior === "sleep";
-  }
-  getBehavior() {
-    return this.behavior;
-  }
-  getMode() {
-    return this.mode;
-  }
-  getMood() {
-    return this.mood;
-  }
-
-  // ========== 行为状态机 ==========
+  // ── Behavior State Machine ──
 
   private enterBehavior(state: BehaviorState) {
-    const config = BEHAVIOR_CONFIG[state];
-    if (!config) return;
-
-    this.behavior = state;
-
-    // 清除旧计时器
+    if (this.disposed) return;
     if (this.behaviorTimer) clearTimeout(this.behaviorTimer);
 
-    // 选择可用动画（降级）
+    this.behavior = state;
+    const config = BEHAVIOR_CONFIG[state];
     const anim = this.resolveAnim(config.anims);
-
-    // 通知外部
     this.cb.onBehaviorChange(state, anim);
 
-    // 更新心情
     this.mood = config.mood;
     this.cb.onMoodChange(this.mood);
 
-    // 定时状态转换
     if (config.duration[1] !== Infinity) {
       const adjustedTransitions = this.adjustTransitions(state, config);
       const dur =
@@ -251,7 +268,6 @@ export class PetBrain {
     }
   }
 
-  /** 根据待办模式和空闲时间调整转换权重 */
   private adjustTransitions(
     state: BehaviorState,
     config: BehaviorConfig
@@ -259,7 +275,6 @@ export class PetBrain {
     const transitions = { ...config.transitions };
     const mods = MODE_WEIGHT_MODS[this.mode];
 
-    // 应用模式权重修正
     for (const [key, mod] of Object.entries(mods)) {
       const k = key as BehaviorState;
       if (transitions[k] !== undefined) {
@@ -267,7 +282,6 @@ export class PetBrain {
       }
     }
 
-    // 空闲超过 60s → 增加 sleep 倾向
     if (this.idleSeconds > 60 && transitions.sleep !== undefined) {
       transitions.sleep = (transitions.sleep ?? 0) + IDLE_OVER_60S_SLEEP_BONUS;
     }
@@ -275,7 +289,6 @@ export class PetBrain {
     return transitions;
   }
 
-  /** 加权随机选择下一个状态 */
   private transitionNext(
     transitions: Partial<Record<BehaviorState, number>>
   ) {
@@ -300,7 +313,6 @@ export class PetBrain {
     this.enterBehavior(entries[0][0]);
   }
 
-  /** 根据 Spine 资产挑选可用动画名 */
   private resolveAnim(candidates: string[]): string {
     if (this.hasAnimation) {
       for (const name of candidates) {
@@ -331,7 +343,7 @@ export class PetBrain {
     }, 30_000);
   }
 
-  // ========== 待办轮询 ==========
+  // ========== 待办轮询 (Notion) ==========
 
   private scheduleTodoPoll() {
     this.pollTodoStatus();
@@ -345,17 +357,11 @@ export class PetBrain {
     try {
       const raw = localStorage.getItem("antdesk_todos");
       if (!raw) {
-        this.setTodoStatus({
-          total: 0,
-          completed: 0,
-          overdue: 0,
-          dueToday: 0,
-        });
+        this.setTodoStatus({ total: 0, completed: 0, overdue: 0, dueToday: 0 });
         return;
       }
 
-      const todos: Array<{ status: boolean; dueDate?: string }> =
-        JSON.parse(raw);
+      const todos: Array<{ status: boolean; dueDate?: string }> = JSON.parse(raw);
       const now = new Date();
       const todayStr = now.toISOString().slice(0, 10);
 
@@ -387,23 +393,47 @@ export class PetBrain {
     this.updateMode();
   }
 
-  // ========== 待办模式更新 ==========
+  // ========== 双源模式更新 (Notion + Kanban) ==========
 
   private updateMode() {
     if (this.behavior === "sleep") return;
 
     const { overdue, dueToday, total, completed } = this.todoStatus;
+    const kanban = this.kanbanStatus;
+
     let newMode: PetMode;
 
-    if (total > 0 && completed >= total) {
-      newMode = "celebrate";
-    } else if (overdue > 0) {
+    // Kanban blocked → highest alert
+    if (kanban.blocked > 0) {
       newMode = "alert";
-    } else if (dueToday > 0) {
+    }
+    // Notion overdue → alert
+    else if (overdue > 0) {
+      newMode = "alert";
+    }
+    // Kanban high priority tasks → anxious
+    else if (kanban.highPriority > 2) {
       newMode = "anxious";
-    } else if (total > 0) {
+    }
+    // Notion due today → anxious
+    else if (dueToday > 0) {
+      newMode = "anxious";
+    }
+    // All done (both sources) → celebrate
+    else if (
+      kanban.completedToday > 0 &&
+      kanban.active === 0 &&
+      kanban.blocked === 0 &&
+      (total === 0 || completed >= total)
+    ) {
+      newMode = "celebrate";
+    }
+    // Active work → busy
+    else if (kanban.active > 0 || total > 0) {
       newMode = "busy";
-    } else {
+    }
+    // Nothing to do → leisure
+    else {
       newMode = "leisure";
     }
 
@@ -416,9 +446,10 @@ export class PetBrain {
       this.mood = moods[Math.floor(Math.random() * moods.length)];
       this.cb.onMoodChange(this.mood);
 
-      if (newMode === "alert") {
-        const { overdue } = this.todoStatus;
-        this.cb.onNotify(`有 ${overdue} 个任务逾期了！快去看看吧~`);
+      if (newMode === "alert" && kanban.blocked > 0) {
+        this.cb.onNotify(`有 ${kanban.blocked} 个任务被阻塞了！`);
+      } else if (newMode === "alert" && overdue > 0) {
+        this.cb.onNotify(`有 ${overdue} 个任务逾期了！`);
       }
     }
   }

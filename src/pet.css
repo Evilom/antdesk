@@ -22,15 +22,17 @@ html, body {
   width: 100%;
   height: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
   position: relative;
+  transition: all 200ms ease;
 }
 
 /* ── Pet body ── */
 .pet-body {
-  width: 72%;
-  height: 72%;
+  width: 260px;
+  min-width: 260px;
+  height: 100%;
   border-radius: 50%;
   background: rgba(15, 15, 25, 0.75);
   backdrop-filter: blur(24px) saturate(180%);
@@ -46,6 +48,8 @@ html, body {
   -webkit-user-select: none;
   user-select: none;
   position: relative;
+  z-index: 2;
+  flex-shrink: 0;
 }
 
 .pet-body:hover {
@@ -64,22 +68,6 @@ html, body {
   transform: scale(0.92);
   box-shadow: 0 8px 40px rgba(0, 122, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   border-color: rgba(0, 122, 255, 0.5);
-}
-
-/* ── Pet emoji ── */
-.pet-emoji {
-  font-size: 2.2em;
-  line-height: 1;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
-}
-
-/* ── Pet name ── */
-.pet-name {
-  font-size: 0.55em;
-  color: rgba(255, 255, 255, 0.5);
-  margin-top: 4px;
-  font-weight: 500;
-  letter-spacing: 0.5px;
 }
 
 /* ── Status dot ── */
@@ -102,6 +90,32 @@ html, body {
   background: #FF3B30;
 }
 
+/* ── Kanban badge ── */
+.pet-kanban-badge {
+  position: absolute;
+  bottom: 8%;
+  right: 8%;
+  background: rgba(255, 59, 48, 0.9);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  box-shadow: 0 2px 8px rgba(255, 59, 48, 0.4);
+  animation: badge-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
 /* ── Context menu ── */
 .pet-menu {
   position: absolute;
@@ -111,15 +125,13 @@ html, body {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   padding: 4px;
-  min-width: 140px;
+  min-width: 160px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  z-index: 10;
+  z-index: 20;
   animation: menu-in 0.15s ease-out;
 }
 
-.pet-menu.hidden {
-  display: none;
-}
+.pet-menu.hidden { display: none; }
 
 @keyframes menu-in {
   from { opacity: 0; transform: scale(0.92); }
@@ -138,13 +150,8 @@ html, body {
   transition: background 100ms;
 }
 
-.pet-menu-item:hover {
-  background: rgba(0, 122, 255, 0.2);
-}
-
-.pet-menu-item:active {
-  background: rgba(0, 122, 255, 0.35);
-}
+.pet-menu-item:hover { background: rgba(0, 122, 255, 0.2); }
+.pet-menu-item:active { background: rgba(0, 122, 255, 0.35); }
 
 .pet-menu-item .emoji {
   font-size: 14px;
@@ -157,19 +164,6 @@ html, body {
   background: rgba(255, 255, 255, 0.06);
   margin: 4px 8px;
 }
-
-/* ── Size indicators (set via data attribute on container) ── */
-.pet-container[data-size="tiny"] .pet-emoji { font-size: 1.6em; }
-.pet-container[data-size="tiny"] .pet-name { font-size: 0.4em; }
-
-.pet-container[data-size="small"] .pet-emoji { font-size: 1.9em; }
-.pet-container[data-size="small"] .pet-name { font-size: 0.5em; }
-
-.pet-container[data-size="medium"] .pet-emoji { font-size: 2.2em; }
-.pet-container[data-size="medium"] .pet-name { font-size: 0.55em; }
-
-.pet-container[data-size="large"] .pet-emoji { font-size: 2.8em; }
-.pet-container[data-size="large"] .pet-name { font-size: 0.65em; }
 
 /* ── Mood bubble ── */
 .pet-mood-bubble {
@@ -210,43 +204,12 @@ html, body {
   to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 
-/* ── Idle indicator ── */
-.pet-idle-indicator {
-  position: absolute;
-  top: -4%;
-  right: -4%;
-  font-size: 12px;
-  pointer-events: none;
-  animation: idle-float 2s ease-in-out infinite;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+.mood-emoji {
+  font-size: 13px;
+  margin-right: 2px;
 }
 
-@keyframes idle-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-}
-
-/* ── Idle state: gentle breathing ── */
-.pet-body.idle {
-  animation: pet-breathe 3s ease-in-out infinite;
-}
-
-@keyframes pet-breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.02); }
-}
-
-/* ── Lock badge ── */
-.pet-lock-badge {
-  position: absolute;
-  top: 6%;
-  left: 8%;
-  font-size: 10px;
-  opacity: 0.6;
-  pointer-events: none;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
-}
-/* ── State label (top-left) ── */
+/* ── State label ── */
 .pet-state-label {
   position: absolute;
   top: 6%;
@@ -262,6 +225,17 @@ html, body {
   50% { transform: translateY(-3px); }
 }
 
+/* ── Lock badge ── */
+.pet-lock-badge {
+  position: absolute;
+  top: 6%;
+  left: 8%;
+  font-size: 10px;
+  opacity: 0.6;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
 /* ── Sleep state ── */
 .pet-body.sleeping {
   opacity: 0.6;
@@ -273,7 +247,7 @@ html, body {
   50% { transform: scale(0.97); opacity: 0.5; }
 }
 
-/* ── Walking state: subtle bounce ── */
+/* ── Walking state ── */
 .pet-container[data-state="walk"] .pet-body {
   animation: walk-bounce 0.6s ease-in-out infinite;
 }
@@ -283,7 +257,7 @@ html, body {
   50% { transform: translateY(-4px); }
 }
 
-/* ── Mode: anxious — pulse border ── */
+/* ── Mode animations ── */
 .pet-body.mode-anxious {
   border-color: rgba(255, 159, 10, 0.4);
   animation: anxious-pulse 1.5s ease-in-out infinite;
@@ -294,7 +268,6 @@ html, body {
   50% { border-color: rgba(255, 159, 10, 0.5); box-shadow: 0 0 16px rgba(255, 159, 10, 0.2); }
 }
 
-/* ── Mode: alert — red pulse ── */
 .pet-body.mode-alert {
   border-color: rgba(255, 69, 58, 0.5);
   animation: alert-pulse 0.8s ease-in-out infinite;
@@ -305,7 +278,6 @@ html, body {
   50% { border-color: rgba(255, 69, 58, 0.7); box-shadow: 0 0 20px rgba(255, 69, 58, 0.3); }
 }
 
-/* ── Mode: celebrate — golden glow ── */
 .pet-body.mode-celebrate {
   border-color: rgba(255, 214, 10, 0.4);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 214, 10, 0.15);
@@ -315,12 +287,6 @@ html, body {
 @keyframes celebrate-glow {
   0%, 100% { box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 12px rgba(255, 214, 10, 0.1); }
   50% { box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 24px rgba(255, 214, 10, 0.3); }
-}
-
-/* ── Mood emoji ── */
-.mood-emoji {
-  font-size: 13px;
-  margin-right: 2px;
 }
 
 /* ── Notification banner ── */
@@ -346,15 +312,414 @@ html, body {
   z-index: 20;
 }
 
-.pet-notify-icon {
-  font-size: 12px;
-}
-
-.pet-notify-text {
-  font-weight: 500;
-}
+.pet-notify-icon { font-size: 12px; }
+.pet-notify-text { font-weight: 500; }
 
 @keyframes notify-in {
   from { opacity: 0; transform: translateX(-50%) translateY(8px) scale(0.9); }
   to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
+
+/* ══════════════════════════════════════════════════════
+   QuickChat Panel — slides out from pet
+   ══════════════════════════════════════════════════════ */
+
+.quickchat-panel {
+  width: 280px;
+  min-width: 280px;
+  height: 100%;
+  background: rgba(15, 15, 25, 0.85);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-left: none;
+  border-radius: 0 16px 16px 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: panel-slide-in 0.25s ease-out;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes panel-slide-in {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Tab bar ── */
+.qc-tabs {
+  display: flex;
+  align-items: center;
+  padding: 6px 4px;
+  gap: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.qc-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 2px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 150ms;
+  font-family: inherit;
+}
+
+.qc-tab:hover {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.qc-tab.active {
+  color: #0a84ff;
+  background: rgba(10, 132, 255, 0.1);
+}
+
+.qc-tab-icon { font-size: 14px; line-height: 1; }
+.qc-tab-label { font-size: 9px; line-height: 1; }
+
+.qc-close {
+  flex: 0 !important;
+  min-width: 24px;
+  padding: 4px 6px !important;
+  font-size: 11px;
+}
+
+/* ── Content area ── */
+.qc-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+}
+
+.qc-content::-webkit-scrollbar {
+  width: 3px;
+}
+
+.qc-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.qc-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+/* ── Empty state ── */
+.qc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+}
+
+.qc-empty-icon { font-size: 28px; }
+.qc-empty-hint { font-size: 10px; opacity: 0.6; }
+
+/* ── Kanban Tab ── */
+.qc-kanban {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.qc-kanban-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.qc-kanban-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 2px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.qc-kanban-header.blocked { color: #ff453a; }
+.qc-kanban-header.active { color: #0a84ff; }
+.qc-kanban-header.pending { color: rgba(255, 255, 255, 0.5); }
+.qc-kanban-header.done { color: #30d158; }
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.dot.blocked { background: #ff453a; }
+.dot.active { background: #0a84ff; }
+.dot.pending { background: rgba(255, 255, 255, 0.3); }
+.dot.done { background: #30d158; }
+
+.qc-kanban-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 100ms;
+}
+
+.qc-kanban-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.qc-kanban-item.done {
+  opacity: 0.5;
+}
+
+.qc-kanban-item.done .qc-kanban-title {
+  text-decoration: line-through;
+}
+
+.qc-kanban-priority {
+  font-size: 9px;
+  font-weight: 700;
+  color: white;
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.qc-kanban-title {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qc-kanban-project {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 1px 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.qc-kanban-more {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+  text-align: center;
+  padding: 4px;
+}
+
+/* ── Todos Tab ── */
+.qc-todos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.qc-todos-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 4px 0;
+  margin-bottom: 4px;
+}
+
+.qc-sep { opacity: 0.3; }
+
+.qc-todo-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 100ms;
+}
+
+.qc-todo-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.qc-todo-priority { font-size: 10px; }
+.qc-todo-name {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Chat Tab ── */
+.qc-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.qc-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 8px;
+}
+
+.qc-chat-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 12px;
+}
+
+.qc-chat-msg {
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 6px 10px;
+  border-radius: 10px;
+  max-width: 85%;
+  word-break: break-word;
+}
+
+.qc-chat-msg.user {
+  align-self: flex-end;
+  background: rgba(10, 132, 255, 0.3);
+  color: rgba(255, 255, 255, 0.9);
+  border-bottom-right-radius: 4px;
+}
+
+.qc-chat-msg.assistant {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.8);
+  border-bottom-left-radius: 4px;
+}
+
+.qc-chat-msg.loading {
+  opacity: 0.5;
+  animation: loading-dots 1.5s infinite;
+}
+
+@keyframes loading-dots {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+}
+
+.qc-chat-input {
+  display: flex;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.qc-chat-input input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 11px;
+  outline: none;
+  font-family: inherit;
+}
+
+.qc-chat-input input:focus {
+  border-color: rgba(10, 132, 255, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.qc-chat-input input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.qc-chat-input button {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(10, 132, 255, 0.4);
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 100ms;
+}
+
+.qc-chat-input button:hover { background: rgba(10, 132, 255, 0.6); }
+.qc-chat-input button:disabled { opacity: 0.3; cursor: default; }
+
+/* ── Projects Tab ── */
+.qc-projects {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qc-project-item {
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.qc-project-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.qc-project-name {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 500;
+}
+
+.qc-project-count {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.qc-project-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.qc-project-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0a84ff, #30d158);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* ── Size-based adjustments ── */
+.pet-container[data-size="tiny"] .pet-body { width: 120px; min-width: 120px; }
+.pet-container[data-size="small"] .pet-body { width: 200px; min-width: 200px; }
+.pet-container[data-size="medium"] .pet-body { width: 260px; min-width: 260px; }
+.pet-container[data-size="large"] .pet-body { width: 360px; min-width: 360px; }

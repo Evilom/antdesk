@@ -40,6 +40,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   fontSize: "medium",
   glass: "medium",
   transparency: 100,
+  kanbanEndpoint: "",
 };
 
 function loadSettings(): AppSettings {
