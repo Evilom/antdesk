@@ -7,14 +7,9 @@ interface Todo {
   id: string;
   name: string;
   status: boolean;
-  priority: string;
 }
 
-const PRIORITY_DOT: Record<string, string> = {
-  High: "#ff453a",
-  Medium: "#ffd60a",
-  Low: "#30d158",
-};
+const MAX_VISIBLE = 6;
 
 export default function NotepadPanel() {
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -22,9 +17,8 @@ export default function NotepadPanel() {
   const [newName, setNewName] = useState("");
   const [exiting, setExiting] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
 
-  // ── Fetch todos (only incomplete, max 20) ──
+  // ── Fetch incomplete todos ──
   const fetchTodos = useCallback(async () => {
     try {
       const raw = await invoke<string>("fetch_notion", {
@@ -32,16 +26,15 @@ export default function NotepadPanel() {
         method: "POST",
         body: JSON.stringify({
           filter: { property: "Status", checkbox: { equals: false } },
-          sorts: [{ property: "Priority", direction: "ascending" }],
-          page_size: 20,
+          sorts: [{ timestamp: "created_time", direction: "descending" }],
+          page_size: MAX_VISIBLE,
         }),
       });
       const data = JSON.parse(raw);
       const items: Todo[] = data.results.map((page: any) => ({
         id: page.id,
         name: page.properties.Name?.title?.[0]?.plain_text || "",
-        status: page.properties.Status?.checkbox === true,
-        priority: page.properties.Priority?.select?.name || "Medium",
+        status: false,
       }));
       setTodos(items);
     } catch (e) {
@@ -72,7 +65,6 @@ export default function NotepadPanel() {
   useEffect(() => {
     const unlistenPromise = getCurrentWindow().onFocusChanged(({ payload }) => {
       if (!payload) {
-        // Small delay to avoid closing during input focus changes
         setTimeout(async () => {
           try {
             await getCurrentWindow().hide();
@@ -85,9 +77,8 @@ export default function NotepadPanel() {
     };
   }, []);
 
-  // ── Toggle todo (mark complete) ──
+  // ── Toggle todo (mark complete → strikethrough + fade out) ──
   const handleToggle = useCallback(async (id: string) => {
-    // Optimistic: fade out animation
     setExiting((prev) => new Set(prev).add(id));
     setTimeout(() => {
       setTodos((prev) => prev.filter((t) => t.id !== id));
@@ -96,7 +87,7 @@ export default function NotepadPanel() {
         next.delete(id);
         return next;
       });
-    }, 280);
+    }, 300);
     try {
       await invoke("fetch_notion", {
         path: `/v1/pages/${id}`,
@@ -129,13 +120,8 @@ export default function NotepadPanel() {
           }),
         });
         const page = JSON.parse(raw);
-        const newTodo: Todo = {
-          id: page.id,
-          name,
-          status: false,
-          priority: "Medium",
-        };
-        setTodos((prev) => [newTodo, ...prev]);
+        const newTodo: Todo = { id: page.id, name, status: false };
+        setTodos((prev) => [newTodo, ...prev.slice(0, MAX_VISIBLE - 1)]);
       } catch (e) {
         console.error("Create todo failed:", e);
       }
@@ -144,18 +130,12 @@ export default function NotepadPanel() {
   );
 
   return (
-    <div className="notepad-panel" ref={panelRef}>
-      {/* Header */}
-      <div className="notepad-header">
-        <span className="notepad-title">📋 待办</span>
-        <span className="notepad-count">{todos.length}</span>
-      </div>
-
-      {/* Todo list */}
+    <div className="notepad-panel">
+      {/* Todo list — no header, clean sticky-note style */}
       {loading ? (
-        <div className="notepad-loading">加载中...</div>
+        <div className="notepad-loading">...</div>
       ) : todos.length === 0 ? (
-        <div className="notepad-empty">🎉 全部完成</div>
+        <div className="notepad-empty">全部完成 ✓</div>
       ) : (
         <div className="notepad-list">
           {todos.map((todo, index) => {
@@ -172,26 +152,20 @@ export default function NotepadPanel() {
                   title="完成"
                 />
                 <span className="notepad-name">{todo.name}</span>
-                <span
-                  className="notepad-dot"
-                  style={{
-                    background: PRIORITY_DOT[todo.priority] || PRIORITY_DOT.Medium,
-                  }}
-                />
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Input */}
+      {/* Input — Enter to add */}
       <form className="notepad-input-bar" onSubmit={handleCreate}>
         <input
           ref={inputRef}
           type="text"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder="+ 添加待办..."
+          placeholder="+ 添加..."
           className="notepad-input"
         />
       </form>
