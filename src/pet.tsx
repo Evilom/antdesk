@@ -36,6 +36,7 @@ export default function Pet() {
   const [moodEmoji, setMoodEmoji] = useState("😊");
   const [pendingCount, setPendingCount] = useState(0);
   const [notifyMsg, setNotifyMsg] = useState<string | null>(null);
+  const [physState, setPhysState] = useState<string>("idle");
 
   const didDrag = useRef(false);
   const spineRef = useRef<SpinePetHandle>(null);
@@ -120,9 +121,18 @@ export default function Pet() {
       windowWidth: 200, windowHeight: 200,
       walkSpeed: 35, idleProbability: 0.3, mouseAttraction: 0.1,
       onStateChange: (state) => {
-        const b = brainRef.current?.getBehavior();
-        if (b === "idle" || b === "walk") {
-          spineRef.current?.setAnimation(state === "walk" ? "walk" : "stand", true);
+        setPhysState(state);
+        if (state === "falling") {
+          spineRef.current?.setAnimation("fall", true);
+        } else if (state === "dizzy") {
+          spineRef.current?.setAnimation("dizzy", false);
+          setMoodEmoji("😵");
+          setMoodText("...");
+          setTimeout(() => { setMoodText(""); }, 1500);
+        } else if (state === "walk") {
+          spineRef.current?.setAnimation("walk", true);
+        } else if (state === "idle") {
+          spineRef.current?.setAnimation("stand", true);
         }
       },
       onFacingChange: (dir) => spineRef.current?.setFacingDirection(dir),
@@ -187,6 +197,9 @@ export default function Pet() {
 
       didDrag.current = false;
 
+      // Track drag history for release velocity calculation
+      const history: Array<{ x: number; y: number; t: number }> = [];
+
       const onMove = (me: MouseEvent) => {
         if (me.buttons !== 1) return;
         const dx = me.screenX - startScreenX;
@@ -202,12 +215,27 @@ export default function Pet() {
             new LogicalPosition(newX + npOffset.dx, newY + npOffset.dy)
           ).catch(() => {});
         }
+        // Record position for velocity
+        history.push({ x: me.screenX, y: me.screenY, t: performance.now() });
+        if (history.length > 6) history.shift();
       };
 
       const onUp = () => {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
-        physicsRef.current?.onDragEnd();
+        // Calculate release velocity (logical px/s)
+        let releaseVx = 0, releaseVy = 0;
+        if (history.length >= 2) {
+          const first = history[0];
+          const last = history[history.length - 1];
+          const dtMs = last.t - first.t;
+          if (dtMs > 0 && dtMs < 300) {
+            const dt = dtMs / 1000;
+            releaseVx = (last.x - first.x) / dt;
+            releaseVy = (last.y - first.y) / dt;
+          }
+        }
+        physicsRef.current?.onDragEnd(releaseVx, releaseVy);
       };
 
       document.addEventListener("mousemove", onMove);
@@ -238,7 +266,7 @@ export default function Pet() {
   return (
     <div
       className="pet-window"
-      data-state={sleeping ? "sleep" : petBehavior}
+      data-state={physState === "dizzy" || physState === "falling" ? physState : sleeping ? "sleep" : petBehavior}
       data-mode={petMode}
     >
       <div

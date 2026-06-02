@@ -171,3 +171,13 @@ html, body {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
+
+/* ── Dizzy state (after landing from fall) ── */
+.pet-window[data-state="dizzy"] canvas {
+  animation: dizzy-shake 0.3s ease-in-out 3;
+}
+@keyframes dizzy-shake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}

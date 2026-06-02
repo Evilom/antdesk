@@ -305,7 +305,7 @@ async fn toggle_notepad(app: tauri::AppHandle) -> Result<(), String> {
 
         let gap = 8.0 * scale;
         let np_w = 280.0 * scale;
-        let np_h = 320.0 * scale;
+        let np_h = 360.0 * scale;
         let px = pet_pos.x as f64;
         let py = pet_pos.y as f64;
         let pw = pet_size.width as f64;
