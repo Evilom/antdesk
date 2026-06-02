@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow, Window } from "@tauri-apps/api/window";
+import { LogicalPosition } from "@tauri-apps/api/dpi";
 import { useEffect, useState, useCallback, useRef } from "react";
 import SpinePet, { type SpinePetHandle } from "./components/SpinePet";
 import { PhysicsEngine } from "./lib/PhysicsEngine";
@@ -18,14 +19,10 @@ const BEHAVIOR_EMOJI: Record<BehaviorState, string> = {
  *
  * Priority: drag > click (open panel) > roaming
  *
- * Interactions:
- * - Drag (>4px threshold) → move window, pause physics
- * - Click → toggle quick panel (notepad window, positioned next to pet)
- * - Right-click → context menu (inside 200×200)
- * - Hover → mood bubble auto-shows
- *
- * The quick panel IS the notepad. It's a separate window that positions
- * next to the pet, never covering it.
+ * Drag uses manual delta positioning (clawd-on-desk pattern):
+ *   mousedown → snapshot cursor + window pos
+ *   mousemove → delta → setPosition (pet + notepad follows)
+ *   mouseup   → resume physics from new position
  */
 
 export default function Pet() {
@@ -137,7 +134,7 @@ export default function Pet() {
     return () => { physics.stop(); physicsRef.current = null; };
   }, []);
 
-  /* ═══ Lock → stop/start roaming ═══ */
+  /* ═══ Lock ═══ */
   useEffect(() => {
     if (locked) physicsRef.current?.stop();
     else if (petBehavior !== "sleep") physicsRef.current?.start().catch(() => {});
@@ -153,35 +150,64 @@ export default function Pet() {
     return () => { clearTimeout(t); document.removeEventListener("mousedown", close); };
   }, [menuOpen]);
 
-  /* ═══════════════════════════════════
-     DRAG — highest priority
-     mousedown → 4px threshold → startDragging
-     ═══════════════════════════════════ */
+  /* ═══════════════════════════════════════════
+     DRAG — manual delta (clawd-on-desk pattern)
+     P0: overrides click and roaming
+     ═══════════════════════════════════════════ */
   const handlePetMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      // P0: drag only in normal state, left button, not locked
+    async (e: React.MouseEvent) => {
       if (e.button !== 0 || locked || menuOpen) return;
+
+      const win = getCurrentWindow();
+      const startScreenX = e.screenX;
+      const startScreenY = e.screenY;
+
+      // Pause physics
+      physicsRef.current?.onDragStart();
+
+      // Snapshot window position (logical pixels)
+      const scale = window.devicePixelRatio || 1;
+      const pos = await win.outerPosition();
+      const startWinX = pos.x / scale;
+      const startWinY = pos.y / scale;
+
+      // Snapshot notepad offset (if visible)
+      let npOffset: { dx: number; dy: number } | null = null;
+      let npWin: Window | null = null;
+      try {
+        npWin = await Window.getByLabel("notepad");
+        if (npWin && await npWin.isVisible()) {
+          const npPos = await npWin.outerPosition();
+          npOffset = {
+            dx: npPos.x / scale - startWinX,
+            dy: npPos.y / scale - startWinY,
+          };
+        }
+      } catch {}
+
       didDrag.current = false;
-      const sx = e.screenX;
-      const sy = e.screenY;
 
       const onMove = (me: MouseEvent) => {
         if (me.buttons !== 1) return;
-        if (!didDrag.current && (Math.abs(me.screenX - sx) > 4 || Math.abs(me.screenY - sy) > 4)) {
+        const dx = me.screenX - startScreenX;
+        const dy = me.screenY - startScreenY;
+        if (!didDrag.current && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
           didDrag.current = true;
-          cleanup();
-          physicsRef.current?.stop();
-          getCurrentWindow()
-            .startDragging()
-            .then(() => { if (!lockedRef.current) physicsRef.current?.start(); })
-            .catch(console.warn);
+        }
+        const newX = startWinX + dx;
+        const newY = startWinY + dy;
+        win.setPosition(new LogicalPosition(newX, newY)).catch(() => {});
+        if (npOffset && npWin) {
+          npWin.setPosition(
+            new LogicalPosition(newX + npOffset.dx, newY + npOffset.dy)
+          ).catch(() => {});
         }
       };
 
-      const onUp = () => cleanup();
-      const cleanup = () => {
+      const onUp = () => {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        physicsRef.current?.onDragEnd();
       };
 
       document.addEventListener("mousemove", onMove);
@@ -190,10 +216,7 @@ export default function Pet() {
     [locked, menuOpen]
   );
 
-  /* ═══════════════════════════════════
-     CLICK — second priority
-     pet click → toggle quick panel (notepad)
-     ═══════════════════════════════════ */
+  /* ═══ CLICK → toggle quick panel ═══ */
   const handlePetClick = useCallback(() => {
     if (didDrag.current) return;
     if (menuOpen) { setMenuOpen(false); return; }
@@ -218,7 +241,6 @@ export default function Pet() {
       data-state={sleeping ? "sleep" : petBehavior}
       data-mode={petMode}
     >
-      {/* ── Pet view (ALWAYS rendered) ── */}
       <div
         className="pet-view"
         onMouseDown={handlePetMouseDown}
@@ -247,7 +269,6 @@ export default function Pet() {
         )}
       </div>
 
-      {/* ── Context menu (right-click, inside 200×200) ── */}
       {menuOpen && (
         <div className="menu">
           <div className="menu-item" onClick={() => { setMenuOpen(false); invoke("expand_panel"); }}>
