@@ -1,6 +1,6 @@
 {
   "productName": "AntDesk",
-  "version": "2.6.5",
+  "version": "2.7.0",
   "identifier": "com.antdesk.app",
   "build": {
     "beforeDevCommand": "yarn dev",
@@ -31,8 +31,8 @@
         "label": "pet",
         "title": "AntDesk Pet",
         "url": "/pet.html",
-        "width": 260,
-        "height": 260,
+        "width": 200,
+        "height": 200,
         "resizable": false,
         "decorations": false,
         "transparent": true,
