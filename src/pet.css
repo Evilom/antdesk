@@ -1,7 +1,6 @@
 /* ═══════════════════════════════════════════════
-   AntDesk Pet — Single 200×200 transparent window
-   Pet = FAB. No background. Pure Spine.
-   Indicators cluster around pet body contour.
+   AntDesk Pet — 200×200 transparent window
+   Pet = FAB. Single thought bubble. No clutter.
    ═══════════════════════════════════════════════ */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -17,16 +16,13 @@ html, body {
   overflow: hidden;
 }
 
-/* ── Root container ── */
 .pet-window {
   width: 100vw; height: 100vh;
   position: relative;
   background: transparent;
 }
 
-/* ═══════════════════════════════════════════════
-   Pet View — Spine character + indicators
-   ═══════════════════════════════════════════════ */
+/* ── Pet View ── */
 .pet-view {
   position: absolute; inset: 0;
   display: flex; align-items: flex-end; justify-content: center;
@@ -38,132 +34,68 @@ html, body {
 .pet-view canvas { pointer-events: none; }
 
 /* ═══════════════════════════════════════════════
-   Indicator Cluster — follows pet contour
-   All status icons live in this container.
-   Positioned relative to pet body center.
+   Thought Bubble — single cycling status bubble
    ═══════════════════════════════════════════════ */
-.indicator-cluster {
+.thought-bubble {
   position: absolute;
-  /* Center of pet body — canvas is 150x150 at bottom-center of 200x200 */
-  left: 50%; bottom: 75px;
-  transform: translateX(-50%);
-  width: 0; height: 0;
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* ── Connection dot: right shoulder of pet ── */
-.dot {
-  position: absolute;
-  right: -48px; top: -50px;
-  width: 7px; height: 7px; border-radius: 50%;
-  pointer-events: none;
-}
-.dot.on  { background: #34C759; box-shadow: 0 0 5px rgba(52,199,89,0.5); }
-.dot.off { background: #FF3B30; box-shadow: 0 0 5px rgba(255,59,48,0.4); }
-
-/* ── Badge: right hip of pet ── */
-.badge {
-  position: absolute;
-  right: -52px; top: -20px;
-  background: #FF3B30; color: #fff;
-  font-size: 8px; font-weight: 700;
-  min-width: 14px; height: 14px; border-radius: 7px;
-  display: flex; align-items: center; justify-content: center;
-  padding: 0 3px;
-  box-shadow: 0 1px 6px rgba(255,59,48,0.4);
-  pointer-events: none;
-  animation: badge-pulse 2s ease-in-out infinite;
-}
-@keyframes badge-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
-
-/* ── State icon: left shoulder of pet ── */
-.state-icon {
-  position: absolute;
-  left: -48px; top: -44px;
-  font-size: 13px;
-  pointer-events: none;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
-  animation: float-bob 2.5s ease-in-out infinite;
-}
-@keyframes float-bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2px); }
-}
-
-/* ── Mood bubble: directly above pet's head ── */
-.mood {
-  position: absolute;
-  left: 50%; bottom: 155px;
+  left: 50%; bottom: 148px;
   transform: translateX(-50%);
   background: rgba(20,20,35,0.88); backdrop-filter: blur(16px);
   color: rgba(255,255,255,0.85); font-size: 10px;
-  padding: 3px 8px; border-radius: 10px;
+  padding: 3px 9px; border-radius: 10px;
   white-space: nowrap; pointer-events: none; z-index: 20;
   border: 1px solid rgba(255,255,255,0.06);
   box-shadow: 0 3px 12px rgba(0,0,0,0.35);
-  animation: mood-in 0.2s ease-out;
+  animation: thought-in 0.25s ease-out;
 }
-.mood::after {
+.thought-bubble[data-priority="true"] {
+  background: rgba(255,59,48,0.85);
+  border-color: rgba(255,255,255,0.1);
+}
+.thought-bubble::after {
   content: ""; position: absolute; bottom: -4px; left: 50%;
   transform: translateX(-50%) rotate(45deg);
   width: 7px; height: 7px;
-  background: rgba(20,20,35,0.88);
+  background: inherit;
   border-right: 1px solid rgba(255,255,255,0.06);
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
-.mood-e { margin-right: 2px; }
-@keyframes mood-in {
+.thought-e { margin-right: 2px; }
+@keyframes thought-in {
   from { opacity: 0; transform: translateX(-50%) translateY(3px) scale(0.92); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 
-/* ── Notify: above mood bubble ── */
-.notify {
-  position: absolute;
-  left: 50%; bottom: 178px;
-  transform: translateX(-50%);
-  background: rgba(255,59,48,0.88); backdrop-filter: blur(12px);
-  color: #fff; font-size: 9px;
-  padding: 4px 10px; border-radius: 8px;
-  white-space: nowrap; cursor: pointer;
-  z-index: 20; max-width: 160px; overflow: hidden; text-overflow: ellipsis;
-  box-shadow: 0 3px 12px rgba(255,59,48,0.35);
-  animation: notify-slide 0.3s ease-out;
-}
-@keyframes notify-slide {
-  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-}
-
 /* ═══════════════════════════════════════════════
-   Surface Walking — canvas rotation
-   When on walls, rotate the entire pet-view.
+   Surface Walking — canvas rotation for walls
    ═══════════════════════════════════════════════ */
-
-/* Right wall: pet appears to walk upward on the right */
 .pet-view[data-surface="right"] canvas {
   transform-origin: bottom right;
   transform: rotate(-90deg) translateY(-100%);
 }
-.pet-view[data-surface="right"] .indicator-cluster {
-  transform: translateX(-50%) rotate(90deg);
-}
-
-/* Left wall: pet appears to walk upward on the left */
 .pet-view[data-surface="left"] canvas {
   transform-origin: bottom left;
   transform: rotate(90deg) translateX(-100%);
 }
-.pet-view[data-surface="left"] .indicator-cluster {
-  transform: translateX(-50%) rotate(-90deg);
+
+/* Wall walk bounce — rotation preserved */
+.pet-window[data-state="walk"] .pet-view[data-surface="right"] canvas {
+  animation: bounce-walk-right 0.6s ease-in-out infinite;
+}
+@keyframes bounce-walk-right {
+  0%, 100% { transform: rotate(-90deg) translateY(-100%) translateX(0); }
+  50% { transform: rotate(-90deg) translateY(-100%) translateX(-3px); }
+}
+.pet-window[data-state="walk"] .pet-view[data-surface="left"] canvas {
+  animation: bounce-walk-left 0.6s ease-in-out infinite;
+}
+@keyframes bounce-walk-left {
+  0%, 100% { transform: rotate(90deg) translateX(-100%) translateX(0); }
+  50% { transform: rotate(90deg) translateX(-100%) translateX(3px); }
 }
 
 /* ═══════════════════════════════════════════════
-   Context Menu (right-click on pet)
+   Context Menu
    ═══════════════════════════════════════════════ */
 .menu {
   position: absolute;
@@ -180,7 +112,6 @@ html, body {
   from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
   to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
-
 .menu-item {
   display: flex; align-items: center; gap: 8px;
   padding: 7px 12px; border-radius: 8px;
@@ -194,7 +125,7 @@ html, body {
 .menu-sep { height: 1px; background: rgba(255,255,255,0.06); margin: 3px 8px; }
 
 /* ═══════════════════════════════════════════════
-   Behavior state effects on Spine canvas
+   Behavior state effects
    ═══════════════════════════════════════════════ */
 .pet-window[data-state="sleep"] canvas {
   opacity: 0.35;
@@ -204,15 +135,13 @@ html, body {
   0%, 100% { transform: scale(1); opacity: 0.35; }
   50% { transform: scale(0.96); opacity: 0.25; }
 }
-.pet-window[data-state="walk"] canvas {
+.pet-window[data-state="walk"] .pet-view:not([data-surface="right"]):not([data-surface="left"]) canvas {
   animation: bounce-walk 0.6s ease-in-out infinite;
 }
 @keyframes bounce-walk {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
-
-/* ── Dizzy state (after landing from fall) ── */
 .pet-window[data-state="dizzy"] canvas {
   animation: dizzy-shake 0.3s ease-in-out 3;
 }
@@ -220,22 +149,4 @@ html, body {
   0%, 100% { transform: rotate(0deg); }
   25% { transform: rotate(-8deg); }
   75% { transform: rotate(8deg); }
-}
-
-/* ── Wall walk: bounce combines with rotation ── */
-.pet-view[data-surface="right"][data-state="walk"] canvas,
-.pet-view[data-surface="right"].pet-window[data-state="walk"] canvas {
-  animation: bounce-walk-right 0.6s ease-in-out infinite;
-}
-@keyframes bounce-walk-right {
-  0%, 100% { transform: rotate(-90deg) translateY(-100%) translateX(0); }
-  50% { transform: rotate(-90deg) translateY(-100%) translateX(-3px); }
-}
-.pet-view[data-surface="left"][data-state="walk"] canvas,
-.pet-view[data-surface="left"].pet-window[data-state="walk"] canvas {
-  animation: bounce-walk-left 0.6s ease-in-out infinite;
-}
-@keyframes bounce-walk-left {
-  0%, 100% { transform: rotate(90deg) translateX(-100%) translateX(0); }
-  50% { transform: rotate(90deg) translateX(-100%) translateX(3px); }
 }

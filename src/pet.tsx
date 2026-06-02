@@ -292,6 +292,31 @@ export default function Pet() {
   const totalBadge = pendingCount + kanbanStats.active + kanbanStats.blocked;
   const sleeping = petBehavior === "sleep";
 
+  /* ═══ Thought system — single bubble cycling through pet thoughts ═══ */
+  const [thoughtIdx, setThoughtIdx] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setThoughtIdx(i => i + 1), 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const thoughtPool = (() => {
+    const pool: Array<{emoji: string; text: string; key: string; priority?: boolean}> = [];
+    if (notifyMsg) return [{ emoji: "⚠️", text: notifyMsg, key: "notify", priority: true }];
+    if (physState === "dizzy") return [{ emoji: "💫", text: "晕了...", key: "dizzy", priority: true }];
+    if (physState === "falling") return [{ emoji: "😱", text: "啊啊啊!", key: "fall", priority: true }];
+    if (petMode === "anxious") pool.push({ emoji: "😰", text: "任务有点多...", key: "anxious" });
+    if (petMode === "alert") pool.push({ emoji: "⏰", text: "有逾期任务!", key: "alert" });
+    if (petMode === "celebrate") pool.push({ emoji: "🎉", text: "干得漂亮!", key: "celebrate" });
+    if (totalBadge > 0) pool.push({ emoji: "📋", text: `${totalBadge}个待办`, key: "badge" });
+    if (moodText) pool.push({ emoji: moodEmoji, text: moodText, key: "mood" });
+    if (petBehavior === "walk" && !locked) pool.push({ emoji: "🐾", text: "散步中~", key: "walk" });
+    if (sleeping) pool.push({ emoji: "💤", text: "zzZ", key: "sleep" });
+    if (connected) pool.push({ emoji: "🔗", text: "已连接", key: "conn" });
+    pool.push({ emoji: "😊", text: "~", key: "idle" });
+    return pool;
+  })();
+  const currentThought = thoughtPool[thoughtIdx % thoughtPool.length];
+
   return (
     <div
       className="pet-window"
@@ -307,30 +332,11 @@ export default function Pet() {
       >
         <SpinePet ref={spineRef} petName={petName} width={150} height={150} />
 
-        {/* Status cluster — follows pet contour */}
-        <div className="indicator-cluster" data-surface={surfaceSide}>
-          {/* Connection + badge: bottom-right arc of pet body */}
-          <span className={`dot ${connected ? "on" : "off"}`} />
-          {totalBadge > 0 && (
-            <span className="badge">{totalBadge > 99 ? "99+" : totalBadge}</span>
-          )}
-
-          {/* State: left flank of pet */}
-          {(petBehavior === "walk" && !locked) && <span className="state-icon">🚶</span>}
-          {sleeping && <span className="state-icon">💤</span>}
-        </div>
-
-        {/* Mood bubble — directly above pet's head */}
-        {moodText && (
-          <div className="mood">
-            <span className="mood-e">{moodEmoji}</span>{moodText}
-          </div>
-        )}
-
-        {/* Notify — above mood, same anchor */}
-        {notifyMsg && (
-          <div className="notify" onClick={() => setNotifyMsg(null)}>
-            ⚠️ {notifyMsg}
+        {/* Single thought bubble — shows current thought */}
+        {currentThought && (
+          <div className="thought-bubble" data-priority={currentThought.priority}>
+            <span className="thought-e">{currentThought.emoji}</span>
+            {currentThought.text}
           </div>
         )}
       </div>
