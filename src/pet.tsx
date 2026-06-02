@@ -119,7 +119,7 @@ export default function Pet() {
   useEffect(() => {
     const physics = new PhysicsEngine({
       windowWidth: 200, windowHeight: 200,
-      walkSpeed: 35, idleProbability: 0.3, mouseAttraction: 0.1,
+      walkSpeed: 35, idleProbability: 0.3, edgePadding: 2, mouseAttraction: 0.1,
       onStateChange: (state) => {
         setPhysState(state);
         if (state === "falling") {

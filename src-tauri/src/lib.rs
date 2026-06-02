@@ -222,29 +222,56 @@ async fn get_pending_count(state: tauri::State<'_, AppState>) -> Result<i32, Str
     Ok(count)
 }
 
-/// Get screen bounds for PhysicsEngine
+/// Get screen bounds for PhysicsEngine — union of ALL monitors.
+/// This handles dual/multi-screen setups correctly.
 #[tauri::command]
 async fn get_screen_bounds(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     let pet = app.get_webview_window("pet").ok_or("Pet window not found")?;
-    let monitor = pet.current_monitor().ok().flatten().ok_or("No monitor found")?;
 
-    let scale = monitor.scale_factor();
-    let pos = monitor.position();
-    let size = monitor.size();
+    let monitors = pet.available_monitors().map_err(|e| e.to_string())?;
+    if monitors.is_empty() {
+        return Ok(serde_json::json!({
+            "x": 0.0, "y": 25.0, "width": 1920.0, "height": 990.0, "scale": 1.0
+        }));
+    }
 
-    let mon_x = pos.x as f64;
-    let mon_y = pos.y as f64;
-    let mon_w = size.width as f64;
-    let mon_h = size.height as f64;
+    // Compute union of all monitors
+    let mut min_x: f64 = f64::MAX;
+    let mut min_y: f64 = f64::MAX;
+    let mut max_x: f64 = f64::MIN;
+    let mut max_y: f64 = f64::MIN;
+    let mut primary_scale: f64 = 1.0;
 
-    let menu_bar_h = 25.0 * scale;
-    let dock_h = 65.0 * scale;
+    for m in &monitors {
+        let p = m.position();
+        let s = m.size();
+        let scale = m.scale_factor();
+        let x = p.x as f64;
+        let y = p.y as f64;
+        let w = s.width as f64;
+        let h = s.height as f64;
+        if x < min_x { min_x = x; }
+        if y < min_y { min_y = y; }
+        if x + w > max_x { max_x = x + w; }
+        if y + h > max_y { max_y = y + h; }
+        // Use scale from the monitor where the pet currently is
+        if x <= 0.0 && y <= 0.0 { primary_scale = scale; }
+    }
+
+    // Get current monitor for scale factor
+    if let Ok(Some(current)) = pet.current_monitor() {
+        primary_scale = current.scale_factor();
+    }
+
+    let scale = primary_scale;
+    let menu_bar_h = 25.0 * scale;  // macOS menu bar (primary only, but safe padding)
+    let dock_h = 8.0 * scale;       // Minimal dock padding — OS handles actual dock avoidance
 
     Ok(serde_json::json!({
-        "x": mon_x,
-        "y": mon_y + menu_bar_h,
-        "width": mon_w,
-        "height": mon_h - menu_bar_h - dock_h,
+        "x": min_x,
+        "y": min_y + menu_bar_h,
+        "width": max_x - min_x,
+        "height": (max_y - min_y) - menu_bar_h - dock_h,
         "scale": scale,
     }))
 }
@@ -409,9 +436,9 @@ pub fn run() {
                 } else {
                     (1920.0 * scale, 1080.0 * scale)
                 };
-                let pet_w = 260.0 * scale;
-                let pet_h = 260.0 * scale;
-                let margin = 24.0 * scale;
+                let pet_w = 200.0 * scale;
+                let pet_h = 200.0 * scale;
+                let margin = 2.0 * scale;
                 let x = mon_right - pet_w - margin;
                 let y = mon_bottom - pet_h - margin;
                 let pos = tauri::Position::Physical(tauri::PhysicalPosition::new(x as i32, y as i32));

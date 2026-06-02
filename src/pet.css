@@ -30,7 +30,7 @@ html, body {
    ═══════════════════════════════════════════════ */
 .pet-view {
   position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: flex-end; justify-content: center;
   /* Tiny alpha so transparent pixels are NOT click-through at OS level */
   background: rgba(0, 0, 0, 0.004);
   cursor: grab;
@@ -43,7 +43,7 @@ html, body {
 
 /* ── Connection dot ── */
 .dot {
-  position: absolute; top: 14px; right: 18px;
+  position: absolute; bottom: 100px; right: 18px;
   width: 8px; height: 8px; border-radius: 50%;
   pointer-events: none; z-index: 10;
 }
@@ -52,7 +52,7 @@ html, body {
 
 /* ── Badge (pending count) ── */
 .badge {
-  position: absolute; bottom: 16px; right: 18px;
+  position: absolute; bottom: 18px; right: 18px;
   background: #FF3B30; color: #fff;
   font-size: 9px; font-weight: 700;
   min-width: 16px; height: 16px; border-radius: 8px;
@@ -69,7 +69,7 @@ html, body {
 
 /* ── State icon ── */
 .state-icon {
-  position: absolute; top: 14px; left: 18px;
+  position: absolute; bottom: 100px; left: 18px;
   font-size: 14px;
   pointer-events: none; z-index: 10;
   filter: drop-shadow(0 1px 3px rgba(0,0,0,0.7));
@@ -82,7 +82,7 @@ html, body {
 
 /* ── Mood bubble ── */
 .mood {
-  position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
   background: rgba(20,20,35,0.92); backdrop-filter: blur(16px);
   color: rgba(255,255,255,0.88); font-size: 11px;
   padding: 4px 10px; border-radius: 12px;
@@ -107,7 +107,7 @@ html, body {
 
 /* ── Notify banner ── */
 .notify {
-  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  position: absolute; top: 36px; left: 50%; transform: translateX(-50%);
   background: rgba(255,59,48,0.92); backdrop-filter: blur(12px);
   color: #fff; font-size: 10px;
   padding: 5px 12px; border-radius: 10px;
