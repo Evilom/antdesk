@@ -222,6 +222,56 @@ async fn get_pending_count(state: tauri::State<'_, AppState>) -> Result<i32, Str
     Ok(count)
 }
 
+/// Get positions of all visible application windows (macOS only).
+/// Uses CGWindowListCopyWindowInfo via Python/PyObjC for reliability.
+/// Returns array of {name, x, y, width, height} in physical pixels.
+#[tauri::command]
+async fn get_visible_windows() -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+
+        let output = Command::new("python3")
+            .args(["-c", r#"
+import Quartz, json, sys
+info = Quartz.CGWindowListCopyWindowInfo(
+    Quartz.kCGWindowListOptionOnScreenOnly,
+    Quartz.kCGNullWindowID
+)
+r = []
+for w in info:
+    b = w.get('kCGWindowBounds', {})
+    if (w.get('kCGWindowLayer') == 0
+        and w.get('kCGWindowAlpha', 0) > 0
+        and b.get('Width', 0) > 100
+        and b.get('Height', 0) > 100):
+        r.append({
+            'name': w.get('kCGWindowOwnerName', ''),
+            'x': b.get('X', 0), 'y': b.get('Y', 0),
+            'width': b.get('Width', 0), 'height': b.get('Height', 0)
+        })
+json.dump(r, sys.stdout)
+"#])
+            .output()
+            .map_err(|e| format!("python3 failed: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("python3 error: {}", stderr));
+        }
+
+        let raw = String::from_utf8_lossy(&output.stdout);
+        let windows: Vec<serde_json::Value> = serde_json::from_str(&raw)
+            .map_err(|e| format!("JSON parse error: {}", e))?;
+        Ok(serde_json::json!(windows))
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(serde_json::json!([]))
+    }
+}
+
 /// Get screen bounds for PhysicsEngine — union of ALL monitors.
 /// This handles dual/multi-screen setups correctly.
 #[tauri::command]
@@ -463,6 +513,7 @@ pub fn run() {
             hide_pet,
             get_pending_count,
             get_screen_bounds,
+            get_visible_windows,
             show_settings,
             toggle_notepad,
             quit_app

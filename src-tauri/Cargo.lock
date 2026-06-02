@@ -63,7 +63,10 @@ dependencies = [
 name = "antdesk"
 version = "2.5.2"
 dependencies = [
+ "core-foundation 0.9.4",
+ "core-graphics",
  "image",
+ "plist",
  "reqwest 0.12.28",
  "serde",
  "serde_json",

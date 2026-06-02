@@ -29,6 +29,7 @@ export default function Pet() {
   const [connected, setConnected] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [windowInteraction, setWindowInteraction] = useState(() => localStorage.getItem("antdesk_window_interaction") === "true");
   const [petName] = useState("moshumao");
   const [petBehavior, setPetBehavior] = useState<BehaviorState>("idle");
   const [petMode, setPetMode] = useState<PetMode>("leisure");
@@ -43,6 +44,7 @@ export default function Pet() {
   const physicsRef = useRef<PhysicsEngine | null>(null);
   const brainRef = useRef<PetBrain | null>(null);
   const lockedRef = useRef(false);
+  const windowInteractionRef = useRef(windowInteraction);
   const notifyTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
   const setKanbanData = useKanbanStore((s) => s.setData);
@@ -51,6 +53,7 @@ export default function Pet() {
   const kanbanEndpoint = useKanbanStore((s) => s.endpoint);
 
   useEffect(() => { lockedRef.current = locked; }, [locked]);
+  useEffect(() => { windowInteractionRef.current = windowInteraction; localStorage.setItem("antdesk_window_interaction", String(windowInteraction)); }, [windowInteraction]);
 
   /* ═══ Init ═══ */
   useEffect(() => {
@@ -83,6 +86,29 @@ export default function Pet() {
     bridge.start();
     return () => bridge.dispose();
   }, [kanbanEndpoint]);
+
+  /* ═══ Window Interaction — periodic refresh of window platforms ═══ */
+  useEffect(() => {
+    const refreshPlatforms = async () => {
+      if (!windowInteractionRef.current || !physicsRef.current) return;
+      try {
+        const wins = await invoke<Array<{name: string; x: number; y: number; width: number; height: number}>>("get_visible_windows");
+        const scale = window.devicePixelRatio || 1;
+        const platforms = wins.map(w => ({
+          x: w.x * scale, y: w.y * scale,
+          width: w.width * scale,
+          source: "window" as const, name: w.name,
+        }));
+        physicsRef.current.refreshPlatforms(platforms);
+      } catch (e) {
+        console.warn("[Pet] refreshPlatforms failed:", e);
+      }
+    };
+
+    refreshPlatforms();
+    const interval = setInterval(refreshPlatforms, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   /* ═══ PetBrain ═══ */
   useEffect(() => {
@@ -311,6 +337,27 @@ export default function Pet() {
           </div>
           <div className="menu-item" onClick={() => { setMenuOpen(false); invoke("hide_pet"); }}>
             👁️ 隐藏宠物
+          </div>
+          <div className="menu-sep" />
+          <div className="menu-item" onClick={() => {
+            const next = !windowInteraction;
+            setWindowInteraction(next);
+            if (next) {
+              invoke<Array<any>>("get_visible_windows").then(wins => {
+                const scale = window.devicePixelRatio || 1;
+                const platforms = wins.map((w: any) => ({
+                  x: w.x * scale, y: w.y * scale,
+                  width: w.width * scale,
+                  source: "window" as const, name: w.name,
+                }));
+                physicsRef.current?.setPlatforms(platforms);
+              }).catch(() => {});
+            } else {
+              physicsRef.current?.setPlatforms([]);
+            }
+            setMenuOpen(false);
+          }}>
+            {windowInteraction ? "🪟 窗口交互 ✓" : "🪟 窗口交互"}
           </div>
           <div className="menu-sep" />
           <div className="menu-item quit" onClick={() => invoke("quit_app")}>

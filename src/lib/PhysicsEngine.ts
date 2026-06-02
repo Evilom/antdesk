@@ -2,13 +2,14 @@
  * PhysicsEngine — Desktop pet roaming physics with gravity & surface walking.
  *
  * Surface model:
- *   - Pet walks on screen bottom edge (ground level)
- *   - After drag release, gravity pulls pet down to ground
+ *   - Pet walks on screen edges AND optionally on top of application windows
+ *   - After drag release, gravity pulls pet down to nearest surface
  *   - Landing triggers brief dizzy state
+ *   - Walking off a window edge → falling to next surface below
  *
  * States:
- *   idle    — standing on ground, pausing
- *   walk    — walking horizontally on ground
+ *   idle    — standing on surface, pausing
+ *   walk    — walking horizontally on surface
  *   falling — in the air, gravity pulling down
  *   dizzy   — stunned after landing (brief)
  *   dragged — held by user (physics paused)
@@ -25,6 +26,15 @@ interface ScreenBounds {
   width: number;
   height: number;
   scale: number;
+}
+
+/** A surface the pet can walk on (screen edge or window top). */
+export interface Platform {
+  x: number;      // Left edge (physical px)
+  y: number;      // Top edge — where pet window top sits (physical px)
+  width: number;  // Width (physical px)
+  source: "screen" | "window";
+  name?: string;  // Window name (for window platforms)
 }
 
 export interface PhysicsEngineOptions {
@@ -66,8 +76,14 @@ export class PhysicsEngine {
 
   // Surface
   private bounds: ScreenBounds | null = null;
-  /** Ground Y in physical pixels (top of window when pet is on floor) */
+  /** Ground Y in physical pixels (top of window when pet is on screen floor) */
   private groundY = 0;
+  /** Active extra platforms from window tops */
+  private platforms: Platform[] = [];
+  /** The platform the pet is currently standing on (null = screen ground) */
+  private currentPlatform: Platform | null = null;
+  /** Last known position of currentPlatform (to detect window movement) */
+  private lastPlatformPos: { x: number; y: number; w: number } | null = null;
 
   // Timers
   private directionTimer = 0;
@@ -131,7 +147,7 @@ export class PhysicsEngine {
   async start(): Promise<void> {
     if (this.running) return;
 
-    // Fetch screen bounds
+    // Fetch screen bounds (physical pixels)
     try {
       this.bounds = await invoke<ScreenBounds>("get_screen_bounds");
     } catch (e) {
@@ -165,68 +181,127 @@ export class PhysicsEngine {
     this.running = true;
     this.lastTime = performance.now() / 1000;
     this.rafId = requestAnimationFrame(this.tick.bind(this));
-    console.log("[Physics] started, ground Y:", this.groundY);
   }
 
   stop(): void {
     this.running = false;
-    if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = 0; }
+    if (this.rafId) cancelAnimationFrame(this.rafId);
+    this.rafId = 0;
     document.removeEventListener("mousemove", this.boundMouseMove);
     document.removeEventListener("mouseenter", this.boundMouseEnter);
     document.removeEventListener("mouseleave", this.boundMouseLeave);
   }
 
-  /** Call when drag starts — pause physics */
+  configure(opts: Partial<PhysicsEngineOptions>): void {
+    if (opts.walkSpeed !== undefined) this.walkSpeed = opts.walkSpeed;
+    if (opts.gravity !== undefined) this.gravity = opts.gravity;
+    if (opts.idleProbability !== undefined) this.idleProbability = opts.idleProbability;
+    if (opts.mouseAttraction !== undefined) this.mouseAttraction = opts.mouseAttraction;
+  }
+
+  // ── Platform API ──
+
+  /** Set active window-top platforms. Screen ground is always implicit. */
+  setPlatforms(platforms: Platform[]): void {
+    this.platforms = platforms;
+  }
+
+  /**
+   * Refresh platforms after window positions change.
+   * Handles: window moved (pet follows), window closed (pet falls).
+   */
+  refreshPlatforms(newPlatforms: Platform[]): void {
+    this.platforms = newPlatforms;
+
+    if (!this.currentPlatform || this.currentPlatform.source === "screen") return;
+
+    // Find the same window in updated platforms
+    const updated = newPlatforms.find(
+      p => p.source === "window" && p.name === this.currentPlatform!.name
+    );
+
+    if (updated) {
+      // Window still exists — check if it moved
+      if (this.lastPlatformPos) {
+        const dx = updated.x - this.lastPlatformPos.x;
+        const dy = updated.y - this.lastPlatformPos.y;
+        if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+          // Window moved — shift pet with it
+          this.x += dx;
+          this.y += dy;
+          this.clampToScreen();
+          if (this.state !== "dragged") this.moveWindow();
+        }
+      }
+      // Update tracked position
+      this.currentPlatform = updated;
+      this.lastPlatformPos = { x: updated.x, y: updated.y, w: updated.width };
+    } else {
+      // Window closed/moved off-screen — fall!
+      this.currentPlatform = null;
+      this.lastPlatformPos = null;
+      if (this.state !== "dragged") {
+        this.vx *= 0.3; // Lose momentum
+        this.vy = 0;
+        this.setState("falling");
+      }
+    }
+  }
+
+  // ── Drag support ──
+
   onDragStart(): void {
     this.setState("dragged");
   }
 
-  /** Call when drag ends — enter falling state with release velocity */
-  onDragEnd(releaseVxLogical = 0, releaseVyLogical = 0): void {
-    // Read current window position
-    getCurrentWindow().outerPosition().then((pos) => {
+  onDragEnd(vx: number, vy: number): void {
+    // Use release velocity (dampened)
+    this.vx = vx * 0.4;
+    this.vy = vy * 0.3;
+
+    // Update position from actual window pos
+    getCurrentWindow().outerPosition().then(pos => {
       this.x = pos.x;
       this.y = pos.y;
-
-      // Apply release velocity (dampened)
-      this.vx = releaseVxLogical * 0.4;
-      this.vy = releaseVyLogical * 0.3;
-
-      // If above ground → fall; if on ground → idle
-      if (this.y < this.groundY - 2) {
-        this.setState("falling");
-      } else {
-        this.y = this.groundY;
-        this.vy = 0;
-        this.setHorizontalRandomDirection();
-        this.setState("walk");
-      }
-    }).catch(() => {});
+      // After drag, enter falling state — gravity pulls to nearest surface
+      this.currentPlatform = null;
+      this.lastPlatformPos = null;
+      this.setState("falling");
+    }).catch(() => {
+      this.setState("falling");
+    });
   }
 
-  configure(options: Partial<PhysicsEngineOptions>): void {
-    if (options.walkSpeed !== undefined) this.walkSpeed = options.walkSpeed;
-    if (options.directionChangeInterval !== undefined) this.directionChangeInterval = options.directionChangeInterval;
-    if (options.idleDuration !== undefined) {
-      this.idleDurationMin = options.idleDuration[0];
-      this.idleDurationMax = options.idleDuration[1];
-    }
-    if (options.idleProbability !== undefined) this.idleProbability = options.idleProbability;
-    if (options.mouseAttraction !== undefined) this.mouseAttraction = options.mouseAttraction;
-    if (options.mouseAttractionDistance !== undefined) this.mouseAttractionDistance = options.mouseAttractionDistance;
-    if (options.edgePadding !== undefined) this.edgePadding = options.edgePadding;
-    if (options.gravity !== undefined) this.gravity = options.gravity;
-    if (options.dizzyDuration !== undefined) this.dizzyDuration = options.dizzyDuration;
-  }
-
+  /** Get current state (for external reads) */
   getState(): PetState { return this.state; }
 
-  // ── Internal ──
+  // ── Private ──
 
-  private setState(state: PetState): void {
-    if (this.state === state) return;
-    this.state = state;
-    this.onStateChange?.(state);
+  private setState(s: PetState): void {
+    if (s === this.state) return;
+    this.state = s;
+    this.onStateChange?.(s);
+  }
+
+  /** Find the nearest platform surface at or below current position within X range. */
+  private findLandingPlatform(physicalX: number, physicalBottom: number): Platform | null {
+    let best: Platform | null = null;
+    let bestDist = Infinity;
+
+    for (const p of this.platforms) {
+      const pBottom = p.y; // Platform surface Y (where pet top sits)
+      if (pBottom < physicalBottom - 2) continue; // Platform must be below pet
+
+      const petCenterX = physicalX + (this.windowWidth * (this.bounds?.scale ?? 1)) / 2;
+      if (petCenterX < p.x - 20 || petCenterX > p.x + p.width + 20) continue;
+
+      const dist = pBottom - physicalBottom;
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = p;
+      }
+    }
+    return best;
   }
 
   private recomputeGround(): void {
@@ -300,23 +375,58 @@ export class PhysicsEngine {
     // Move
     let newX = this.x + this.vx * dt;
     let newY = this.y + this.vy * dt;
+    const winH = this.windowHeight * scale;
+    const petBottom = newY + winH;
 
-    // Check ground collision
-    if (newY >= this.groundY) {
-      newY = this.groundY;
+    // Check platform collision (window tops + screen ground)
+    let landedOn: Platform | null = null;
+    let landY = this.groundY;
+
+    for (const p of this.platforms) {
+      const platY = p.y;
+      if (platY >= this.groundY) continue; // Skip if below screen ground
+
+      const prevBottom = this.y + winH;
+      if (prevBottom <= platY + 2 && petBottom >= platY - 2) {
+        const petCenterX = newX + winH / 2;
+        if (petCenterX >= p.x - 10 && petCenterX <= p.x + p.width + 10) {
+          if (platY < landY) {
+            landY = platY;
+            landedOn = p;
+          }
+        }
+      }
+    }
+
+    // Check screen ground collision
+    if (newY >= this.groundY && !landedOn) {
+      landedOn = { x: this.bounds?.x ?? 0, y: this.groundY, width: this.bounds?.width ?? 1920, source: "screen" };
+      landY = this.groundY;
+    }
+
+    if (landedOn) {
+      newY = landY;
 
       // Bounce if falling fast enough
-      if (this.vy > 50 * scale) {
+      if (this.vy > 50 * scale && landedOn.source === "screen") {
         this.vy = -this.vy * this.bounceFactor;
         this.vx *= 0.8;
         // Small bounce — will land next frame
       } else {
         // Landed
         this.vy = 0;
-        this.y = this.groundY;
+        this.y = landY;
+
+        // Record landing platform
+        this.currentPlatform = landedOn;
+        if (landedOn.source === "window") {
+          this.lastPlatformPos = { x: landedOn.x, y: landedOn.y, w: landedOn.width };
+        } else {
+          this.lastPlatformPos = null;
+        }
 
         // Wall bounce
-        this.clampHorizontal(newX);
+        this.x = this.clampHorizontal(newX);
 
         // Enter dizzy state
         this.dizzyTimer = this.dizzyDuration;
@@ -326,7 +436,7 @@ export class PhysicsEngine {
       }
     }
 
-    // Screen edge bounce (horizontal)
+    // Screen edge bounce (horizontal) while falling
     this.x = this.clampHorizontal(newX);
     this.y = newY;
 
@@ -334,8 +444,10 @@ export class PhysicsEngine {
   }
 
   private tickIdle(dt: number): void {
-    // Lock to ground
-    this.y = this.groundY;
+    // Lock to current surface
+    const surfaceY = this.currentPlatform ? this.currentPlatform.y : this.groundY;
+    this.y = surfaceY;
+
     this.idleTimer -= dt;
     if (this.idleTimer <= 0) {
       this.setHorizontalRandomDirection();
@@ -344,8 +456,9 @@ export class PhysicsEngine {
   }
 
   private tickWalk(dt: number): void {
-    // Lock to ground
-    this.y = this.groundY;
+    // Lock to current surface
+    const surfaceY = this.currentPlatform ? this.currentPlatform.y : this.groundY;
+    this.y = surfaceY;
 
     // Direction timer
     this.directionTimer -= dt;
@@ -360,7 +473,7 @@ export class PhysicsEngine {
       this.setHorizontalRandomDirection();
     }
 
-    // Mouse attraction (horizontal only on ground)
+    // Mouse attraction (horizontal only on surface)
     if (this.mouseAttraction > 0 && this.bounds) {
       const scale = this.bounds.scale;
       const petCenterX = this.x + (this.windowWidth * scale) / 2;
@@ -381,7 +494,23 @@ export class PhysicsEngine {
     // Move horizontally
     let newX = this.x + this.vx * dt;
 
-    // Wall bounce
+    // Edge detection for window platforms — pet walks off edge → falls
+    if (this.currentPlatform && this.currentPlatform.source === "window") {
+      const scale = this.bounds?.scale ?? 1;
+      const winW = this.windowWidth * scale;
+      const platLeft = this.currentPlatform.x;
+      const platRight = this.currentPlatform.x + this.currentPlatform.width;
+
+      if (newX + winW < platLeft || newX > platRight) {
+        // Walked off the window edge — fall!
+        this.currentPlatform = null;
+        this.lastPlatformPos = null;
+        this.setState("falling");
+        return;
+      }
+    }
+
+    // Clamp to surface bounds (screen edges for ground, platform edges for windows)
     const clampedX = this.clampHorizontal(newX);
     if (clampedX !== newX) {
       this.vx = -this.vx;
@@ -393,15 +522,38 @@ export class PhysicsEngine {
     this.moveWindow();
   }
 
-  /** Clamp X to screen edges, return clamped value */
+  /** Clamp X to appropriate bounds. Screen edges for ground, platform edges for windows. */
   private clampHorizontal(newX: number): number {
     if (!this.bounds) return newX;
     const scale = this.bounds.scale;
     const pad = this.edgePadding * scale;
     const winW = this.windowWidth * scale;
+
+    if (this.currentPlatform && this.currentPlatform.source === "window") {
+      // On a window — clamp to window edges
+      const minX = this.currentPlatform.x + pad;
+      const maxX = this.currentPlatform.x + this.currentPlatform.width - winW - pad;
+      return Math.max(minX, Math.min(maxX, newX));
+    }
+
+    // On screen ground — clamp to screen edges
     const minX = this.bounds.x + pad;
     const maxX = this.bounds.x + this.bounds.width - winW - pad;
     return Math.max(minX, Math.min(maxX, newX));
+  }
+
+  /** Clamp position to screen bounds (for after window moves pet off-screen). */
+  private clampToScreen(): void {
+    if (!this.bounds) return;
+    const scale = this.bounds.scale;
+    const winW = this.windowWidth * scale;
+    const winH = this.windowHeight * scale;
+    const minX = this.bounds.x;
+    const maxX = this.bounds.x + this.bounds.width - winW;
+    const minY = this.bounds.y;
+    const maxY = this.bounds.y + this.bounds.height - winH;
+    this.x = Math.max(minX, Math.min(maxX, this.x));
+    this.y = Math.max(minY, Math.min(maxY, this.y));
   }
 
   /** Move the Tauri window if position changed enough */
