@@ -4,7 +4,7 @@ import { getCurrentWindow, Window } from "@tauri-apps/api/window";
 import { LogicalPosition } from "@tauri-apps/api/dpi";
 import { useEffect, useState, useCallback, useRef } from "react";
 import SpinePet, { type SpinePetHandle } from "./components/SpinePet";
-import { PhysicsEngine } from "./lib/PhysicsEngine";
+import { PhysicsEngine, type SurfaceSide } from "./lib/PhysicsEngine";
 import { PetBrain, MODE_PHYSICS, type PetMode, type BehaviorState } from "./lib/PetBrain";
 import { KanbanBridge } from "./lib/kanbanBridge";
 import { useKanbanStore } from "./stores/kanbanStore";
@@ -38,6 +38,7 @@ export default function Pet() {
   const [pendingCount, setPendingCount] = useState(0);
   const [notifyMsg, setNotifyMsg] = useState<string | null>(null);
   const [physState, setPhysState] = useState<string>("idle");
+  const [surfaceSide, setSurfaceSide] = useState<SurfaceSide>("top");
 
   const didDrag = useRef(false);
   const spineRef = useRef<SpinePetHandle>(null);
@@ -97,6 +98,7 @@ export default function Pet() {
         const platforms = wins.map(w => ({
           x: w.x * scale, y: w.y * scale,
           width: w.width * scale,
+          height: w.height * scale,
           source: "window" as const, name: w.name,
         }));
         physicsRef.current.refreshPlatforms(platforms);
@@ -162,6 +164,7 @@ export default function Pet() {
         }
       },
       onFacingChange: (dir) => spineRef.current?.setFacingDirection(dir),
+      onSurfaceChange: (side) => setSurfaceSide(side),
     });
     physics.start()
       .then(() => console.log("[Pet] roaming started"))
@@ -297,25 +300,34 @@ export default function Pet() {
     >
       <div
         className="pet-view"
+        data-surface={surfaceSide}
         onMouseDown={handlePetMouseDown}
         onClick={handlePetClick}
         onContextMenu={handlePetContextMenu}
       >
         <SpinePet ref={spineRef} petName={petName} width={150} height={150} />
 
-        <span className={`dot ${connected ? "on" : "off"}`} />
-        {totalBadge > 0 && (
-          <span className="badge">{totalBadge > 99 ? "99+" : totalBadge}</span>
-        )}
-        {petBehavior === "walk" && !locked && <span className="state-icon">🚶</span>}
-        {sleeping && <span className="state-icon">💤</span>}
+        {/* Status cluster — follows pet contour */}
+        <div className="indicator-cluster" data-surface={surfaceSide}>
+          {/* Connection + badge: bottom-right arc of pet body */}
+          <span className={`dot ${connected ? "on" : "off"}`} />
+          {totalBadge > 0 && (
+            <span className="badge">{totalBadge > 99 ? "99+" : totalBadge}</span>
+          )}
 
+          {/* State: left flank of pet */}
+          {(petBehavior === "walk" && !locked) && <span className="state-icon">🚶</span>}
+          {sleeping && <span className="state-icon">💤</span>}
+        </div>
+
+        {/* Mood bubble — directly above pet's head */}
         {moodText && (
           <div className="mood">
             <span className="mood-e">{moodEmoji}</span>{moodText}
           </div>
         )}
 
+        {/* Notify — above mood, same anchor */}
         {notifyMsg && (
           <div className="notify" onClick={() => setNotifyMsg(null)}>
             ⚠️ {notifyMsg}
@@ -348,6 +360,7 @@ export default function Pet() {
                 const platforms = wins.map((w: any) => ({
                   x: w.x * scale, y: w.y * scale,
                   width: w.width * scale,
+                  height: w.height * scale,
                   source: "window" as const, name: w.name,
                 }));
                 physicsRef.current?.setPlatforms(platforms);

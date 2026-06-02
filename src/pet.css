@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════
    AntDesk Pet — Single 200×200 transparent window
    Pet = FAB. No background. Pure Spine.
-   Quick panel = separate notepad window (not overlay).
+   Indicators cluster around pet body contour.
    ═══════════════════════════════════════════════ */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -26,104 +26,144 @@ html, body {
 
 /* ═══════════════════════════════════════════════
    Pet View — Spine character + indicators
-   The ONLY interactive surface. Drag / Click / Right-click here.
    ═══════════════════════════════════════════════ */
 .pet-view {
   position: absolute; inset: 0;
   display: flex; align-items: flex-end; justify-content: center;
-  /* Tiny alpha so transparent pixels are NOT click-through at OS level */
   background: rgba(0, 0, 0, 0.004);
   cursor: grab;
   z-index: 1;
 }
 .pet-view:active { cursor: grabbing; }
-
-/* Canvas: no pointer events (events go to .pet-view) */
 .pet-view canvas { pointer-events: none; }
 
-/* ── Connection dot ── */
-.dot {
-  position: absolute; bottom: 100px; right: 18px;
-  width: 8px; height: 8px; border-radius: 50%;
-  pointer-events: none; z-index: 10;
+/* ═══════════════════════════════════════════════
+   Indicator Cluster — follows pet contour
+   All status icons live in this container.
+   Positioned relative to pet body center.
+   ═══════════════════════════════════════════════ */
+.indicator-cluster {
+  position: absolute;
+  /* Center of pet body — canvas is 150x150 at bottom-center of 200x200 */
+  left: 50%; bottom: 75px;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  pointer-events: none;
+  z-index: 10;
 }
-.dot.on  { background: #34C759; box-shadow: 0 0 6px rgba(52,199,89,0.6); }
-.dot.off { background: #FF3B30; box-shadow: 0 0 6px rgba(255,59,48,0.5); }
 
-/* ── Badge (pending count) ── */
+/* ── Connection dot: right shoulder of pet ── */
+.dot {
+  position: absolute;
+  right: -48px; top: -50px;
+  width: 7px; height: 7px; border-radius: 50%;
+  pointer-events: none;
+}
+.dot.on  { background: #34C759; box-shadow: 0 0 5px rgba(52,199,89,0.5); }
+.dot.off { background: #FF3B30; box-shadow: 0 0 5px rgba(255,59,48,0.4); }
+
+/* ── Badge: right hip of pet ── */
 .badge {
-  position: absolute; bottom: 18px; right: 18px;
+  position: absolute;
+  right: -52px; top: -20px;
   background: #FF3B30; color: #fff;
-  font-size: 9px; font-weight: 700;
-  min-width: 16px; height: 16px; border-radius: 8px;
+  font-size: 8px; font-weight: 700;
+  min-width: 14px; height: 14px; border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
-  padding: 0 4px;
-  box-shadow: 0 2px 8px rgba(255,59,48,0.5);
-  pointer-events: none; z-index: 10;
+  padding: 0 3px;
+  box-shadow: 0 1px 6px rgba(255,59,48,0.4);
+  pointer-events: none;
   animation: badge-pulse 2s ease-in-out infinite;
 }
 @keyframes badge-pulse {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.12); }
+  50% { transform: scale(1.1); }
 }
 
-/* ── State icon ── */
+/* ── State icon: left shoulder of pet ── */
 .state-icon {
-  position: absolute; bottom: 100px; left: 18px;
-  font-size: 14px;
-  pointer-events: none; z-index: 10;
-  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.7));
+  position: absolute;
+  left: -48px; top: -44px;
+  font-size: 13px;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
   animation: float-bob 2.5s ease-in-out infinite;
 }
 @keyframes float-bob {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
+  50% { transform: translateY(-2px); }
 }
 
-/* ── Mood bubble ── */
+/* ── Mood bubble: directly above pet's head ── */
 .mood {
-  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-  background: rgba(20,20,35,0.92); backdrop-filter: blur(16px);
-  color: rgba(255,255,255,0.88); font-size: 11px;
-  padding: 4px 10px; border-radius: 12px;
+  position: absolute;
+  left: 50%; bottom: 155px;
+  transform: translateX(-50%);
+  background: rgba(20,20,35,0.88); backdrop-filter: blur(16px);
+  color: rgba(255,255,255,0.85); font-size: 10px;
+  padding: 3px 8px; border-radius: 10px;
   white-space: nowrap; pointer-events: none; z-index: 20;
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.35);
   animation: mood-in 0.2s ease-out;
 }
 .mood::after {
   content: ""; position: absolute; bottom: -4px; left: 50%;
   transform: translateX(-50%) rotate(45deg);
-  width: 8px; height: 8px;
-  background: rgba(20,20,35,0.92);
-  border-right: 1px solid rgba(255,255,255,0.08);
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  width: 7px; height: 7px;
+  background: rgba(20,20,35,0.88);
+  border-right: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
-.mood-e { margin-right: 3px; }
+.mood-e { margin-right: 2px; }
 @keyframes mood-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(4px) scale(0.9); }
+  from { opacity: 0; transform: translateX(-50%) translateY(3px) scale(0.92); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 
-/* ── Notify banner ── */
+/* ── Notify: above mood bubble ── */
 .notify {
-  position: absolute; top: 36px; left: 50%; transform: translateX(-50%);
-  background: rgba(255,59,48,0.92); backdrop-filter: blur(12px);
-  color: #fff; font-size: 10px;
-  padding: 5px 12px; border-radius: 10px;
+  position: absolute;
+  left: 50%; bottom: 178px;
+  transform: translateX(-50%);
+  background: rgba(255,59,48,0.88); backdrop-filter: blur(12px);
+  color: #fff; font-size: 9px;
+  padding: 4px 10px; border-radius: 8px;
   white-space: nowrap; cursor: pointer;
-  z-index: 20; max-width: 180px; overflow: hidden; text-overflow: ellipsis;
-  box-shadow: 0 4px 16px rgba(255,59,48,0.4);
+  z-index: 20; max-width: 160px; overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 3px 12px rgba(255,59,48,0.35);
   animation: notify-slide 0.3s ease-out;
 }
 @keyframes notify-slide {
-  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 /* ═══════════════════════════════════════════════
+   Surface Walking — canvas rotation
+   When on walls, rotate the entire pet-view.
+   ═══════════════════════════════════════════════ */
+
+/* Right wall: pet appears to walk upward on the right */
+.pet-view[data-surface="right"] canvas {
+  transform-origin: bottom right;
+  transform: rotate(-90deg) translateY(-100%);
+}
+.pet-view[data-surface="right"] .indicator-cluster {
+  transform: translateX(-50%) rotate(90deg);
+}
+
+/* Left wall: pet appears to walk upward on the left */
+.pet-view[data-surface="left"] canvas {
+  transform-origin: bottom left;
+  transform: rotate(90deg) translateX(-100%);
+}
+.pet-view[data-surface="left"] .indicator-cluster {
+  transform: translateX(-50%) rotate(-90deg);
+}
+
+/* ═══════════════════════════════════════════════
    Context Menu (right-click on pet)
-   Rendered inside 200×200, centered.
    ═══════════════════════════════════════════════ */
 .menu {
   position: absolute;
@@ -180,4 +220,22 @@ html, body {
   0%, 100% { transform: rotate(0deg); }
   25% { transform: rotate(-8deg); }
   75% { transform: rotate(8deg); }
+}
+
+/* ── Wall walk: bounce combines with rotation ── */
+.pet-view[data-surface="right"][data-state="walk"] canvas,
+.pet-view[data-surface="right"].pet-window[data-state="walk"] canvas {
+  animation: bounce-walk-right 0.6s ease-in-out infinite;
+}
+@keyframes bounce-walk-right {
+  0%, 100% { transform: rotate(-90deg) translateY(-100%) translateX(0); }
+  50% { transform: rotate(-90deg) translateY(-100%) translateX(-3px); }
+}
+.pet-view[data-surface="left"][data-state="walk"] canvas,
+.pet-view[data-surface="left"].pet-window[data-state="walk"] canvas {
+  animation: bounce-walk-left 0.6s ease-in-out infinite;
+}
+@keyframes bounce-walk-left {
+  0%, 100% { transform: rotate(90deg) translateX(-100%) translateX(0); }
+  50% { transform: rotate(90deg) translateX(-100%) translateX(3px); }
 }
