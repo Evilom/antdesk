@@ -28,6 +28,7 @@ export default function Pet() {
   const [petMode, setPetMode] = useState<PetMode>("leisure");
   const [notifyMsg, setNotifyMsg] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [direction, setDirection] = useState<"left" | "right">("right");
   const [pendingCount, setPendingCount] = useState(0);
 
   const didDrag = useRef(false);
@@ -106,8 +107,9 @@ export default function Pet() {
 
   // ── Listen for expand/collapse from Rust ──
   useEffect(() => {
-    const unlisten = listen<boolean>("pet-expanded", (e) => setExpanded(e.payload));
-    return () => { unlisten.then((fn) => fn()); };
+    const u1 = listen<boolean>("pet-expanded", (e) => setExpanded(e.payload));
+    const u2 = listen<string>("pet-direction", (e) => setDirection(e.payload as "left" | "right"));
+    return () => { u1.then(fn => fn()); u2.then(fn => fn()); };
   }, []);
 
   // ── KanbanBridge ──
@@ -241,7 +243,9 @@ export default function Pet() {
       invoke("pet_collapse").catch(() => {});
       setExpanded(false);
     } else {
-      invoke("pet_expand").catch(() => {});
+      invoke<string>("pet_expand").then((dir) => {
+        setDirection(dir as "left" | "right");
+      }).catch(() => {});
       setExpanded(true);
     }
   }, []);
@@ -289,7 +293,7 @@ export default function Pet() {
   const stateLabel = sleeping ? "💤" : petBehavior === "walk" ? "🚶" : petBehavior === "interact" ? "💬" : "";
 
   return (
-    <div className={`pet-root ${expanded ? "expanded" : "collapsed"}`}
+    <div className={`pet-root ${expanded ? "expanded" : "collapsed"} dir-${direction}`}
       data-state={sleeping ? "sleep" : petBehavior}
       data-mode={petMode}
     >
@@ -345,7 +349,7 @@ export default function Pet() {
           <div className="pet-menu-item" onClick={() => {
             setShowMenu(false);
             if (expandedRef.current) closeQuickChat();
-            else { invoke("pet_expand"); setExpanded(true); }
+            else { invoke<string>("pet_expand").then((dir) => setDirection(dir as "left" | "right")); setExpanded(true); }
           }}>
             <span className="emoji">💬</span> {expanded ? "关闭面板" : "快捷面板"}
           </div>

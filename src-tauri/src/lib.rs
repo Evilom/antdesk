@@ -168,26 +168,75 @@ async fn collapse_panel(app: tauri::AppHandle) -> Result<(), String> {
 
 // ── Pet window management ──
 
-/// Expand pet window to show QuickChat panel (260 → 540 wide)
+/// Expand pet window to show QuickChat panel.
+/// Checks screen bounds: expands right if space, otherwise left.
+/// Returns "left" or "right" so frontend knows panel direction.
 #[tauri::command]
-async fn pet_expand(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(pet) = app.get_webview_window("pet") {
-        pet.set_size(tauri::Size::Logical(tauri::LogicalSize { width: 540.0, height: 260.0 }))
-            .map_err(|e| e.to_string())?;
-        // Notify frontend
-        let _ = pet.emit("pet-expanded", true);
+async fn pet_expand(app: tauri::AppHandle) -> Result<String, String> {
+    let pet = app.get_webview_window("pet").ok_or("Pet not found")?;
+
+    let scale = pet.current_monitor().ok().flatten()
+        .map(|m| m.scale_factor()).unwrap_or(1.0);
+    let bounds = get_screen_bounds(app.clone()).await?;
+
+    let pet_pos = pet.outer_position().map_err(|e| e.to_string())?;
+    let pet_x = pet_pos.x as f64;
+    let pet_w = 260.0 * scale;
+    let panel_w = 280.0 * scale;
+    let gap = 4.0 * scale;
+
+    let screen_right = bounds["x"].as_f64().unwrap_or(0.0) + bounds["width"].as_f64().unwrap_or(1920.0);
+    let screen_left = bounds["x"].as_f64().unwrap_or(0.0);
+
+    let space_right = screen_right - (pet_x + pet_w);
+    let space_left = pet_x - screen_left;
+
+    let direction: String;
+    let new_x: f64;
+    let total_w: f64;
+
+    if space_right >= panel_w + gap {
+        // Expand right: pet stays, panel appears to the right
+        direction = "right".to_string();
+        new_x = pet_x;
+        total_w = pet_w + gap + panel_w;
+    } else if space_left >= panel_w + gap {
+        // Expand left: shift window left, pet on right, panel on left
+        direction = "left".to_string();
+        new_x = pet_x - panel_w - gap;
+        total_w = pet_w + gap + panel_w;
+    } else {
+        // Not enough space on either side — expand right anyway
+        direction = "right".to_string();
+        new_x = pet_x;
+        total_w = pet_w + gap + panel_w;
     }
-    Ok(())
+
+    pet.set_position(tauri::Position::Physical(tauri::PhysicalPosition::new(new_x as i32, pet_pos.y)))
+        .map_err(|e| e.to_string())?;
+    pet.set_size(tauri::Size::Logical(tauri::LogicalSize { width: total_w / scale, height: 260.0 }))
+        .map_err(|e| e.to_string())?;
+
+    let _ = pet.emit("pet-expanded", true);
+    let _ = pet.emit("pet-direction", &direction);
+
+    Ok(direction)
 }
 
-/// Collapse pet window back to pet-only (540 → 260)
+/// Collapse pet window back to pet-only size.
 #[tauri::command]
 async fn pet_collapse(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(pet) = app.get_webview_window("pet") {
-        pet.set_size(tauri::Size::Logical(tauri::LogicalSize { width: 260.0, height: 260.0 }))
-            .map_err(|e| e.to_string())?;
-        let _ = pet.emit("pet-expanded", false);
-    }
+    let pet = app.get_webview_window("pet").ok_or("Pet not found")?;
+
+    let scale = pet.current_monitor().ok().flatten()
+        .map(|m| m.scale_factor()).unwrap_or(1.0);
+    let pos = pet.outer_position().map_err(|e| e.to_string())?;
+
+    // Keep the pet's current position (don't snap back)
+    pet.set_size(tauri::Size::Logical(tauri::LogicalSize { width: 260.0, height: 260.0 }))
+        .map_err(|e| e.to_string())?;
+
+    let _ = pet.emit("pet-expanded", false);
     Ok(())
 }
 
