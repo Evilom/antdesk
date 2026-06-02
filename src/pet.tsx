@@ -1,44 +1,23 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import {
-  getCurrentWindow,
-  currentMonitor,
-} from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState, useCallback, useRef } from "react";
 import SpinePet, { type SpinePetHandle } from "./components/SpinePet";
 import QuickChat from "./components/QuickChat";
 import { PhysicsEngine } from "./lib/PhysicsEngine";
-import {
-  PetBrain,
-  MODE_PHYSICS,
-  type PetMode,
-  type BehaviorState,
-} from "./lib/PetBrain";
+import { PetBrain, MODE_PHYSICS, type PetMode, type BehaviorState } from "./lib/PetBrain";
 import { KanbanBridge } from "./lib/kanbanBridge";
 import { useKanbanStore } from "./stores/kanbanStore";
 import type { KanbanData } from "./types/kanban";
 
-type PetSize = "tiny" | "small" | "medium" | "large";
-
-const SIZES: Record<PetSize, { w: number; h: number }> = {
-  tiny: { w: 120, h: 120 },
-  small: { w: 200, h: 200 },
-  medium: { w: 260, h: 260 },
-  large: { w: 360, h: 360 },
-};
-
 const BEHAVIOR_EMOJI: Record<BehaviorState, string> = {
-  idle: "😊",
-  walk: "🚶",
-  interact: "😄",
-  sleep: "😴",
+  idle: "😊", walk: "🚶", interact: "😄", sleep: "😴",
 };
 
 export default function Pet() {
   const [connected, setConnected] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
-  const [size] = useState<PetSize>("medium");
   const [locked, setLocked] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [showMood, setShowMood] = useState(false);
@@ -53,7 +32,6 @@ export default function Pet() {
 
   const didDrag = useRef(false);
   const spineRef = useRef<SpinePetHandle>(null);
-  const petBodyRef = useRef<HTMLDivElement>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const physicsRef = useRef<PhysicsEngine | null>(null);
   const brainRef = useRef<PetBrain | null>(null);
@@ -61,6 +39,7 @@ export default function Pet() {
   const notifyTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const isHovering = useRef(false);
   const lockedRef = useRef(false);
+  const expandedRef = useRef(false);
 
   const setKanbanData = useKanbanStore((s) => s.setData);
   const setKanbanConnected = useKanbanStore((s) => s.setConnected);
@@ -68,29 +47,24 @@ export default function Pet() {
   const kanbanEndpoint = useKanbanStore((s) => s.endpoint);
 
   useEffect(() => { lockedRef.current = locked; }, [locked]);
+  useEffect(() => { expandedRef.current = expanded; }, [expanded]);
 
-  // Check Notion connection
+  // ── Notion connection ──
   useEffect(() => {
-    invoke<string>("get_notion_token")
-      .then(() => setConnected(true))
-      .catch(() => setConnected(false));
+    invoke<string>("get_notion_token").then(() => setConnected(true)).catch(() => setConnected(false));
   }, []);
 
-  // Poll pending count for badge
+  // ── Pending count ──
   useEffect(() => {
-    const fetch = () => {
-      invoke<number>("get_pending_count").then(setPendingCount).catch(() => {});
-    };
-    fetch();
-    const t = setInterval(fetch, 30_000);
+    const f = () => { invoke<number>("get_pending_count").then(setPendingCount).catch(() => {}); };
+    f();
+    const t = setInterval(f, 30_000);
     return () => clearInterval(t);
   }, []);
 
-  // Listen for expand/collapse from Rust
+  // ── Listen for expand/collapse from Rust ──
   useEffect(() => {
-    const unlisten = listen<boolean>("pet-expanded", (e) => {
-      setExpanded(e.payload);
-    });
+    const unlisten = listen<boolean>("pet-expanded", (e) => setExpanded(e.payload));
     return () => { unlisten.then((fn) => fn()); };
   }, []);
 
@@ -118,7 +92,7 @@ export default function Pet() {
         setMoodEmoji(BEHAVIOR_EMOJI[state] || "😊");
         spineRef.current?.setAnimation(anim, state !== "interact");
         if (state === "sleep") physicsRef.current?.stop();
-        else if (state === "walk" && !lockedRef.current) physicsRef.current?.start();
+        else if (state === "walk" && !lockedRef.current && !expandedRef.current) physicsRef.current?.start();
       },
       onModeChange: (mode) => {
         setPetMode(mode);
@@ -141,11 +115,11 @@ export default function Pet() {
     return () => { brain.dispose(); brainRef.current = null; };
   }, []);
 
-  // ── PhysicsEngine ──
+  // ── PhysicsEngine — async start ──
   useEffect(() => {
     const physics = new PhysicsEngine({
-      windowWidth: SIZES[size].w,
-      windowHeight: SIZES[size].h,
+      windowWidth: 260,
+      windowHeight: 260,
       walkSpeed: 40,
       idleProbability: 0.3,
       onStateChange: (state) => {
@@ -158,50 +132,54 @@ export default function Pet() {
         if (!isHovering.current) spineRef.current?.setFacingDirection(dir);
       },
     });
-    physics.start();
+
+    // Actually await the async start
+    physics.start().then(() => {
+      console.log("[Pet] PhysicsEngine started");
+    }).catch((e) => {
+      console.warn("[Pet] PhysicsEngine failed to start:", e);
+    });
+
     physicsRef.current = physics;
     return () => { physics.stop(); physicsRef.current = null; };
-  }, [size]);
+  }, []);
 
-  // Pause physics when expanded
+  // ── Pause/resume physics on expand ──
   useEffect(() => {
     if (expanded) {
       physicsRef.current?.stop();
-    } else if (petBehavior !== "sleep") {
+    } else if (petBehavior !== "sleep" && !locked) {
       physicsRef.current?.start();
     }
-  }, [expanded, petBehavior]);
+  }, [expanded, petBehavior, locked]);
 
-  // ── Drag (only when collapsed) ──
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (expanded) return;
-      didDrag.current = false;
-      const startX = e.screenX;
-      const startY = e.screenY;
-      setIsDragging(false);
+  // ── Drag — on the hit-area div ──
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (expandedRef.current) return;
+    didDrag.current = false;
+    const startX = e.screenX;
+    const startY = e.screenY;
+    setIsDragging(false);
 
-      const onMove = (me: MouseEvent) => {
-        if (Math.abs(me.screenX - startX) > 5 || Math.abs(me.screenY - startY) > 5) {
-          didDrag.current = true;
-          setIsDragging(true);
-          document.removeEventListener("mousemove", onMove);
-          document.removeEventListener("mouseup", onUp);
-          getCurrentWindow().startDragging();
-        }
-      };
-      const onUp = () => {
+    const onMove = (me: MouseEvent) => {
+      if (Math.abs(me.screenX - startX) > 4 || Math.abs(me.screenY - startY) > 4) {
+        didDrag.current = true;
+        setIsDragging(true);
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
-        setTimeout(() => setIsDragging(false), 100);
-      };
-      document.addEventListener("mousemove", onMove);
-      document.addEventListener("mouseup", onUp);
-    },
-    [expanded]
-  );
+        getCurrentWindow().startDragging();
+      }
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      setTimeout(() => setIsDragging(false), 100);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, []);
 
-  // ── Hover → mood ──
+  // ── Hover ──
   const handleMouseEnter = useCallback(() => {
     isHovering.current = true;
     hoverTimer.current = setTimeout(() => setShowMood(true), 800);
@@ -217,14 +195,14 @@ export default function Pet() {
   const handleClick = useCallback(() => {
     if (didDrag.current) return;
     brainRef.current?.interact();
-    if (expanded) {
+    if (expandedRef.current) {
       invoke("pet_collapse").catch(() => {});
       setExpanded(false);
     } else {
       invoke("pet_expand").catch(() => {});
       setExpanded(true);
     }
-  }, [expanded]);
+  }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -232,7 +210,7 @@ export default function Pet() {
     setMenuPos({ x: e.clientX, y: e.clientY });
   }, []);
 
-  // ── Context menu actions ──
+  // ── Menu actions ──
   const handleShowPanel = useCallback(async () => {
     setShowMenu(false);
     try { await invoke("expand_panel"); } catch {}
@@ -243,10 +221,7 @@ export default function Pet() {
     try { await invoke("hide_pet"); } catch {}
   }, []);
 
-  const handleQuit = useCallback(() => {
-    setShowMenu(false);
-    invoke("quit_app").catch(() => {});
-  }, []);
+  const handleQuit = useCallback(() => { setShowMenu(false); invoke("quit_app"); }, []);
 
   const toggleLock = useCallback(() => {
     setShowMenu(false);
@@ -264,7 +239,7 @@ export default function Pet() {
     setExpanded(false);
   }, []);
 
-  // Derived state
+  // Derived
   const kanbanStats = useKanbanStore((s) => s.data.stats);
   const kanbanBadge = kanbanStats.active + kanbanStats.blocked;
   const totalBadge = pendingCount + kanbanBadge;
@@ -272,68 +247,69 @@ export default function Pet() {
   const stateLabel = sleeping ? "💤" : petBehavior === "walk" ? "🚶" : petBehavior === "interact" ? "💬" : "";
 
   return (
-    <div
-      className={`pet-root ${expanded ? "expanded" : "collapsed"}`}
-      data-size={size}
+    <div className={`pet-root ${expanded ? "expanded" : "collapsed"}`}
       data-state={sleeping ? "sleep" : petBehavior}
       data-mode={petMode}
     >
-      {/* ── Pet body (always visible, left side) ── */}
-      <div
-        ref={petBodyRef}
-        className={`pet-body ${isDragging ? "dragging" : ""} ${sleeping ? "sleeping" : ""} mode-${petMode}`}
-        onMouseDown={handleMouseDown}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onClick={handleClick}
-        onContextMenu={handleContextMenu}
-      >
-        <span className={`pet-status ${connected ? "connected" : "disconnected"}`} />
+      {/* ── Pet area ── */}
+      <div className="pet-area">
+        {/* Hit area: catches all mouse events across the full 260x260 area.
+            rgba(0,0,0,0.01) is invisible but prevents click-through in Tauri. */}
+        <div
+          className="pet-hitarea"
+          onMouseDown={handleMouseDown}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          onClick={handleClick}
+          onContextMenu={handleContextMenu}
+        />
 
+        {/* Spine canvas — centered */}
         <SpinePet
           ref={spineRef}
           petName={petName}
-          width={SIZES[size].w * 0.65}
-          height={SIZES[size].h * 0.65}
+          width={180}
+          height={180}
         />
 
-        {stateLabel && <div className="pet-state-label">{stateLabel}</div>}
+        {/* Floating elements — positioned relative to the Spine center */}
+        <span className={`pet-dot ${connected ? "on" : "off"}`} />
+
+        {stateLabel && !expanded && <div className="pet-state">{stateLabel}</div>}
 
         {showMood && !isDragging && !expanded && (
-          <div className="pet-mood-bubble">
+          <div className="pet-mood">
             <span className="mood-emoji">{moodEmoji}</span> {moodText || "(^・ω・^)"}
           </div>
         )}
 
-        {locked && <div className="pet-lock-badge">🔒</div>}
-
-        {/* Badge */}
         {totalBadge > 0 && !expanded && (
           <div className="pet-badge">{totalBadge > 99 ? "99+" : totalBadge}</div>
         )}
       </div>
 
-      {/* ── QuickChat panel (slides out to the right) ── */}
+      {/* ── QuickChat ── */}
       <QuickChat open={expanded} onClose={closeQuickChat} />
 
       {/* ── Notification ── */}
       {notifyMsg && (
         <div className="pet-notify" onClick={() => setNotifyMsg(null)}>
-          <span>⚠️</span> <span>{notifyMsg}</span>
+          ⚠️ {notifyMsg}
         </div>
       )}
 
       {/* ── Context menu ── */}
       {showMenu && (
-        <div
-          className="pet-menu"
-          style={{ left: menuPos.x, top: menuPos.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="pet-menu" style={{ left: menuPos.x, top: menuPos.y }}
+          onClick={(e) => e.stopPropagation()}>
           <div className="pet-menu-item" onClick={handleShowPanel}>
             <span className="emoji">📋</span> 主面板
           </div>
-          <div className="pet-menu-item" onClick={() => { setShowMenu(false); if (expanded) closeQuickChat(); else { invoke("pet_expand"); setExpanded(true); } }}>
+          <div className="pet-menu-item" onClick={() => {
+            setShowMenu(false);
+            if (expandedRef.current) closeQuickChat();
+            else { invoke("pet_expand"); setExpanded(true); }
+          }}>
             <span className="emoji">💬</span> {expanded ? "关闭面板" : "快捷面板"}
           </div>
           <div className="pet-menu-sep" />

@@ -12,7 +12,7 @@ html, body {
 #root { background: transparent; width: 100%; height: 100%; }
 
 /* ════════════════════════════════════════
-   Root container
+   Root
    ════════════════════════════════════════ */
 
 .pet-root {
@@ -20,72 +20,71 @@ html, body {
   height: 100%;
   display: flex;
   align-items: center;
-  position: relative;
   background: transparent;
 }
 
-.pet-root.collapsed {
+.pet-root.collapsed { justify-content: center; }
+.pet-root.expanded  { justify-content: flex-start; }
+
+/* ════════════════════════════════════════
+   Pet Area — contains Spine + hit area + overlays
+   260×260 fixed, centered Spine character
+   ════════════════════════════════════════ */
+
+.pet-area {
+  width: 260px;
+  height: 260px;
+  min-width: 260px;
+  position: relative;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
-.pet-root.expanded {
-  justify-content: flex-start;
+/* ── Hit area: invisible but clickable.
+     The 0.01 alpha trick makes Tauri treat this pixel as non-transparent
+     so mouse events work everywhere in the 260×260 area. ── */
+.pet-hitarea {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  cursor: pointer;
+  /* This is the magic: invisible but not click-through */
+  background: rgba(0, 0, 0, 0.005);
+  border-radius: 50%;
+}
+
+.pet-hitarea:hover {
+  /* Subtle glow ring on hover */
+  box-shadow: 0 0 20px rgba(0, 122, 255, 0.15);
 }
 
 /* ════════════════════════════════════════
-   Pet Body — pure Spine, no background
+   Floating overlays — positioned relative to center
+   All use absolute + transform to anchor to the Spine character
    ════════════════════════════════════════ */
 
-.pet-body {
-  width: 260px;
-  min-width: 260px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  position: relative;
-  z-index: 2;
-  flex-shrink: 0;
-  /* No background, no border, no shadow — pure transparent Spine */
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-/* Hover: subtle scale */
-.pet-body:hover {
-  transform: scale(1.05);
-}
-
-.pet-body.dragging {
-  cursor: grabbing;
-  transform: scale(0.95);
-}
-
-/* Status dot — floating near top-right of character */
-.pet-status {
+/* Connection dot — top-right of character */
+.pet-dot {
   position: absolute;
-  top: 12%;
-  right: 18%;
+  top: 28%;
+  right: 28%;
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 2px solid rgba(0,0,0,0.4);
-  z-index: 5;
+  border: 2px solid rgba(0, 0, 0, 0.5);
+  z-index: 15;
   pointer-events: none;
 }
-.pet-status.connected { background: #34C759; box-shadow: 0 0 6px rgba(52,199,89,0.6); }
-.pet-status.disconnected { background: #FF3B30; }
+.pet-dot.on  { background: #34C759; box-shadow: 0 0 6px rgba(52, 199, 89, 0.7); }
+.pet-dot.off { background: #FF3B30; }
 
-/* Badge — floating near bottom-right */
+/* Badge — bottom-right of character */
 .pet-badge {
   position: absolute;
-  bottom: 15%;
-  right: 15%;
+  bottom: 25%;
+  right: 25%;
   background: #ff3b30;
   color: #fff;
   font-size: 10px;
@@ -97,66 +96,54 @@ html, body {
   align-items: center;
   justify-content: center;
   padding: 0 5px;
-  box-shadow: 0 2px 8px rgba(255,59,48,0.5);
+  box-shadow: 0 2px 8px rgba(255, 59, 48, 0.6);
   animation: badge-pop 2s ease-in-out infinite;
   pointer-events: none;
-  z-index: 5;
+  z-index: 15;
 }
 
 @keyframes badge-pop {
-  0%,100% { transform: scale(1); }
+  0%, 100% { transform: scale(1); }
   50% { transform: scale(1.15); }
 }
 
-/* State label */
-.pet-state-label {
+/* State emoji — top-left of character */
+.pet-state {
   position: absolute;
-  top: 8%;
-  left: 15%;
+  top: 25%;
+  left: 28%;
   font-size: 16px;
   pointer-events: none;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.7));
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
   animation: float 2s ease-in-out infinite;
-  z-index: 5;
+  z-index: 15;
 }
 
 @keyframes float {
-  0%,100% { transform: translateY(0); }
+  0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
 }
 
-/* Lock badge */
-.pet-lock-badge {
+/* Mood bubble — above character center */
+.pet-mood {
   position: absolute;
   top: 8%;
-  left: 15%;
-  font-size: 12px;
-  opacity: 0.7;
-  pointer-events: none;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
-  z-index: 5;
-}
-
-/* ── Mood bubble ── */
-.pet-mood-bubble {
-  position: absolute;
-  top: 2%;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(20,20,35,0.92);
+  background: rgba(20, 20, 35, 0.94);
   backdrop-filter: blur(16px);
-  color: rgba(255,255,255,0.9);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 12px;
   padding: 5px 12px;
   border-radius: 14px;
   white-space: nowrap;
   pointer-events: none;
   animation: mood-in 0.2s ease-out;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-  border: 1px solid rgba(255,255,255,0.1);
-  z-index: 10;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 20;
 }
-.pet-mood-bubble::after {
+.pet-mood::after {
   content: "";
   position: absolute;
   bottom: -5px;
@@ -164,70 +151,74 @@ html, body {
   transform: translateX(-50%) rotate(45deg);
   width: 10px;
   height: 10px;
-  background: rgba(20,20,35,0.92);
-  border-right: 1px solid rgba(255,255,255,0.1);
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+  background: rgba(20, 20, 35, 0.94);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 @keyframes mood-in {
   from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.9); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 .mood-emoji { margin-right: 3px; }
 
-/* ── Sleep ── */
-.pet-body.sleeping { opacity: 0.5; animation: breathe 3s ease-in-out infinite; }
+/* ════════════════════════════════════════
+   Behavior state animations
+   ════════════════════════════════════════ */
+
+/* Sleep: dim + slow breathe */
+.pet-root[data-state="sleep"] canvas {
+  opacity: 0.45;
+  animation: breathe 3s ease-in-out infinite;
+}
 @keyframes breathe {
-  0%,100% { transform: scale(1); opacity: 0.5; }
-  50% { transform: scale(0.96); opacity: 0.4; }
+  0%, 100% { transform: scale(1); opacity: 0.45; }
+  50% { transform: scale(0.95); opacity: 0.35; }
 }
 
-/* ── Walk bounce ── */
-.pet-root[data-state="walk"] .pet-body { animation: bounce 0.6s ease-in-out infinite; }
+/* Walk: bounce */
+.pet-root[data-state="walk"] canvas {
+  animation: bounce 0.6s ease-in-out infinite;
+}
 @keyframes bounce {
-  0%,100% { transform: translateY(0); }
+  0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-5px); }
 }
 
-/* ── Mode: glow effects on the character area ── */
-.pet-body.mode-anxious::after {
+/* Mode: subtle radial glow behind character */
+.pet-area::before {
   content: "";
   position: absolute;
-  inset: 10%;
+  width: 140px;
+  height: 140px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,159,10,0.15) 0%, transparent 70%);
   pointer-events: none;
-  animation: glow-pulse 1.5s ease-in-out infinite;
   z-index: 0;
-}
-@keyframes glow-pulse {
-  0%,100% { opacity: 0.3; }
-  50% { opacity: 0.8; }
+  opacity: 0;
+  transition: opacity 0.5s;
 }
 
-.pet-body.mode-alert::after {
-  content: "";
-  position: absolute;
-  inset: 10%;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,69,58,0.2) 0%, transparent 70%);
-  pointer-events: none;
-  animation: glow-pulse 0.8s ease-in-out infinite;
-  z-index: 0;
+.pet-root[data-mode="anxious"] .pet-area::before {
+  background: radial-gradient(circle, rgba(255, 159, 10, 0.2) 0%, transparent 70%);
+  opacity: 1;
+  animation: glow 1.5s ease-in-out infinite;
 }
-
-.pet-body.mode-celebrate::after {
-  content: "";
-  position: absolute;
-  inset: 5%;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,214,10,0.15) 0%, transparent 70%);
-  pointer-events: none;
-  animation: glow-pulse 2s ease-in-out infinite;
-  z-index: 0;
+.pet-root[data-mode="alert"] .pet-area::before {
+  background: radial-gradient(circle, rgba(255, 69, 58, 0.25) 0%, transparent 70%);
+  opacity: 1;
+  animation: glow 0.8s ease-in-out infinite;
+}
+.pet-root[data-mode="celebrate"] .pet-area::before {
+  background: radial-gradient(circle, rgba(255, 214, 10, 0.2) 0%, transparent 70%);
+  opacity: 1;
+  animation: glow 2s ease-in-out infinite;
+}
+@keyframes glow {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.2); opacity: 1; }
 }
 
 /* ════════════════════════════════════════
-   Notification banner
+   Notification
    ════════════════════════════════════════ */
 
 .pet-notify {
@@ -235,7 +226,7 @@ html, body {
   bottom: -40px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(255,59,48,0.92);
+  background: rgba(255, 59, 48, 0.94);
   backdrop-filter: blur(12px);
   color: #fff;
   font-size: 11px;
@@ -243,16 +234,13 @@ html, body {
   border-radius: 10px;
   white-space: nowrap;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  box-shadow: 0 4px 16px rgba(255,59,48,0.4);
+  box-shadow: 0 4px 16px rgba(255, 59, 48, 0.4);
   animation: notify-in 0.3s ease-out;
-  z-index: 20;
+  z-index: 30;
 }
 @keyframes notify-in {
   from { opacity: 0; transform: translateX(-50%) translateY(8px); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 /* ════════════════════════════════════════
@@ -261,19 +249,19 @@ html, body {
 
 .pet-menu {
   position: absolute;
-  background: rgba(25,25,40,0.94);
-  backdrop-filter: blur(24px) saturate(150%);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(25, 25, 40, 0.95);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 4px;
   min-width: 150px;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
   z-index: 50;
-  animation: menu-in 0.12s ease-out;
+  animation: menu-in 0.1s ease-out;
 }
 @keyframes menu-in {
   from { opacity: 0; transform: scale(0.92); }
-  to { opacity: 1; transform: scale(1); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 .pet-menu-item {
@@ -284,13 +272,12 @@ html, body {
   border-radius: 8px;
   cursor: pointer;
   font-size: 12px;
-  color: rgba(255,255,255,0.8);
-  transition: background 80ms;
+  color: rgba(255, 255, 255, 0.8);
 }
-.pet-menu-item:hover { background: rgba(0,122,255,0.25); }
+.pet-menu-item:hover { background: rgba(0, 122, 255, 0.25); }
 .pet-menu-item .emoji { font-size: 14px; width: 18px; text-align: center; }
 .pet-menu-item .check { margin-left: auto; opacity: 0.5; }
-.pet-menu-sep { height: 1px; background: rgba(255,255,255,0.06); margin: 4px 8px; }
+.pet-menu-sep { height: 1px; background: rgba(255, 255, 255, 0.06); margin: 4px 8px; }
 
 /* ════════════════════════════════════════
    QuickChat Panel — right of pet, no overlap
@@ -301,35 +288,33 @@ html, body {
   min-width: 280px;
   height: 260px;
   max-height: 260px;
-  background: rgba(15,15,25,0.92);
+  background: rgba(15, 15, 25, 0.92);
   backdrop-filter: blur(30px) saturate(180%);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   animation: slide-in 0.2s ease-out;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
-  margin-left: -8px; /* slight overlap for visual connection */
-  z-index: 1;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  margin-left: 4px;
+  flex-shrink: 0;
 }
 
 @keyframes slide-in {
   from { opacity: 0; transform: translateX(-20px); }
-  to { opacity: 1; transform: translateX(0); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
-/* Tab bar */
+/* Tabs */
 .qc-tabs {
   display: flex;
   align-items: center;
   padding: 6px 4px;
   gap: 2px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
 }
-
 .qc-tab {
   flex: 1;
   display: flex;
@@ -339,14 +324,13 @@ html, body {
   padding: 4px 2px;
   border: none;
   background: transparent;
-  color: rgba(255,255,255,0.4);
+  color: rgba(255, 255, 255, 0.4);
   cursor: pointer;
   border-radius: 6px;
-  transition: all 120ms;
   font-family: inherit;
 }
-.qc-tab:hover { color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.04); }
-.qc-tab.active { color: #0a84ff; background: rgba(10,132,255,0.12); }
+.qc-tab:hover { color: rgba(255, 255, 255, 0.7); background: rgba(255, 255, 255, 0.04); }
+.qc-tab.active { color: #0a84ff; background: rgba(10, 132, 255, 0.12); }
 .qc-tab-icon { font-size: 14px; line-height: 1; }
 .qc-tab-label { font-size: 9px; line-height: 1; }
 .qc-close { flex: 0 !important; min-width: 24px; padding: 4px 6px !important; font-size: 11px; }
@@ -360,9 +344,8 @@ html, body {
 }
 .qc-content::-webkit-scrollbar { width: 3px; }
 .qc-content::-webkit-scrollbar-track { background: transparent; }
-.qc-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+.qc-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
 
-/* Empty state */
 .qc-empty {
   display: flex;
   flex-direction: column;
@@ -370,7 +353,7 @@ html, body {
   justify-content: center;
   height: 100%;
   gap: 6px;
-  color: rgba(255,255,255,0.4);
+  color: rgba(255, 255, 255, 0.4);
   font-size: 12px;
 }
 .qc-empty-icon { font-size: 24px; }
@@ -379,66 +362,62 @@ html, body {
 /* ── Kanban ── */
 .qc-kanban { display: flex; flex-direction: column; gap: 8px; }
 .qc-kanban-section { display: flex; flex-direction: column; gap: 3px; }
-
 .qc-kanban-header {
   display: flex; align-items: center; gap: 6px;
   font-size: 10px; font-weight: 600;
-  color: rgba(255,255,255,0.5);
+  color: rgba(255, 255, 255, 0.5);
   padding: 2px 0; text-transform: uppercase; letter-spacing: 0.5px;
 }
 .qc-kanban-header.blocked { color: #ff453a; }
 .qc-kanban-header.active { color: #0a84ff; }
-.qc-kanban-header.pending { color: rgba(255,255,255,0.4); }
+.qc-kanban-header.pending { color: rgba(255, 255, 255, 0.4); }
 .qc-kanban-header.done { color: #30d158; }
 
 .dot { width: 5px; height: 5px; border-radius: 50%; }
 .dot.blocked { background: #ff453a; }
 .dot.active { background: #0a84ff; }
-.dot.pending { background: rgba(255,255,255,0.3); }
+.dot.pending { background: rgba(255, 255, 255, 0.3); }
 .dot.done { background: #30d158; }
 
 .qc-kanban-item {
   display: flex; align-items: center; gap: 5px;
   padding: 4px 7px; border-radius: 6px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.03);
-  transition: background 80ms;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.03);
 }
-.qc-kanban-item:hover { background: rgba(255,255,255,0.06); }
+.qc-kanban-item:hover { background: rgba(255, 255, 255, 0.06); }
 .qc-kanban-item.done { opacity: 0.4; }
 .qc-kanban-item.done .qc-kanban-title { text-decoration: line-through; }
-
 .qc-kanban-priority {
   font-size: 8px; font-weight: 700; color: #fff;
   padding: 1px 3px; border-radius: 3px; flex-shrink: 0;
 }
 .qc-kanban-title {
-  font-size: 11px; color: rgba(255,255,255,0.85);
+  font-size: 11px; color: rgba(255, 255, 255, 0.85);
   flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .qc-kanban-project {
-  font-size: 8px; color: rgba(255,255,255,0.3);
-  padding: 1px 3px; background: rgba(255,255,255,0.05); border-radius: 3px;
+  font-size: 8px; color: rgba(255, 255, 255, 0.3);
+  padding: 1px 3px; background: rgba(255, 255, 255, 0.05); border-radius: 3px;
 }
 .qc-kanban-more {
-  font-size: 9px; color: rgba(255,255,255,0.3); text-align: center; padding: 3px;
+  font-size: 9px; color: rgba(255, 255, 255, 0.3); text-align: center; padding: 3px;
 }
 
 /* ── Todos ── */
 .qc-todos { display: flex; flex-direction: column; gap: 3px; }
 .qc-todos-summary {
   display: flex; align-items: center; gap: 6px;
-  font-size: 10px; color: rgba(255,255,255,0.4); padding: 2px 0; margin-bottom: 4px;
+  font-size: 10px; color: rgba(255, 255, 255, 0.4); padding: 2px 0; margin-bottom: 4px;
 }
 .qc-sep { opacity: 0.3; }
 .qc-todo-item {
   display: flex; align-items: center; gap: 5px;
-  padding: 4px 7px; border-radius: 6px;
-  background: rgba(255,255,255,0.03);
+  padding: 4px 7px; border-radius: 6px; background: rgba(255, 255, 255, 0.03);
 }
 .qc-todo-priority { font-size: 9px; }
 .qc-todo-name {
-  font-size: 11px; color: rgba(255,255,255,0.85);
+  font-size: 11px; color: rgba(255, 255, 255, 0.85);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -450,53 +429,53 @@ html, body {
 }
 .qc-chat-empty {
   display: flex; align-items: center; justify-content: center;
-  height: 100%; color: rgba(255,255,255,0.25); font-size: 11px;
+  height: 100%; color: rgba(255, 255, 255, 0.25); font-size: 11px;
 }
 .qc-chat-msg {
   font-size: 11px; line-height: 1.4; padding: 5px 9px;
   border-radius: 10px; max-width: 85%; word-break: break-word;
 }
 .qc-chat-msg.user {
-  align-self: flex-end; background: rgba(10,132,255,0.3);
-  color: rgba(255,255,255,0.9); border-bottom-right-radius: 4px;
+  align-self: flex-end; background: rgba(10, 132, 255, 0.3);
+  color: rgba(255, 255, 255, 0.9); border-bottom-right-radius: 4px;
 }
 .qc-chat-msg.assistant {
-  align-self: flex-start; background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.8); border-bottom-left-radius: 4px;
+  align-self: flex-start; background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.8); border-bottom-left-radius: 4px;
 }
 .qc-chat-msg.loading { opacity: 0.5; }
 
 .qc-chat-input {
   display: flex; gap: 5px; padding-top: 5px;
-  border-top: 1px solid rgba(255,255,255,0.06);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 .qc-chat-input input {
-  flex: 1; background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
-  padding: 5px 9px; color: rgba(255,255,255,0.9);
+  flex: 1; background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px;
+  padding: 5px 9px; color: rgba(255, 255, 255, 0.9);
   font-size: 11px; outline: none; font-family: inherit;
 }
-.qc-chat-input input:focus { border-color: rgba(10,132,255,0.4); }
-.qc-chat-input input::placeholder { color: rgba(255,255,255,0.3); }
+.qc-chat-input input:focus { border-color: rgba(10, 132, 255, 0.4); }
+.qc-chat-input input::placeholder { color: rgba(255, 255, 255, 0.3); }
 .qc-chat-input button {
   width: 26px; height: 26px; border-radius: 8px; border: none;
-  background: rgba(10,132,255,0.4); color: #fff; font-size: 13px;
+  background: rgba(10, 132, 255, 0.4); color: #fff; font-size: 13px;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
-.qc-chat-input button:hover { background: rgba(10,132,255,0.6); }
+.qc-chat-input button:hover { background: rgba(10, 132, 255, 0.6); }
 .qc-chat-input button:disabled { opacity: 0.3; }
 
 /* ── Projects ── */
 .qc-projects { display: flex; flex-direction: column; gap: 6px; }
 .qc-project-item {
   padding: 6px; border-radius: 8px;
-  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.04);
 }
 .qc-project-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.qc-project-name { font-size: 11px; color: rgba(255,255,255,0.85); font-weight: 500; }
-.qc-project-count { font-size: 9px; color: rgba(255,255,255,0.4); }
-.qc-project-bar { height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+.qc-project-name { font-size: 11px; color: rgba(255, 255, 255, 0.85); font-weight: 500; }
+.qc-project-count { font-size: 9px; color: rgba(255, 255, 255, 0.4); }
+.qc-project-bar { height: 3px; background: rgba(255, 255, 255, 0.08); border-radius: 2px; overflow: hidden; }
 .qc-project-bar-fill {
   height: 100%; background: linear-gradient(90deg, #0a84ff, #30d158);
-  border-radius: 2px; transition: width 0.3s ease;
+  border-radius: 2px;
 }
