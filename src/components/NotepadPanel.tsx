@@ -7,26 +7,80 @@ interface Todo {
   id: string;
   name: string;
   status: boolean;
+  priority: string;
+  tags: string[];
 }
 
-const MAX_VISIBLE = 6;
+const MAX_VISIBLE = 8;
+const STORAGE_KEY = "antdesk_notepad_filter";
+const DB_ID = "2d51ba51-3457-8125-9d4c-f28ffa2fff14";
+
+const PRIORITY_DOT: Record<string, string> = {
+  High: "#ff453a",
+  Medium: "#ffd60a",
+  Low: "#30d158",
+};
 
 export default function NotepadPanel() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
   const [exiting, setExiting] = useState<Set<string>>(new Set());
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [activeTag, setActiveTag] = useState<string>(
+    () => localStorage.getItem(STORAGE_KEY) || ""
+  );
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // ── Fetch incomplete todos ──
-  const fetchTodos = useCallback(async () => {
+  // ── Persist filter choice ──
+  useEffect(() => {
+    if (activeTag) localStorage.setItem(STORAGE_KEY, activeTag);
+    else localStorage.removeItem(STORAGE_KEY);
+  }, [activeTag]);
+
+  // ── Fetch available tags from DB schema ──
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await invoke<string>("fetch_notion", {
+          path: `/v1/databases/${DB_ID}`,
+          method: "GET",
+        });
+        const db = JSON.parse(raw);
+        const opts: string[] =
+          db.properties?.Tags?.multi_select?.options?.map(
+            (o: any) => o.name
+          ) || [];
+        setAvailableTags(opts);
+      } catch (e) {
+        console.warn("Failed to fetch tags:", e);
+      }
+    })();
+  }, []);
+
+  // ── Fetch todos (with optional tag filter) ──
+  const fetchTodos = useCallback(async (tag?: string) => {
     try {
+      const filters: any[] = [
+        { property: "Status", checkbox: { equals: false } },
+      ];
+      const selectedTag = tag ?? activeTag;
+      if (selectedTag) {
+        filters.push({
+          property: "Tags",
+          multi_select: { contains: selectedTag },
+        });
+      }
+
       const raw = await invoke<string>("fetch_notion", {
-        path: "/v1/databases/2d51ba51-3457-8125-9d4c-f28ffa2fff14/query",
+        path: `/v1/databases/${DB_ID}/query`,
         method: "POST",
         body: JSON.stringify({
-          filter: { property: "Status", checkbox: { equals: false } },
-          sorts: [{ timestamp: "created_time", direction: "descending" }],
+          filter: filters.length > 1 ? { and: filters } : filters[0],
+          sorts: [
+            { property: "Priority", direction: "ascending" },
+            { timestamp: "created_time", direction: "descending" },
+          ],
           page_size: MAX_VISIBLE,
         }),
       });
@@ -35,6 +89,9 @@ export default function NotepadPanel() {
         id: page.id,
         name: page.properties.Name?.title?.[0]?.plain_text || "",
         status: false,
+        priority: page.properties.Priority?.select?.name || "Medium",
+        tags:
+          page.properties.Tags?.multi_select?.map((t: any) => t.name) || [],
       }));
       setTodos(items);
     } catch (e) {
@@ -42,9 +99,15 @@ export default function NotepadPanel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeTag]);
 
-  // ── Load on mount + refresh when shown ──
+  // ── Re-fetch when filter changes ──
+  useEffect(() => {
+    setLoading(true);
+    fetchTodos(activeTag);
+  }, [activeTag, fetchTodos]);
+
+  // ── Refresh when window shown ──
   useEffect(() => {
     fetchTodos();
     let unlisten: (() => void) | null = null;
@@ -56,28 +119,22 @@ export default function NotepadPanel() {
         });
       } catch {}
     })();
-    return () => {
-      if (unlisten) unlisten();
-    };
+    return () => { if (unlisten) unlisten(); };
   }, [fetchTodos]);
 
-  // ── Close on blur (click outside) ──
+  // ── Close on blur ──
   useEffect(() => {
     const unlistenPromise = getCurrentWindow().onFocusChanged(({ payload }) => {
       if (!payload) {
         setTimeout(async () => {
-          try {
-            await getCurrentWindow().hide();
-          } catch {}
+          try { await getCurrentWindow().hide(); } catch {}
         }, 150);
       }
     });
-    return () => {
-      unlistenPromise.then((fn) => fn());
-    };
+    return () => { unlistenPromise.then((fn) => fn()); };
   }, []);
 
-  // ── Toggle todo (mark complete → strikethrough + fade out) ──
+  // ── Toggle todo (complete) ──
   const handleToggle = useCallback(async (id: string) => {
     setExiting((prev) => new Set(prev).add(id));
     setTimeout(() => {
@@ -99,43 +156,74 @@ export default function NotepadPanel() {
     }
   }, []);
 
-  // ── Create new todo ──
+  // ── Create todo (auto-apply active tag) ──
   const handleCreate = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       const name = newName.trim();
       if (!name) return;
       setNewName("");
+      const props: any = {
+        Name: { title: [{ text: { content: name } }] },
+        Priority: { select: { name: "Medium" } },
+        Status: { checkbox: false },
+      };
+      if (activeTag) {
+        props.Tags = { multi_select: [{ name: activeTag }] };
+      }
       try {
         const raw = await invoke<string>("fetch_notion", {
           path: "/v1/pages",
           method: "POST",
           body: JSON.stringify({
-            parent: { database_id: "2d51ba51-3457-8125-9d4c-f28ffa2fff14" },
-            properties: {
-              Name: { title: [{ text: { content: name } }] },
-              Priority: { select: { name: "Medium" } },
-              Status: { checkbox: false },
-            },
+            parent: { database_id: DB_ID },
+            properties: props,
           }),
         });
         const page = JSON.parse(raw);
-        const newTodo: Todo = { id: page.id, name, status: false };
+        const newTodo: Todo = {
+          id: page.id, name, status: false,
+          priority: "Medium",
+          tags: activeTag ? [activeTag] : [],
+        };
         setTodos((prev) => [newTodo, ...prev.slice(0, MAX_VISIBLE - 1)]);
       } catch (e) {
         console.error("Create todo failed:", e);
       }
     },
-    [newName]
+    [newName, activeTag]
   );
 
   return (
     <div className="notepad-panel">
-      {/* Todo list — no header, clean sticky-note style */}
+      {/* ── Tag filter bar ── */}
+      {availableTags.length > 0 && (
+        <div className="notepad-filters">
+          <button
+            className={`notepad-tag ${activeTag === "" ? "active" : ""}`}
+            onClick={() => setActiveTag("")}
+          >
+            全部
+          </button>
+          {availableTags.map((tag) => (
+            <button
+              key={tag}
+              className={`notepad-tag ${activeTag === tag ? "active" : ""}`}
+              onClick={() => setActiveTag(tag)}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Todo list ── */}
       {loading ? (
         <div className="notepad-loading">...</div>
       ) : todos.length === 0 ? (
-        <div className="notepad-empty">全部完成 ✓</div>
+        <div className="notepad-empty">
+          {activeTag ? `无 ${activeTag} 待办` : "全部完成 ✓"}
+        </div>
       ) : (
         <div className="notepad-list">
           {todos.map((todo, index) => {
@@ -152,20 +240,24 @@ export default function NotepadPanel() {
                   title="完成"
                 />
                 <span className="notepad-name">{todo.name}</span>
+                <span
+                  className="notepad-priority-dot"
+                  style={{ background: PRIORITY_DOT[todo.priority] || PRIORITY_DOT.Medium }}
+                />
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Input — Enter to add */}
+      {/* ── Input ── */}
       <form className="notepad-input-bar" onSubmit={handleCreate}>
         <input
           ref={inputRef}
           type="text"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder="+ 添加..."
+          placeholder={activeTag ? `+ ${activeTag}...` : "+ 添加..."}
           className="notepad-input"
         />
       </form>
