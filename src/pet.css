@@ -1,210 +1,322 @@
+/* ═══════════════════════════════════════════════
+   AntDesk Pet — Single 200×200 transparent window
+   Pet = FAB. No background. Pure Spine. All overlays inside.
+   ═══════════════════════════════════════════════ */
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { background: transparent; overflow: hidden; width: 100%; height: 100%; -webkit-user-select: none; user-select: none; }
-#root { background: transparent; width: 100%; height: 100%; }
-
-.pet-root {
-  width: 100%; height: 100%;
-  display: flex; align-items: center; justify-content: center;
-  position: relative; background: transparent;
+html, body {
+  background: transparent !important;
+  overflow: hidden;
+  width: 100vw; height: 100vh;
+  -webkit-user-select: none; user-select: none;
+}
+#root {
+  background: transparent;
+  width: 100vw; height: 100vh;
+  overflow: hidden;
 }
 
-/* ════════════════════════════════════════
-   Pet Area — 200×200 window, character centered
-   ════════════════════════════════════════ */
-
-.pet-area {
-  width: 200px; height: 200px;
+/* ── Root container ── */
+.pet-window {
+  width: 100vw; height: 100vh;
   position: relative;
-  display: flex; align-items: center; justify-content: center;
-  cursor: grab;
+  background: transparent;
 }
-.pet-area:active { cursor: grabbing; }
 
-/* Floating indicators — near the character */
-.pet-dot {
-  position: absolute; top: 18%; right: 22%;
-  width: 10px; height: 10px; border-radius: 50%;
-  border: 2px solid rgba(0,0,0,0.4);
-  pointer-events: none; z-index: 5;
-}
-.pet-dot.on  { background: #34C759; box-shadow: 0 0 6px rgba(52,199,89,0.7); }
-.pet-dot.off { background: #FF3B30; }
-
-.pet-badge {
-  position: absolute; bottom: 18%; right: 20%;
-  background: #ff3b30; color: #fff;
-  font-size: 10px; font-weight: 700;
-  min-width: 18px; height: 18px; border-radius: 9px;
-  display: flex; align-items: center; justify-content: center;
-  padding: 0 5px; box-shadow: 0 2px 8px rgba(255,59,48,0.6);
-  animation: pop 2s ease-in-out infinite;
-  pointer-events: none; z-index: 5;
-}
-@keyframes pop { 0%,100% { transform: scale(1); } 50% { transform: scale(1.15); } }
-
-.pet-state {
-  position: absolute; top: 16%; left: 22%;
-  font-size: 16px; pointer-events: none;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
-  animation: bob 2s ease-in-out infinite; z-index: 5;
-}
-@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-
-.pet-mood {
-  position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
-  background: rgba(20,20,35,0.94); backdrop-filter: blur(16px);
-  color: rgba(255,255,255,0.9); font-size: 12px;
-  padding: 5px 12px; border-radius: 14px;
-  white-space: nowrap; pointer-events: none;
-  animation: mood-in 0.2s ease-out;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-  border: 1px solid rgba(255,255,255,0.1); z-index: 20;
-}
-.pet-mood::after {
-  content: ""; position: absolute; bottom: -5px; left: 50%;
-  transform: translateX(-50%) rotate(45deg);
-  width: 10px; height: 10px;
-  background: rgba(20,20,35,0.94);
-  border-right: 1px solid rgba(255,255,255,0.1);
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-@keyframes mood-in { from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.9); } to { opacity: 1; } }
-.mood-emoji { margin-right: 3px; }
-
-/* Behavior animations on canvas */
-.pet-root[data-state="sleep"] canvas { opacity: 0.4; animation: breathe 3s ease-in-out infinite; }
-@keyframes breathe { 0%,100% { transform: scale(1); opacity: 0.4; } 50% { transform: scale(0.95); opacity: 0.3; } }
-.pet-root[data-state="walk"] canvas { animation: bounce 0.6s ease-in-out infinite; }
-@keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-
-/* Mode glow */
-.pet-area::before {
-  content: ""; position: absolute;
-  width: 120px; height: 120px; border-radius: 50%;
-  pointer-events: none; z-index: 0; opacity: 0; transition: opacity 0.5s;
-}
-.pet-root[data-mode="anxious"] .pet-area::before { background: radial-gradient(circle, rgba(255,159,10,0.2), transparent 70%); opacity: 1; animation: glow 1.5s ease-in-out infinite; }
-.pet-root[data-mode="alert"] .pet-area::before { background: radial-gradient(circle, rgba(255,69,58,0.25), transparent 70%); opacity: 1; animation: glow 0.8s ease-in-out infinite; }
-.pet-root[data-mode="celebrate"] .pet-area::before { background: radial-gradient(circle, rgba(255,214,10,0.2), transparent 70%); opacity: 1; animation: glow 2s ease-in-out infinite; }
-@keyframes glow { 0%,100% { transform: scale(1); opacity: 0.6; } 50% { transform: scale(1.2); opacity: 1; } }
-
-/* ════════════════════════════════════════
-   Bubble Menu — compact floating list
-   ════════════════════════════════════════ */
-
-.bubble-menu {
+/* ═══════════════════════════════════════════════
+   Pet View — The main Spine character area
+   ═══════════════════════════════════════════════ */
+.pet-view {
   position: absolute;
-  bottom: 210px; left: 50%; transform: translateX(-50%);
-  width: 220px; max-height: 320px;
-  background: rgba(25,25,40,0.94);
-  backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 16px;
-  padding: 8px;
-  overflow-y: auto;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
-  animation: bubble-up 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-  z-index: 30;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  /* Critical: tiny alpha so transparent pixels are NOT click-through at OS level */
+  background: rgba(0, 0, 0, 0.004);
+  cursor: grab;
+  z-index: 1;
 }
-/* Tail pointing down to pet */
-.bubble-menu::after {
-  content: ""; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
-  width: 0; height: 0;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-top: 8px solid rgba(25,25,40,0.94);
+.pet-view:active { cursor: grabbing; }
+
+/* Spine canvas — pointer events pass through to .pet-view */
+.pet-view canvas {
+  pointer-events: none;
 }
 
-@keyframes bubble-up {
-  from { opacity: 0; transform: translateX(-50%) translateY(8px) scale(0.92); }
+/* ── Floating dot (connection status) ── */
+.dot {
+  position: absolute;
+  top: 14px; right: 18px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  pointer-events: none; z-index: 10;
+}
+.dot.on {
+  background: #34C759;
+  box-shadow: 0 0 6px rgba(52, 199, 89, 0.6);
+}
+.dot.off {
+  background: #FF3B30;
+  box-shadow: 0 0 6px rgba(255, 59, 48, 0.5);
+}
+
+/* ── Badge (pending count) ── */
+.badge {
+  position: absolute;
+  bottom: 16px; right: 18px;
+  background: #FF3B30;
+  color: #fff;
+  font-size: 9px; font-weight: 700;
+  min-width: 16px; height: 16px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 4px;
+  box-shadow: 0 2px 8px rgba(255, 59, 48, 0.5);
+  pointer-events: none; z-index: 10;
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+@keyframes badge-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+/* ── State icon (behavior indicator) ── */
+.state-icon {
+  position: absolute;
+  top: 14px; left: 18px;
+  font-size: 14px;
+  pointer-events: none; z-index: 10;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.7));
+  animation: float-bob 2.5s ease-in-out infinite;
+}
+@keyframes float-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* ── Mood bubble ── */
+.mood {
+  position: absolute;
+  top: 6px; left: 50%; transform: translateX(-50%);
+  background: rgba(20, 20, 35, 0.92);
+  backdrop-filter: blur(16px);
+  color: rgba(255,255,255,0.88);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+  pointer-events: none; z-index: 20;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  animation: mood-in 0.2s ease-out;
+}
+.mood::after {
+  content: "";
+  position: absolute; bottom: -4px; left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 8px; height: 8px;
+  background: rgba(20, 20, 35, 0.92);
+  border-right: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.mood-e { margin-right: 3px; }
+
+@keyframes mood-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px) scale(0.9); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 
-.bubble-menu::-webkit-scrollbar { width: 3px; }
-.bubble-menu::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+/* ── Notify banner ── */
+.notify {
+  position: absolute;
+  bottom: 8px; left: 50%; transform: translateX(-50%);
+  background: rgba(255, 59, 48, 0.92);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-size: 10px;
+  padding: 5px 12px;
+  border-radius: 10px;
+  white-space: nowrap;
+  cursor: pointer;
+  z-index: 20;
+  box-shadow: 0 4px 16px rgba(255, 59, 48, 0.4);
+  animation: notify-slide 0.3s ease-out;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@keyframes notify-slide {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ═══════════════════════════════════════════════
+   Bubble Overlay — Compact quick list (click pet)
+   Fits inside 200×200, no clipping
+   ═══════════════════════════════════════════════ */
+.bubble {
+  position: absolute;
+  inset: 0;
+  display: flex; flex-direction: column;
+  background: rgba(22, 22, 38, 0.94);
+  backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  overflow: hidden;
+  z-index: 30;
+  animation: bubble-in 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+}
+@keyframes bubble-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.bubble-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px 6px;
+  font-size: 12px; font-weight: 600;
+  color: rgba(255,255,255,0.85);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+.bubble-close {
+  background: none; border: none;
+  color: rgba(255,255,255,0.4);
+  font-size: 14px; cursor: pointer;
+  padding: 2px 4px; border-radius: 4px;
+  transition: all 0.1s;
+}
+.bubble-close:hover {
+  color: rgba(255,255,255,0.8);
+  background: rgba(255,255,255,0.06);
+}
+
+.bubble-scroll {
+  flex: 1; overflow-y: auto;
+  padding: 6px 8px;
+}
+.bubble-scroll::-webkit-scrollbar { width: 3px; }
+.bubble-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1); border-radius: 2px;
+}
 
 .bubble-section { margin-bottom: 6px; }
-.bubble-header {
-  font-size: 10px; font-weight: 600;
-  color: rgba(255,255,255,0.4);
-  padding: 4px 6px 2px;
+
+.bubble-label {
+  font-size: 9px; font-weight: 600;
+  color: rgba(255,255,255,0.35);
+  padding: 3px 4px 2px;
   text-transform: uppercase; letter-spacing: 0.5px;
 }
 
-.bubble-item {
+.bubble-row {
   display: flex; align-items: center; gap: 6px;
-  padding: 5px 8px; border-radius: 8px;
+  padding: 4px 6px; border-radius: 6px;
   font-size: 11px; color: rgba(255,255,255,0.8);
   transition: background 80ms;
 }
-.bubble-item:hover { background: rgba(255,255,255,0.06); }
+.bubble-row:hover {
+  background: rgba(255,255,255,0.06);
+}
 
 .bubble-dot {
-  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  width: 6px; height: 6px;
+  border-radius: 50%; flex-shrink: 0;
 }
-.bubble-priority {
-  font-size: 8px; font-weight: 700; color: #fff;
-  padding: 1px 4px; border-radius: 4px; flex-shrink: 0;
+
+.bubble-name {
+  flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.bubble-text {
-  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+
+.bubble-empty {
+  text-align: center; padding: 16px 8px;
+  color: rgba(255,255,255,0.25);
+  font-size: 11px;
 }
 
 .bubble-actions {
-  display: flex; gap: 4px; padding: 4px 0 0;
+  display: flex; gap: 3px;
+  padding: 6px 8px;
   border-top: 1px solid rgba(255,255,255,0.06);
-  margin-top: 4px;
+  flex-shrink: 0;
 }
-.bubble-action {
-  flex: 1; padding: 6px 8px;
+.bubble-actions button {
+  flex: 1; padding: 6px 4px;
   background: rgba(255,255,255,0.05);
   border: none; border-radius: 8px;
-  color: rgba(255,255,255,0.7); font-size: 11px;
+  color: rgba(255,255,255,0.65);
+  font-size: 13px;
   cursor: pointer; font-family: inherit;
   transition: background 80ms;
 }
-.bubble-action:hover { background: rgba(255,255,255,0.1); }
-
-.bubble-empty {
-  text-align: center; padding: 12px;
-  color: rgba(255,255,255,0.3); font-size: 12px;
+.bubble-actions button:hover {
+  background: rgba(255,255,255,0.1);
 }
 
-/* ════════════════════════════════════════
-   Context Menu
-   ════════════════════════════════════════ */
-
-.pet-menu {
+/* ═══════════════════════════════════════════════
+   Context Menu (right-click)
+   ═══════════════════════════════════════════════ */
+.menu {
   position: absolute;
-  background: rgba(25,25,40,0.95);
-  backdrop-filter: blur(24px);
+  /* Position: centered within 200×200 window */
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(22, 22, 38, 0.96);
+  backdrop-filter: blur(24px) saturate(150%);
   border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 12px; padding: 4px;
-  min-width: 150px;
+  border-radius: 14px;
+  padding: 4px;
+  min-width: 140px;
   box-shadow: 0 8px 40px rgba(0,0,0,0.6);
   z-index: 50;
   animation: menu-in 0.1s ease-out;
 }
-@keyframes menu-in { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; } }
-.pet-menu-item {
+@keyframes menu-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.menu-item {
   display: flex; align-items: center; gap: 8px;
   padding: 7px 12px; border-radius: 8px;
   cursor: pointer; font-size: 12px;
   color: rgba(255,255,255,0.8);
+  transition: background 80ms;
 }
-.pet-menu-item:hover { background: rgba(0,122,255,0.25); }
-.pet-menu-sep { height: 1px; background: rgba(255,255,255,0.06); margin: 4px 8px; }
-
-/* ════════════════════════════════════════
-   Notification
-   ════════════════════════════════════════ */
-
-.pet-notify {
-  position: absolute; bottom: -40px; left: 50%; transform: translateX(-50%);
-  background: rgba(255,59,48,0.94); backdrop-filter: blur(12px);
-  color: #fff; font-size: 11px; padding: 6px 14px;
-  border-radius: 10px; white-space: nowrap; cursor: pointer;
-  box-shadow: 0 4px 16px rgba(255,59,48,0.4);
-  animation: notify-in 0.3s ease-out; z-index: 30;
+.menu-item:hover {
+  background: rgba(0, 122, 255, 0.2);
 }
-@keyframes notify-in { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; } }
+
+.menu-item.quit {
+  color: #FF453A;
+}
+.menu-item.quit:hover {
+  background: rgba(255, 69, 58, 0.15);
+}
+
+.menu-sep {
+  height: 1px;
+  background: rgba(255,255,255,0.06);
+  margin: 3px 8px;
+}
+
+/* ═══════════════════════════════════════════════
+   Behavior state effects on Spine canvas
+   ═══════════════════════════════════════════════ */
+.pet-window[data-state="sleep"] canvas {
+  opacity: 0.35;
+  animation: breathe 3s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.35; }
+  50% { transform: scale(0.96); opacity: 0.25; }
+}
+.pet-window[data-state="walk"] canvas {
+  animation: bounce-walk 0.6s ease-in-out infinite;
+}
+@keyframes bounce-walk {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
