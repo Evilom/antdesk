@@ -407,7 +407,31 @@ pub fn run() {
             show_settings,
             toggle_notepad,
             quit_app,
+            is_mouse_over_pet,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Check if mouse cursor is within the pet window bounds.
+/// Returns true if mouse is over the window area.
+#[tauri::command]
+async fn is_mouse_over_pet(app: tauri::AppHandle) -> Result<bool, String> {
+    let pet = app.get_webview_window("pet").ok_or("Pet window not found")?;
+    
+    // Get mouse position (screen coordinates)
+    let mouse = pet.cursor_position().map_err(|e| e.to_string())?;
+    
+    // Get window position and size
+    let pos = pet.outer_position().map_err(|e| e.to_string())?;
+    let size = pet.outer_size().map_err(|e| e.to_string())?;
+    
+    let mx = mouse.x as f64;
+    let my = mouse.y as f64;
+    let wx = pos.x as f64;
+    let wy = pos.y as f64;
+    let ww = size.width as f64;
+    let wh = size.height as f64;
+    
+    Ok(mx >= wx && mx <= wx + ww && my >= wy && my <= wy + wh)
 }

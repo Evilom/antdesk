@@ -49,6 +49,48 @@ export default function Pet() {
   useEffect(() => { lockedRef.current = locked; }, [locked]);
   useEffect(() => { expandedRef.current = expanded; }, [expanded]);
 
+  // ── Click-through: default transparent areas don't block desktop ──
+  useEffect(() => {
+    const win = getCurrentWindow();
+    let hoverPolling: ReturnType<typeof setInterval> | null = null;
+    let wasOver = false;
+
+    // Start with click-through enabled
+    win.setIgnoreCursorEvents(true);
+
+    // Poll mouse position to detect when over the pet
+    const startPolling = () => {
+      hoverPolling = setInterval(async () => {
+        try {
+          const isOver = await invoke<boolean>("is_mouse_over_pet");
+          if (isOver && !wasOver) {
+            // Mouse entered pet area — enable interaction
+            wasOver = true;
+            win.setIgnoreCursorEvents(false);
+          } else if (!isOver && wasOver) {
+            // Mouse left pet area — enable click-through
+            wasOver = false;
+            win.setIgnoreCursorEvents(true);
+          }
+        } catch {}
+      }, 50); // 20fps polling
+    };
+
+    startPolling();
+
+    return () => {
+      if (hoverPolling) clearInterval(hoverPolling);
+    };
+  }, []);
+
+  // When expanded, always capture events (panel has solid background)
+  useEffect(() => {
+    const win = getCurrentWindow();
+    if (expanded) {
+      win.setIgnoreCursorEvents(false);
+    }
+  }, [expanded]);
+
   // ── Notion connection ──
   useEffect(() => {
     invoke<string>("get_notion_token").then(() => setConnected(true)).catch(() => setConnected(false));
@@ -251,19 +293,14 @@ export default function Pet() {
       data-state={sleeping ? "sleep" : petBehavior}
       data-mode={petMode}
     >
-      {/* ── Pet area ── */}
-      <div className="pet-area">
-        {/* Hit area: catches all mouse events across the full 260x260 area.
-            rgba(0,0,0,0.01) is invisible but prevents click-through in Tauri. */}
-        <div
-          className="pet-hitarea"
-          onMouseDown={handleMouseDown}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-          onClick={handleClick}
-          onContextMenu={handleContextMenu}
-        />
-
+      {/* ── Pet area — event handlers on the area div itself ── */}
+      <div className="pet-area"
+        onMouseDown={handleMouseDown}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+      >
         {/* Spine canvas — centered */}
         <SpinePet
           ref={spineRef}
