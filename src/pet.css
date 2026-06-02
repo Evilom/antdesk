@@ -1,6 +1,7 @@
 /* ═══════════════════════════════════════════════
    AntDesk Pet — Single 200×200 transparent window
-   Pet = FAB. No background. Pure Spine. All overlays inside.
+   Pet = FAB. No background. Pure Spine.
+   Quick panel = separate notepad window (not overlay).
    ═══════════════════════════════════════════════ */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -24,53 +25,40 @@ html, body {
 }
 
 /* ═══════════════════════════════════════════════
-   Pet View — The main Spine character area
+   Pet View — Spine character + indicators
+   The ONLY interactive surface. Drag / Click / Right-click here.
    ═══════════════════════════════════════════════ */
 .pet-view {
-  position: absolute;
-  inset: 0;
+  position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  /* Critical: tiny alpha so transparent pixels are NOT click-through at OS level */
+  /* Tiny alpha so transparent pixels are NOT click-through at OS level */
   background: rgba(0, 0, 0, 0.004);
   cursor: grab;
   z-index: 1;
 }
 .pet-view:active { cursor: grabbing; }
 
-/* Spine canvas — pointer events pass through to .pet-view */
-.pet-view canvas {
-  pointer-events: none;
-}
+/* Canvas: no pointer events (events go to .pet-view) */
+.pet-view canvas { pointer-events: none; }
 
-/* ── Floating dot (connection status) ── */
+/* ── Connection dot ── */
 .dot {
-  position: absolute;
-  top: 14px; right: 18px;
-  width: 8px; height: 8px;
-  border-radius: 50%;
+  position: absolute; top: 14px; right: 18px;
+  width: 8px; height: 8px; border-radius: 50%;
   pointer-events: none; z-index: 10;
 }
-.dot.on {
-  background: #34C759;
-  box-shadow: 0 0 6px rgba(52, 199, 89, 0.6);
-}
-.dot.off {
-  background: #FF3B30;
-  box-shadow: 0 0 6px rgba(255, 59, 48, 0.5);
-}
+.dot.on  { background: #34C759; box-shadow: 0 0 6px rgba(52,199,89,0.6); }
+.dot.off { background: #FF3B30; box-shadow: 0 0 6px rgba(255,59,48,0.5); }
 
 /* ── Badge (pending count) ── */
 .badge {
-  position: absolute;
-  bottom: 16px; right: 18px;
-  background: #FF3B30;
-  color: #fff;
+  position: absolute; bottom: 16px; right: 18px;
+  background: #FF3B30; color: #fff;
   font-size: 9px; font-weight: 700;
-  min-width: 16px; height: 16px;
-  border-radius: 8px;
+  min-width: 16px; height: 16px; border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
   padding: 0 4px;
-  box-shadow: 0 2px 8px rgba(255, 59, 48, 0.5);
+  box-shadow: 0 2px 8px rgba(255,59,48,0.5);
   pointer-events: none; z-index: 10;
   animation: badge-pulse 2s ease-in-out infinite;
 }
@@ -79,10 +67,9 @@ html, body {
   50% { transform: scale(1.12); }
 }
 
-/* ── State icon (behavior indicator) ── */
+/* ── State icon ── */
 .state-icon {
-  position: absolute;
-  top: 14px; left: 18px;
+  position: absolute; top: 14px; left: 18px;
   font-size: 14px;
   pointer-events: none; z-index: 10;
   filter: drop-shadow(0 1px 3px rgba(0,0,0,0.7));
@@ -95,31 +82,24 @@ html, body {
 
 /* ── Mood bubble ── */
 .mood {
-  position: absolute;
-  top: 6px; left: 50%; transform: translateX(-50%);
-  background: rgba(20, 20, 35, 0.92);
-  backdrop-filter: blur(16px);
-  color: rgba(255,255,255,0.88);
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 12px;
-  white-space: nowrap;
-  pointer-events: none; z-index: 20;
+  position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+  background: rgba(20,20,35,0.92); backdrop-filter: blur(16px);
+  color: rgba(255,255,255,0.88); font-size: 11px;
+  padding: 4px 10px; border-radius: 12px;
+  white-space: nowrap; pointer-events: none; z-index: 20;
   border: 1px solid rgba(255,255,255,0.08);
   box-shadow: 0 4px 16px rgba(0,0,0,0.4);
   animation: mood-in 0.2s ease-out;
 }
 .mood::after {
-  content: "";
-  position: absolute; bottom: -4px; left: 50%;
+  content: ""; position: absolute; bottom: -4px; left: 50%;
   transform: translateX(-50%) rotate(45deg);
   width: 8px; height: 8px;
-  background: rgba(20, 20, 35, 0.92);
+  background: rgba(20,20,35,0.92);
   border-right: 1px solid rgba(255,255,255,0.08);
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 .mood-e { margin-right: 3px; }
-
 @keyframes mood-in {
   from { opacity: 0; transform: translateX(-50%) translateY(4px) scale(0.9); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
@@ -127,22 +107,14 @@ html, body {
 
 /* ── Notify banner ── */
 .notify {
-  position: absolute;
-  bottom: 8px; left: 50%; transform: translateX(-50%);
-  background: rgba(255, 59, 48, 0.92);
-  backdrop-filter: blur(12px);
-  color: #fff;
-  font-size: 10px;
-  padding: 5px 12px;
-  border-radius: 10px;
-  white-space: nowrap;
-  cursor: pointer;
-  z-index: 20;
-  box-shadow: 0 4px 16px rgba(255, 59, 48, 0.4);
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  background: rgba(255,59,48,0.92); backdrop-filter: blur(12px);
+  color: #fff; font-size: 10px;
+  padding: 5px 12px; border-radius: 10px;
+  white-space: nowrap; cursor: pointer;
+  z-index: 20; max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 4px 16px rgba(255,59,48,0.4);
   animation: notify-slide 0.3s ease-out;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 @keyframes notify-slide {
   from { opacity: 0; transform: translateX(-50%) translateY(6px); }
@@ -150,124 +122,15 @@ html, body {
 }
 
 /* ═══════════════════════════════════════════════
-   Bubble Overlay — Compact quick list (click pet)
-   Fits inside 200×200, no clipping
-   ═══════════════════════════════════════════════ */
-.bubble {
-  position: absolute;
-  inset: 0;
-  display: flex; flex-direction: column;
-  background: rgba(22, 22, 38, 0.94);
-  backdrop-filter: blur(24px) saturate(150%);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 16px;
-  overflow: hidden;
-  z-index: 30;
-  animation: bubble-in 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
-}
-@keyframes bubble-in {
-  from { opacity: 0; transform: scale(0.92); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-.bubble-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 12px 6px;
-  font-size: 12px; font-weight: 600;
-  color: rgba(255,255,255,0.85);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  flex-shrink: 0;
-}
-
-.bubble-close {
-  background: none; border: none;
-  color: rgba(255,255,255,0.4);
-  font-size: 14px; cursor: pointer;
-  padding: 2px 4px; border-radius: 4px;
-  transition: all 0.1s;
-}
-.bubble-close:hover {
-  color: rgba(255,255,255,0.8);
-  background: rgba(255,255,255,0.06);
-}
-
-.bubble-scroll {
-  flex: 1; overflow-y: auto;
-  padding: 6px 8px;
-}
-.bubble-scroll::-webkit-scrollbar { width: 3px; }
-.bubble-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.1); border-radius: 2px;
-}
-
-.bubble-section { margin-bottom: 6px; }
-
-.bubble-label {
-  font-size: 9px; font-weight: 600;
-  color: rgba(255,255,255,0.35);
-  padding: 3px 4px 2px;
-  text-transform: uppercase; letter-spacing: 0.5px;
-}
-
-.bubble-row {
-  display: flex; align-items: center; gap: 6px;
-  padding: 4px 6px; border-radius: 6px;
-  font-size: 11px; color: rgba(255,255,255,0.8);
-  transition: background 80ms;
-}
-.bubble-row:hover {
-  background: rgba(255,255,255,0.06);
-}
-
-.bubble-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%; flex-shrink: 0;
-}
-
-.bubble-name {
-  flex: 1;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-
-.bubble-empty {
-  text-align: center; padding: 16px 8px;
-  color: rgba(255,255,255,0.25);
-  font-size: 11px;
-}
-
-.bubble-actions {
-  display: flex; gap: 3px;
-  padding: 6px 8px;
-  border-top: 1px solid rgba(255,255,255,0.06);
-  flex-shrink: 0;
-}
-.bubble-actions button {
-  flex: 1; padding: 6px 4px;
-  background: rgba(255,255,255,0.05);
-  border: none; border-radius: 8px;
-  color: rgba(255,255,255,0.65);
-  font-size: 13px;
-  cursor: pointer; font-family: inherit;
-  transition: background 80ms;
-}
-.bubble-actions button:hover {
-  background: rgba(255,255,255,0.1);
-}
-
-/* ═══════════════════════════════════════════════
-   Context Menu (right-click)
+   Context Menu (right-click on pet)
+   Rendered inside 200×200, centered.
    ═══════════════════════════════════════════════ */
 .menu {
   position: absolute;
-  /* Position: centered within 200×200 window */
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(22, 22, 38, 0.96);
-  backdrop-filter: blur(24px) saturate(150%);
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: rgba(22,22,38,0.96); backdrop-filter: blur(24px) saturate(150%);
   border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 14px;
-  padding: 4px;
+  border-radius: 14px; padding: 4px;
   min-width: 140px;
   box-shadow: 0 8px 40px rgba(0,0,0,0.6);
   z-index: 50;
@@ -285,22 +148,10 @@ html, body {
   color: rgba(255,255,255,0.8);
   transition: background 80ms;
 }
-.menu-item:hover {
-  background: rgba(0, 122, 255, 0.2);
-}
-
-.menu-item.quit {
-  color: #FF453A;
-}
-.menu-item.quit:hover {
-  background: rgba(255, 69, 58, 0.15);
-}
-
-.menu-sep {
-  height: 1px;
-  background: rgba(255,255,255,0.06);
-  margin: 3px 8px;
-}
+.menu-item:hover { background: rgba(0,122,255,0.2); }
+.menu-item.quit  { color: #FF453A; }
+.menu-item.quit:hover { background: rgba(255,69,58,0.15); }
+.menu-sep { height: 1px; background: rgba(255,255,255,0.06); margin: 3px 8px; }
 
 /* ═══════════════════════════════════════════════
    Behavior state effects on Spine canvas

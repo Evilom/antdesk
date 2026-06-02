@@ -267,16 +267,70 @@ async fn show_settings(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 /// Toggle notepad window
+/// Toggle quick panel (notepad) — positioned next to pet, never covering it.
 #[tauri::command]
 async fn toggle_notepad(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(np) = app.get_webview_window("notepad") {
-        if np.is_visible().unwrap_or(false) {
-            np.hide().map_err(|e| e.to_string())?;
-        } else {
-            np.show().map_err(|e| e.to_string())?;
-            np.set_focus().map_err(|e| e.to_string())?;
-        }
+    let np = match app.get_webview_window("notepad") {
+        Some(w) => w,
+        None => return Ok(()),
+    };
+
+    // If visible → hide
+    if np.is_visible().unwrap_or(false) {
+        np.hide().map_err(|e| e.to_string())?;
+        return Ok(());
     }
+
+    // Position next to pet
+    if let Some(pet) = app.get_webview_window("pet") {
+        let pet_pos = pet.outer_position().map_err(|e| e.to_string())?;
+        let pet_size = pet.outer_size().map_err(|e| e.to_string())?;
+        let monitor = pet.current_monitor().ok().flatten();
+        let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
+
+        let (mon_left, mon_right, mon_top, mon_bottom) = if let Some(ref m) = monitor {
+            let p = m.position();
+            let s = m.size();
+            let menu_bar = 25.0 * scale;
+            let dock = 65.0 * scale;
+            (
+                p.x as f64,
+                p.x as f64 + s.width as f64,
+                p.y as f64 + menu_bar,
+                p.y as f64 + s.height as f64 - dock,
+            )
+        } else {
+            (0.0, 1920.0 * scale, 25.0 * scale, 1015.0 * scale)
+        };
+
+        let gap = 8.0 * scale;
+        let np_w = 280.0 * scale;
+        let np_h = 320.0 * scale;
+        let px = pet_pos.x as f64;
+        let py = pet_pos.y as f64;
+        let pw = pet_size.width as f64;
+
+        // Try right side, then left, then above
+        let x = if px + pw + gap + np_w <= mon_right {
+            px + pw + gap
+        } else if px - gap - np_w >= mon_left {
+            px - gap - np_w
+        } else {
+            px
+        };
+
+        let y = if px + pw + gap + np_w <= mon_right || px - gap - np_w >= mon_left {
+            py.max(mon_top as f64).min(mon_bottom - np_h)
+        } else {
+            (py - gap - np_h).max(mon_top)
+        };
+
+        let pos = tauri::Position::Physical(tauri::PhysicalPosition::new(x as i32, y as i32));
+        let _ = np.set_position(pos);
+    }
+
+    np.show().map_err(|e| e.to_string())?;
+    np.set_focus().map_err(|e| e.to_string())?;
     Ok(())
 }
 
