@@ -67,34 +67,6 @@ html, body {
 }
 
 /* ═══════════════════════════════════════════════
-   Surface Walking — canvas rotation for walls
-   ═══════════════════════════════════════════════ */
-.pet-view[data-surface="right"] canvas {
-  transform-origin: bottom right;
-  transform: rotate(-90deg) translateY(-100%);
-}
-.pet-view[data-surface="left"] canvas {
-  transform-origin: bottom left;
-  transform: rotate(90deg) translateX(-100%);
-}
-
-/* Wall walk bounce — rotation preserved */
-.pet-window[data-state="walk"] .pet-view[data-surface="right"] canvas {
-  animation: bounce-walk-right 0.6s ease-in-out infinite;
-}
-@keyframes bounce-walk-right {
-  0%, 100% { transform: rotate(-90deg) translateY(-100%) translateX(0); }
-  50% { transform: rotate(-90deg) translateY(-100%) translateX(-3px); }
-}
-.pet-window[data-state="walk"] .pet-view[data-surface="left"] canvas {
-  animation: bounce-walk-left 0.6s ease-in-out infinite;
-}
-@keyframes bounce-walk-left {
-  0%, 100% { transform: rotate(90deg) translateX(-100%) translateX(0); }
-  50% { transform: rotate(90deg) translateX(-100%) translateX(3px); }
-}
-
-/* ═══════════════════════════════════════════════
    Context Menu
    ═══════════════════════════════════════════════ */
 .menu {
@@ -135,7 +107,7 @@ html, body {
   0%, 100% { transform: scale(1); opacity: 0.35; }
   50% { transform: scale(0.96); opacity: 0.25; }
 }
-.pet-window[data-state="walk"] .pet-view:not([data-surface="right"]):not([data-surface="left"]) canvas {
+.pet-window[data-state="walk"] canvas {
   animation: bounce-walk 0.6s ease-in-out infinite;
 }
 @keyframes bounce-walk {

@@ -1,28 +1,30 @@
 /**
- * PhysicsEngine — Desktop pet surface-walking physics.
+ * PhysicsEngine — Desktop pet roaming physics with gravity & surface walking.
  *
- * Surface model:
- *   - Pet walks on the PERIMETER of screen and window rectangles
- *   - "top" surface = floor (pet stands on it, gravity pulls down)
- *   - "right" surface = right wall (pet stands on it, gravity pulls left)
- *   - "left" surface = left wall (pet stands on it, gravity pulls right)
- *   - At corners, pet transitions between adjacent surfaces
- *   - Walking off any edge → falling → lands on next surface below
- *   - Anti-stuck: small random nudge when velocity is zero at edge
+ * Coordinate system: **logical pixels** (matches Tauri LogicalPosition).
+ * This is critical for consistency with the drag handler.
+ *
+ * Surface model (simplified — no wall walking):
+ *   - Pet walks horizontally on surfaces (screen ground, window tops)
+ *   - Gravity pulls pet down after drag release
+ *   - Landing on any surface → brief dizzy state
+ *   - Anti-stuck: random kick when velocity hits zero at edge
+ *   - Safety: every tick clamps position to visible screen area
  *
  * States:
  *   idle    — standing on surface, pausing
- *   walk    — walking along surface
+ *   walk    — walking horizontally on surface
  *   falling — in the air, gravity pulling down
  *   dizzy   — stunned after landing (brief)
  *   dragged — held by user (physics paused)
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { LogicalPosition } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export type PetState = "idle" | "walk" | "falling" | "dizzy" | "dragged";
-export type SurfaceSide = "top" | "right" | "left" | "bottom";
+export type SurfaceSide = "top";
 
 interface ScreenBounds {
   x: number;
@@ -32,27 +34,15 @@ interface ScreenBounds {
   scale: number;
 }
 
-/**
- * A walkable surface — one edge of a rectangle.
- * - "top"    = horizontal, pet stands on it (floor)
- * - "right"  = vertical, pet clings to right wall
- * - "left"   = vertical, pet clings to left wall
- * - "bottom" = ceiling (not typically walkable)
- */
 export interface Platform {
+  /** Left edge in logical px */
   x: number;
+  /** Top edge — where pet window top sits in logical px */
   y: number;
+  /** Width in logical px */
   width: number;
+  /** Height in logical px (for future wall walk) */
   height: number;
-  source: "screen" | "window";
-  name?: string;
-}
-
-interface Surface {
-  side: SurfaceSide;
-  x: number;
-  y: number;
-  length: number;
   source: "screen" | "window";
   name?: string;
 }
@@ -70,24 +60,21 @@ export interface PhysicsEngineOptions {
   gravity?: number;
   dizzyDuration?: number;
   bounceFactor?: number;
-  /** Enable wall walking (perimeter mode). Default true. */
-  wallWalk?: boolean;
   onStateChange?: (state: PetState) => void;
   onFacingChange?: (dir: 1 | -1) => void;
   onSurfaceChange?: (side: SurfaceSide) => void;
 }
 
 export class PhysicsEngine {
-  // World position (physical screen pixels)
-  private worldX = 0;
-  private worldY = 0;
-  private prevWorldX = 0;
-  private prevWorldY = 0;
+  // Position in logical screen coordinates
+  private x = 0;
+  private y = 0;
+  private prevX = 0;
+  private prevY = 0;
 
-  // Velocity in surface-local coords (logical px/sec)
-  private localV = 0;
-  private fallVx = 0;
-  private fallVy = 0;
+  // Velocity in logical px/sec
+  private vx = 0;
+  private vy = 0;
 
   // State
   private state: PetState = "idle";
@@ -97,12 +84,10 @@ export class PhysicsEngine {
 
   // Surface
   private bounds: ScreenBounds | null = null;
+  /** Ground Y in logical px (top of window when pet is on screen floor) */
   private groundY = 0;
+  /** Active extra platforms from window tops (logical px) */
   private platforms: Platform[] = [];
-  private surfaces: Surface[] = [];
-  private currentSurface: Surface = { side: "top", x: 0, y: 0, length: 1920, source: "screen" };
-  private lockedToSurface = false;
-  private positionLocked = false;
 
   // Timers
   private directionTimer = 0;
@@ -127,14 +112,13 @@ export class PhysicsEngine {
   private gravity: number;
   private dizzyDuration: number;
   private bounceFactor: number;
-  private wallWalk: boolean;
 
   // Callbacks
   private onStateChange?: (state: PetState) => void;
   private onFacingChange?: (dir: 1 | -1) => void;
   private onSurfaceChange?: (side: SurfaceSide) => void;
 
-  // Bound handlers
+  // Bound handler
   private boundMouseMove: (e: MouseEvent) => void;
 
   constructor(options: PhysicsEngineOptions) {
@@ -147,11 +131,10 @@ export class PhysicsEngine {
     this.idleProbability = options.idleProbability ?? 0.3;
     this.mouseAttraction = options.mouseAttraction ?? 0.15;
     this.mouseAttractionDistance = options.mouseAttractionDistance ?? 300;
-    this.edgePadding = options.edgePadding ?? 16;
+    this.edgePadding = options.edgePadding ?? 2;
     this.gravity = options.gravity ?? 900;
     this.dizzyDuration = options.dizzyDuration ?? 1.5;
     this.bounceFactor = options.bounceFactor ?? 0.3;
-    this.wallWalk = options.wallWalk ?? true;
     this.onStateChange = options.onStateChange;
     this.onFacingChange = options.onFacingChange;
     this.onSurfaceChange = options.onSurfaceChange;
@@ -165,29 +148,35 @@ export class PhysicsEngine {
   async start(): Promise<void> {
     if (this.running) return;
 
+    // Fetch screen bounds (physical px) → convert to logical
     try {
-      this.bounds = await invoke<ScreenBounds>("get_screen_bounds");
+      const raw = await invoke<ScreenBounds>("get_screen_bounds");
+      this.bounds = {
+        x: raw.x / raw.scale,
+        y: raw.y / raw.scale,
+        width: raw.width / raw.scale,
+        height: raw.height / raw.scale,
+        scale: raw.scale,
+      };
     } catch {
       this.bounds = { x: 0, y: 25, width: 1920, height: 990, scale: 1 };
     }
 
     this.recomputeGround();
-    this.rebuildSurfaces();
 
+    // Read current window position (logical)
     try {
+      // outerPosition returns physical, convert to logical
       const pos = await getCurrentWindow().outerPosition();
-      this.worldX = pos.x;
-      this.worldY = pos.y;
+      this.x = pos.x / (this.bounds?.scale ?? 1);
+      this.y = pos.y / (this.bounds?.scale ?? 1);
     } catch {}
 
-    if (Math.abs(this.worldY - this.groundY) < 10 * (this.bounds?.scale ?? 1)) {
-      this.worldY = this.groundY;
+    // Snap to ground if close
+    if (Math.abs(this.y - this.groundY) < 10) {
+      this.y = this.groundY;
     }
 
-    this.currentSurface = this.surfaces.find(s => s.side === "top" && s.source === "screen")
-      ?? { side: "top", x: 0, y: this.groundY, length: 1920, source: "screen" };
-    this.lockedToSurface = true;
-    this.positionLocked = true;
     this.setHorizontalRandomDirection();
     this.setState("walk");
 
@@ -213,57 +202,43 @@ export class PhysicsEngine {
 
   // ── Platform API ──
 
+  /** Set platforms (already in logical px). */
   setPlatforms(platforms: Platform[]): void {
     this.platforms = platforms;
-    this.rebuildSurfaces();
   }
 
+  /** Refresh platforms (already in logical px). If current platform gone, fall. */
   refreshPlatforms(newPlatforms: Platform[]): void {
     this.platforms = newPlatforms;
-    this.rebuildSurfaces();
-
-    // Check if current surface still exists
-    const stillExists = this.surfaces.some(s =>
-      s.side === this.currentSurface.side &&
-      s.source === this.currentSurface.source &&
-      s.name === this.currentSurface.name &&
-      Math.abs(s.x - this.currentSurface.x) < 5 &&
-      Math.abs(s.y - this.currentSurface.y) < 5
-    );
-
-    if (!stillExists && this.state !== "dragged") {
-      this.lockedToSurface = false;
-      this.fallVx = this.localV * 0.3;
-      this.fallVy = 0;
-      this.localV = 0;
-      this.setState("falling");
-    }
   }
 
   // ── Drag support ──
 
   onDragStart(): void {
     this.setState("dragged");
-    this.lockedToSurface = false;
   }
 
+  /**
+   * Called on mouseup after drag.
+   * vx/vy are release velocity in logical px/sec (from screen delta).
+   * Window position is read fresh to get the actual post-drag position.
+   */
   onDragEnd(vx: number, vy: number): void {
-    this.fallVx = vx * 0.4;
-    this.fallVy = vy * 0.3;
+    this.vx = vx * 0.4;
+    this.vy = vy * 0.3;
 
+    // Read current window position (convert physical → logical)
     getCurrentWindow().outerPosition().then(pos => {
-      this.worldX = pos.x;
-      this.worldY = pos.y;
-      this.lockedToSurface = false;
+      const scale = this.bounds?.scale ?? 1;
+      this.x = pos.x / scale;
+      this.y = pos.y / scale;
       this.setState("falling");
     }).catch(() => {
-      this.lockedToSurface = false;
       this.setState("falling");
     });
   }
 
   getState(): PetState { return this.state; }
-  getSurfaceSide(): SurfaceSide { return this.currentSurface.side; }
 
   // ── Private ──
 
@@ -273,96 +248,43 @@ export class PhysicsEngine {
     this.onStateChange?.(s);
   }
 
-  private setSurface(s: Surface): void {
-    const changed = s.side !== this.currentSurface.side ||
-      s.source !== this.currentSurface.source ||
-      s.name !== this.currentSurface.name;
-    this.currentSurface = s;
-    if (changed) this.onSurfaceChange?.(s.side);
-  }
-
-  private get petW(): number {
-    return this.windowWidth * (this.bounds?.scale ?? 1);
-  }
-
-  private get petH(): number {
-    return this.windowHeight * (this.bounds?.scale ?? 1);
-  }
-
-  /** Rebuild surfaces from screen bounds + window platforms. */
-  private rebuildSurfaces(): void {
-    if (!this.bounds) return;
-    const b = this.bounds;
-    const pad = this.edgePadding * b.scale;
-
-    const surfaces: Surface[] = [
-      // Screen edges
-      { side: "top", x: b.x + pad, y: this.groundY, length: b.width - pad * 2, source: "screen" },
-    ];
-
-    if (this.wallWalk) {
-      surfaces.push(
-        { side: "right", x: b.x + b.width - pad, y: b.y + pad, length: b.height - pad * 2, source: "screen" },
-        { side: "left", x: b.x + pad, y: b.y + pad, length: b.height - pad * 2, source: "screen" },
-      );
-    }
-
-    // Window platforms → top surface (and optionally perimeter)
-    for (const p of this.platforms) {
-      if (p.y >= this.groundY) continue;
-      surfaces.push({
-        side: "top",
-        x: p.x + pad,
-        y: p.y,
-        length: p.width - pad * 2,
-        source: "window",
-        name: p.name,
-      });
-      if (this.wallWalk) {
-        surfaces.push(
-          { side: "right", x: p.x + p.width - pad, y: p.y + pad, length: p.height - pad * 2, source: "window", name: p.name },
-          { side: "left", x: p.x + pad, y: p.y + pad, length: p.height - pad * 2, source: "window", name: p.name },
-        );
-      }
-    }
-
-    this.surfaces = surfaces;
-  }
-
   private recomputeGround(): void {
     if (!this.bounds) return;
-    const scale = this.bounds.scale;
-    const pad = this.edgePadding * scale;
-    this.groundY = this.bounds.y + this.bounds.height - this.windowHeight * scale - pad;
+    this.groundY = this.bounds.y + this.bounds.height - this.windowHeight - this.edgePadding;
   }
 
   private setHorizontalRandomDirection(): void {
-    this.localV = (Math.random() > 0.5 ? 1 : -1) * this.walkSpeed;
+    this.vx = (Math.random() > 0.5 ? 1 : -1) * this.walkSpeed;
+    this.vy = 0;
     this.directionTimer = this.directionChangeInterval * (0.7 + Math.random() * 0.6);
-    this.onFacingChange?.(this.localV >= 0 ? 1 : -1);
+    this.onFacingChange?.(this.vx >= 0 ? 1 : -1);
   }
 
   private tick(nowMs: number): void {
     if (!this.running) return;
+
     const now = nowMs / 1000;
     const dt = Math.min(now - this.lastTime, 0.1);
     this.lastTime = now;
 
     switch (this.state) {
       case "dragged": break;
-      case "dizzy": this.tickDizzy(dt); break;
+      case "dizzy":   this.tickDizzy(dt); break;
       case "falling": this.tickFalling(dt); break;
-      case "idle": this.tickIdle(dt); break;
-      case "walk": this.tickWalk(dt); break;
+      case "idle":    this.tickIdle(dt); break;
+      case "walk":    this.tickWalk(dt); break;
     }
+
+    // SAFETY: clamp to visible screen every tick
+    this.safetyClamp();
 
     this.rafId = requestAnimationFrame(this.tick.bind(this));
   }
 
-  // ── State handlers ──
+  // ── State tick handlers ──
 
   private tickDizzy(dt: number): void {
-    this.lockSurfacePosition();
+    this.y = this.groundY;
     this.dizzyTimer -= dt;
     if (this.dizzyTimer <= 0) {
       this.setHorizontalRandomDirection();
@@ -371,7 +293,7 @@ export class PhysicsEngine {
   }
 
   private tickIdle(dt: number): void {
-    this.lockSurfacePosition();
+    this.y = this.groundY;
     this.idleTimer -= dt;
     if (this.idleTimer <= 0) {
       this.setHorizontalRandomDirection();
@@ -380,283 +302,146 @@ export class PhysicsEngine {
   }
 
   private tickWalk(dt: number): void {
-    this.lockSurfacePosition();
+    this.y = this.groundY;
 
+    // Direction timer
     this.directionTimer -= dt;
     if (this.directionTimer <= 0) {
       if (Math.random() < this.idleProbability) {
-        this.localV = 0;
-        this.idleTimer = this.idleDurationMin + Math.random() * (this.idleDurationMax - this.idleDurationMin);
+        this.vx = 0;
+        this.idleTimer = this.idleDurationMin +
+          Math.random() * (this.idleDurationMax - this.idleDurationMin);
         this.setState("idle");
         return;
       }
       this.setHorizontalRandomDirection();
     }
 
-    // Mouse attraction
-    if (this.mouseAttraction > 0 && this.bounds) {
-      const s = this.currentSurface;
-      const scale = this.bounds.scale;
-      const petCenterX = this.worldX + this.petW / 2;
-      const petCenterY = this.worldY + this.petH / 2;
-      let localMouseOffset = 0;
-      const maxDist = this.mouseAttractionDistance * scale;
+    // Mouse attraction (horizontal)
+    if (this.mouseAttraction > 0) {
+      const petCenterX = this.x + this.windowWidth / 2;
+      const dx = this.mouseX - petCenterX;
+      const dist = Math.abs(dx);
 
-      if (s.side === "top") {
-        const dx = this.mouseX - petCenterX;
-        if (Math.abs(dx) < maxDist && Math.abs(dx) > 10) {
-          localMouseOffset = dx;
-        }
-      } else if (s.side === "right") {
-        const dy = this.mouseY - petCenterY;
-        if (Math.abs(dy) < maxDist && Math.abs(dy) > 10) {
-          localMouseOffset = -dy;
-        }
-      } else if (s.side === "left") {
-        const dy = this.mouseY - petCenterY;
-        if (Math.abs(dy) < maxDist && Math.abs(dy) > 10) {
-          localMouseOffset = dy;
-        }
-      }
-
-      if (localMouseOffset !== 0) {
-        const str = this.mouseAttraction * (1 - Math.abs(localMouseOffset) / maxDist);
-        this.localV += Math.sign(localMouseOffset) * str * this.walkSpeed;
+      if (dist < this.mouseAttractionDistance && dist > 10) {
+        const strength = this.mouseAttraction * (1 - dist / this.mouseAttractionDistance);
+        this.vx += Math.sign(dx) * strength * this.walkSpeed;
         const max = this.walkSpeed * 1.5;
-        if (Math.abs(this.localV) > max) this.localV = Math.sign(this.localV) * max;
+        if (Math.abs(this.vx) > max) this.vx = Math.sign(this.vx) * max;
       }
     }
 
-    // Advance along surface
-    const newT = this.surfaceT() + this.localV * dt;
-    const maxT = this.currentSurface.length;
+    // Move horizontally
+    let newX = this.x + this.vx * dt;
 
-    // Corner check (only for screen surfaces, forward direction)
-    if (this.wallWalk && this.currentSurface.source === "screen") {
-      if (newT > maxT - 5 && this.localV > 0) {
-        if (this.tryCornerTransition("end")) return;
-      } else if (newT < 5 && this.localV < 0) {
-        if (this.tryCornerTransition("start")) return;
+    // Wall bounce
+    const clampedX = this.clampHorizontal(newX);
+    if (clampedX !== newX) {
+      this.vx = -this.vx;
+      this.vx += (Math.random() - 0.5) * this.walkSpeed * 0.3;
+      // Anti-stuck: if velocity too small, give a kick
+      if (Math.abs(this.vx) < this.walkSpeed * 0.2) {
+        this.vx = (Math.random() > 0.5 ? 1 : -1) * this.walkSpeed * 0.6;
       }
+      this.onFacingChange?.(this.vx >= 0 ? 1 : -1);
     }
+    this.x = clampedX;
 
-    // Edge bounce
-    if (newT < 0 || newT > maxT) {
-      this.localV = -this.localV;
-      this.localV += (Math.random() - 0.5) * this.walkSpeed * 0.3;
-      this.onFacingChange?.(this.localV >= 0 ? 1 : -1);
-
-      // Anti-stuck: if velocity is very small, give a kick
-      if (Math.abs(this.localV) < this.walkSpeed * 0.2) {
-        this.localV = (Math.random() > 0.5 ? 1 : -1) * this.walkSpeed * 0.6;
-      }
-      return;
-    }
-
-    this.setSurfaceT(newT);
-    this.positionLocked = false;
     this.moveWindow();
   }
 
   private tickFalling(dt: number): void {
-    const scale = this.bounds?.scale ?? 1;
-    const g = this.gravity * scale;
+    // Apply gravity
+    this.vy += this.gravity * dt;
 
-    this.fallVy += g * dt;
-    this.fallVx *= 0.995;
+    // Air resistance
+    this.vx *= 0.995;
 
-    let nx = this.worldX + this.fallVx * dt;
-    let ny = this.worldY + this.fallVy * dt;
-    const bottom = ny + this.petH;
+    // Move
+    let newX = this.x + this.vx * dt;
+    let newY = this.y + this.vy * dt;
 
-    // Check all "top" surfaces for landing
-    let bestSurface: Surface | null = null;
-    let bestDist = Infinity;
-
-    for (const s of this.surfaces) {
-      if (s.side !== "top") continue;
-      if (s.y >= this.groundY && bestSurface) continue;
-
-      const prevBottom = this.worldY + this.petH;
-      if (prevBottom <= s.y + 4 && bottom >= s.y - 4) {
-        const cx = nx + this.petW / 2;
-        const sx = s.x;
-        const sw = s.length;
-        if (cx >= sx - 20 && cx <= sx + sw + 20) {
-          const dist = s.y - prevBottom;
-          if (dist < bestDist) {
-            bestDist = dist;
-            bestSurface = s;
-          }
+    // Check platform collision (window tops)
+    let landY = this.groundY;
+    for (const p of this.platforms) {
+      if (p.y >= this.groundY) continue;
+      const prevBottom = this.y + this.windowHeight;
+      const newBottom = newY + this.windowHeight;
+      if (prevBottom <= p.y + 4 && newBottom >= p.y - 4) {
+        const cx = newX + this.windowWidth / 2;
+        if (cx >= p.x - 20 && cx <= p.x + p.width + 20) {
+          if (p.y < landY) landY = p.y;
         }
       }
     }
 
-    // Check screen ground
-    if (ny >= this.groundY && !bestSurface) {
-      bestSurface = this.surfaces.find(s => s.side === "top" && s.source === "screen")
-        ?? { side: "top", x: 0, y: this.groundY, length: 1920, source: "screen" };
-    }
+    // Ground collision
+    if (newY >= landY) {
+      newY = landY;
 
-    if (bestSurface) {
-      ny = bestSurface.y;
-      if (this.fallVy > 50 * scale && bestSurface.source === "screen") {
-        this.fallVy = -this.fallVy * this.bounceFactor;
-        this.fallVx *= 0.8;
+      if (this.vy > 50 && landY === this.groundY) {
+        // Bounce
+        this.vy = -this.vy * this.bounceFactor;
+        this.vx *= 0.8;
       } else {
-        this.fallVy = 0;
-        this.fallVx = 0;
-        this.worldY = ny;
-        this.setSurface(bestSurface);
-        this.lockedToSurface = true;
-        this.positionLocked = true;
-
-        // Compute surface T from world X
-        const t = this.worldX - bestSurface.x;
-        this.clampSurfaceT(t);
-
+        // Landed
+        this.vy = 0;
+        this.y = landY;
+        this.x = this.clampHorizontal(newX);
         this.dizzyTimer = this.dizzyDuration;
-        this.localV = 0;
+        this.vx = 0;
         this.setState("dizzy");
         return;
       }
     }
 
-    // Horizontal clamp
-    if (this.bounds) {
-      const minX = this.bounds.x;
-      const maxX = this.bounds.x + this.bounds.width - this.petW;
-      nx = Math.max(minX, Math.min(maxX, nx));
-    }
-
-    this.worldX = nx;
-    this.worldY = ny;
+    this.x = this.clampHorizontal(newX);
+    this.y = newY;
     this.moveWindow();
   }
 
-  // ── Surface coordinate helpers ──
-
-  /** Get current position as parameter t along the surface (0 = start, length = end). */
-  private surfaceT(): number {
-    const s = this.currentSurface;
-    switch (s.side) {
-      case "top": return this.worldX - s.x;
-      case "right": return s.y + s.length - (this.worldY + this.petH);
-      case "left": return this.worldY - s.y;
-      default: return 0;
-    }
+  /** Clamp X to screen edges */
+  private clampHorizontal(newX: number): number {
+    if (!this.bounds) return newX;
+    const pad = this.edgePadding;
+    const minX = this.bounds.x + pad;
+    const maxX = this.bounds.x + this.bounds.width - this.windowWidth - pad;
+    return Math.max(minX, Math.min(maxX, newX));
   }
 
-  /** Set position along surface from parameter t. */
-  private setSurfaceT(t: number): void {
-    const s = this.currentSurface;
-    switch (s.side) {
-      case "top":
-        this.worldX = s.x + t;
-        break;
-      case "right":
-        this.worldY = s.y + s.length - t - this.petH;
-        this.worldX = s.x - this.petW;
-        break;
-      case "left":
-        this.worldY = s.y + t;
-        this.worldX = s.x - this.petW;
-        break;
-    }
-  }
-
-  /** Clamp t to valid range and update world position. */
-  private clampSurfaceT(t: number): void {
-    const s = this.currentSurface;
-    const clamped = Math.max(0, Math.min(s.length, t));
-    this.setSurfaceT(clamped);
-  }
-
-  /** Lock pet to current surface position (for idle/dizzy). */
-  private lockSurfacePosition(): void {
-    if (!this.positionLocked && this.lockedToSurface) {
-      const t = this.surfaceT();
-      this.clampSurfaceT(t);
-      this.positionLocked = true;
-    }
-  }
-
-  /** Try to transition around a corner. Returns true if transitioned. */
-  private tryCornerTransition(end: "start" | "end"): boolean {
-    const s = this.currentSurface;
-    if (s.source !== "screen" || !this.bounds) return false;
-
+  /** Safety: if pet somehow escaped visible area, reset to ground center */
+  private safetyClamp(): void {
+    if (!this.bounds) return;
     const b = this.bounds;
-    const pad = this.edgePadding * b.scale;
-    const t = end === "end" ? s.length : 0;
-    let target: Surface | null = null;
+    const margin = 50; // generous margin
+    const minX = b.x - margin;
+    const maxX = b.x + b.width + margin;
+    const minY = b.y - margin;
+    const maxY = b.y + b.height + margin;
 
-    if (s.side === "top" && end === "end") {
-      // Ground → Right wall
-      target = this.surfaces.find(sc => sc.side === "right" && sc.source === "screen") ?? null;
-      if (target) {
-        const newT = Math.max(0, Math.min(target.length, b.height - pad - this.petH));
-        this.setSurface(target);
-        this.setSurfaceT(newT);
-        this.localV = -Math.abs(this.localV);
-      }
-    } else if (s.side === "top" && end === "start") {
-      // Ground → Left wall
-      target = this.surfaces.find(sc => sc.side === "left" && sc.source === "screen") ?? null;
-      if (target) {
-        const newT = Math.max(0, Math.min(target.length, b.height - pad - this.petH));
-        this.setSurface(target);
-        this.setSurfaceT(newT);
-        this.localV = Math.abs(this.localV);
-      }
-    } else if (s.side === "right" && end === "start") {
-      // Right wall bottom → Ground
-      target = this.surfaces.find(sc => sc.side === "top" && sc.source === "screen") ?? null;
-      if (target) {
-        const newT = Math.max(0, Math.min(target.length, target.length - this.petW));
-        this.setSurface(target);
-        this.setSurfaceT(newT);
-        this.localV = -Math.abs(this.localV);
-      }
-    } else if (s.side === "right" && end === "end") {
-      // Right wall top → (ceiling, skip)
-      return false;
-    } else if (s.side === "left" && end === "end") {
-      // Left wall bottom → Ground
-      target = this.surfaces.find(sc => sc.side === "top" && sc.source === "screen") ?? null;
-      if (target) {
-        const newT = Math.max(0, Math.min(target.length, this.petW));
-        this.setSurface(target);
-        this.setSurfaceT(newT);
-        this.localV = Math.abs(this.localV);
-      }
-    } else if (s.side === "left" && end === "start") {
-      // Left wall top → (ceiling, skip)
-      return false;
-    }
-
-    if (target) {
-      this.lockedToSurface = true;
-      this.positionLocked = false;
-      this.directionTimer = this.directionChangeInterval;
-      this.onFacingChange?.(this.localV >= 0 ? 1 : -1);
+    if (this.x < minX || this.x > maxX || this.y < minY || this.y > maxY) {
+      console.warn("[Physics] Pet escaped screen! Resetting.", { x: this.x, y: this.y });
+      this.x = b.x + b.width / 2 - this.windowWidth / 2;
+      this.y = this.groundY;
+      this.vx = 0;
+      this.vy = 0;
+      this.setState("falling");
       this.moveWindow();
-      return true;
     }
-    return false;
   }
 
+  /** Move the Tauri window (using LogicalPosition) */
   private moveWindow(): void {
-    const dx = Math.abs(Math.round(this.worldX) - Math.round(this.prevWorldX));
-    const dy = Math.abs(Math.round(this.worldY) - Math.round(this.prevWorldY));
+    const dx = Math.abs(Math.round(this.x) - Math.round(this.prevX));
+    const dy = Math.abs(Math.round(this.y) - Math.round(this.prevY));
     if (dx >= 1 || dy >= 1) {
-      this.prevWorldX = this.worldX;
-      this.prevWorldY = this.worldY;
-      getCurrentWindow().setPosition({
-        type: "Physical",
-        x: Math.round(this.worldX),
-        y: Math.round(this.worldY),
-      } as any).catch(() => {});
+      this.prevX = this.x;
+      this.prevY = this.y;
+      // Import dynamically to avoid circular dependency issues
+
+      getCurrentWindow().setPosition(
+        new LogicalPosition(Math.round(this.x), Math.round(this.y))
+      ).catch(() => {});
     }
   }
 }
