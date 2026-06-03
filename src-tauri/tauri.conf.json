@@ -1,6 +1,6 @@
 {
   "productName": "AntDesk",
-  "version": "2.14.0",
+  "version": "2.14.1",
   "identifier": "com.antdesk.app",
   "build": {
     "beforeDevCommand": "yarn dev",
@@ -58,7 +58,8 @@
     ],
     "security": {
       "csp": null
-    }
+    },
+    "macOSPrivateApi": true
   },
   "plugins": {
     "updater": {
