@@ -148,17 +148,25 @@ export default function Pet() {
       walkSpeed: 35, idleProbability: 0.3, edgePadding: 2, mouseAttraction: 0.1,
       onStateChange: (state) => {
         setPhysState(state);
-        if (state === "falling") {
-          spineRef.current?.setAnimation("fall", true);
-        } else if (state === "dizzy") {
-          spineRef.current?.setAnimation("dizzy", false);
-          setMoodEmoji("😵");
-          setMoodText("...");
-          setTimeout(() => { setMoodText(""); }, 1500);
-        } else if (state === "walk") {
-          spineRef.current?.setAnimation("walk", true);
-        } else if (state === "idle") {
-          spineRef.current?.setAnimation("stand", true);
+        const anims: Record<string, { anim: string; loop: boolean; mood?: string; moodEmoji?: string }> = {
+          walk:    { anim: "walk",   loop: true },
+          run:     { anim: "run",    loop: true,  mood: "冲啊!", moodEmoji: "🏃" },
+          idle:    { anim: "stand",  loop: true },
+          jump:    { anim: "jump",   loop: false, mood: "哇!",   moodEmoji: "😮" },
+          falling: { anim: "fall",   loop: true,  mood: "啊啊啊!", moodEmoji: "😱" },
+          landing: { anim: "stand",  loop: false, mood: "呼...",  moodEmoji: "😮‍💨" },
+          dizzy:   { anim: "dizzy",  loop: false, mood: "晕了...", moodEmoji: "😵" },
+          hitWall: { anim: "stand",  loop: false, mood: "好痛!",  moodEmoji: "😣" },
+          slide:   { anim: "walk",   loop: true,  mood: "刹不住!", moodEmoji: "🫨" },
+          dragged: { anim: "idle",   loop: true },
+        };
+        const cfg = anims[state] ?? anims.idle;
+        spineRef.current?.setAnimation(cfg.anim, cfg.loop);
+        if (cfg.mood) {
+          setMoodEmoji(cfg.moodEmoji || "😊");
+          setMoodText(cfg.mood);
+          const dur = state === "dizzy" ? 1500 : state === "hitWall" ? 800 : state === "landing" ? 600 : 1200;
+          setTimeout(() => setMoodText(""), dur);
         }
       },
       onFacingChange: (dir) => spineRef.current?.setFacingDirection(dir),
@@ -301,6 +309,11 @@ export default function Pet() {
     if (notifyMsg) return [{ emoji: "⚠️", text: notifyMsg, key: "notify", priority: true }];
     if (physState === "dizzy") return [{ emoji: "💫", text: "晕了...", key: "dizzy", priority: true }];
     if (physState === "falling") return [{ emoji: "😱", text: "啊啊啊!", key: "fall", priority: true }];
+    if (physState === "jump") return [{ emoji: "😮", text: "哇!", key: "jump", priority: true }];
+    if (physState === "hitWall") return [{ emoji: "😣", text: "好痛!", key: "hitwall", priority: true }];
+    if (physState === "slide") return [{ emoji: "🫨", text: "刹不住!", key: "slide", priority: true }];
+    if (physState === "landing") return [{ emoji: "😮‍💨", text: "呼...", key: "landing", priority: true }];
+    if (physState === "run") return [{ emoji: "🏃", text: "冲啊!", key: "run", priority: true }];
     if (petMode === "anxious") pool.push({ emoji: "😰", text: "任务有点多...", key: "anxious" });
     if (petMode === "alert") pool.push({ emoji: "⏰", text: "有逾期任务!", key: "alert" });
     if (petMode === "celebrate") pool.push({ emoji: "🎉", text: "干得漂亮!", key: "celebrate" });

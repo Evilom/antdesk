@@ -122,3 +122,53 @@ html, body {
   25% { transform: rotate(-8deg); }
   75% { transform: rotate(8deg); }
 }
+
+/* ── Run state — faster bounce ── */
+.pet-window[data-state="run"] canvas {
+  animation: bounce-run 0.35s ease-in-out infinite;
+}
+@keyframes bounce-run {
+  0%, 100% { transform: translateY(0) scaleX(1.05); }
+  50% { transform: translateY(-4px) scaleX(0.98); }
+}
+
+/* ── Jump state — upward stretch ── */
+.pet-window[data-state="jump"] canvas {
+  animation: jump-up 0.3s ease-out forwards;
+}
+@keyframes jump-up {
+  0% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(-6px) scaleY(1.1) scaleX(0.95); }
+  100% { transform: translateY(-2px) scaleY(1); }
+}
+
+/* ── Landing — brief squish ── */
+.pet-window[data-state="landing"] canvas {
+  animation: land-squish 0.4s ease-out forwards;
+}
+@keyframes land-squish {
+  0% { transform: scaleY(0.8) scaleX(1.15); }
+  40% { transform: scaleY(1.1) scaleX(0.95); }
+  100% { transform: scaleY(1) scaleX(1); }
+}
+
+/* ── Hit wall — bounce-back shake ── */
+.pet-window[data-state="hitWall"] canvas {
+  animation: hit-wall 0.5s ease-out;
+}
+@keyframes hit-wall {
+  0% { transform: translateX(0); }
+  15% { transform: translateX(-6px) rotate(-3deg); }
+  30% { transform: translateX(4px) rotate(2deg); }
+  50% { transform: translateX(-2px) rotate(-1deg); }
+  100% { transform: translateX(0) rotate(0); }
+}
+
+/* ── Slide — slight lean forward ── */
+.pet-window[data-state="slide"] canvas {
+  animation: slide-lean 0.3s ease-out forwards;
+}
+@keyframes slide-lean {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(5deg) translateX(2px); }
+}
