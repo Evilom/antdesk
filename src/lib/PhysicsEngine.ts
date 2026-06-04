@@ -1,19 +1,19 @@
 /**
- * PhysicsEngine — Desktop pet roaming physics with gravity & surface walking.
+ * PhysicsEngine — Desktop pet physics with rich behavior.
  *
  * Coordinate system: **logical pixels** (matches Tauri LogicalPosition).
  *
- * States:
- *   idle    — standing on surface, pausing
- *   walk    — walking horizontally on surface
- *   run     — running toward mouse (faster walk when mouse nearby)
- *   jump    — brief hop animation at fall start
- *   falling — in the air, gravity pulling down
- *   landing — brief landing recovery after fall
- *   dizzy   — stunned after heavy landing
- *   hitWall — bumped into screen edge (brief)
- *   slide   — sliding along surface after landing with horizontal speed
- *   dragged — held by user (physics paused)
+ * BEHAVIOR SYSTEM:
+ *   Instead of simple walk/idle ping-pong, the pet picks "behaviors":
+ *   - stroll:  slow walk with occasional direction changes
+ *   - sprint:  fast run across the screen
+ *   - explore: walk to a random target point, pause, repeat
+ *   - rest:    longer idle, maybe sit
+ *   - jump:    spontaneous hop while walking
+ *   - chase:   follow the mouse cursor
+ *
+ * PHYSICS STATES (mapped from behaviors + events):
+ *   idle / walk / run / jump / falling / landing / dizzy / hitWall / slide / dragged
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -25,6 +25,8 @@ export type PetState =
   | "jump" | "falling" | "landing" | "dizzy"
   | "hitWall" | "slide"
   | "dragged";
+
+type Behavior = "stroll" | "sprint" | "explore" | "rest" | "chase";
 
 interface ScreenBounds {
   x: number; y: number;
@@ -65,7 +67,6 @@ export class PhysicsEngine {
   private x = 0;  private y = 0;
   private prevX = 0;  private prevY = 0;
   private vx = 0;  private vy = 0;
-  private prevFallY = 0;  // Tracks Y from previous falling frame
 
   private state: PetState = "idle";
   private running = false;
@@ -76,15 +77,24 @@ export class PhysicsEngine {
   private groundY = 0;
   private platforms: Platform[] = [];
 
+  // Behavior
+  private behavior: Behavior = "stroll";
+  private behaviorTimer = 0;
+  private exploreTargetX = 0;
+  private restCount = 0;  // How many rests taken (increases variety)
+
+  // Timers
   private directionTimer = 0;
   private idleTimer = 0;
   private dizzyTimer = 0;
   private jumpTimer = 0;
   private landingTimer = 0;
   private hitWallTimer = 0;
+  private spontaneousJumpTimer = 0;
 
   private mouseX = 0;  private mouseY = 0;
 
+  // Config
   private windowWidth: number;
   private windowHeight: number;
   private walkSpeed: number;
@@ -137,27 +147,18 @@ export class PhysicsEngine {
 
   async start(): Promise<void> {
     if (this.running) return;
-    try {
-      const raw = await invoke<ScreenBounds>("get_screen_bounds");
-      this.bounds = {
-        x: raw.x / raw.scale, y: raw.y / raw.scale,
-        width: raw.width / raw.scale, height: raw.height / raw.scale,
-        scale: raw.scale,
-      };
-    } catch {
-      this.bounds = { x: 0, y: 25, width: 1920, height: 990, scale: 1 };
-    }
-    this.recomputeGround();
+    await this.refreshBounds();
     try {
       const pos = await getCurrentWindow().outerPosition();
-      this.x = pos.x / (this.bounds?.scale ?? 1);
-      this.y = pos.y / (this.bounds?.scale ?? 1);
+      const s = this.bounds?.scale ?? 1;
+      this.x = pos.x / s;
+      this.y = pos.y / s;
     } catch {}
     if (Math.abs(this.y - this.groundY) < 10) this.y = this.groundY;
-    this.setHorizontalRandomDirection();
-    this.setState("walk");
+    this.pickBehavior();
     document.addEventListener("mousemove", this.boundMouseMove);
     this.running = true;
+    this.spontaneousJumpTimer = 8 + Math.random() * 15;
     this.lastTime = performance.now() / 1000;
     this.rafId = requestAnimationFrame(this.tick.bind(this));
   }
@@ -180,23 +181,115 @@ export class PhysicsEngine {
   refreshPlatforms(p: Platform[]): void { this.platforms = p; }
   getState(): PetState { return this.state; }
 
-  onDragStart(): void {
-    this.setState("dragged");
-  }
+  onDragStart(): void { this.setState("dragged"); }
 
   onDragEnd(vx: number, vy: number): void {
     this.vx = vx * 0.4;
     this.vy = vy * 0.3;
     getCurrentWindow().outerPosition().then(pos => {
-      const scale = this.bounds?.scale ?? 1;
-      this.x = pos.x / scale;
-      this.y = pos.y / scale;
-      this.prevFallY = this.y;  // CRITICAL: seed prevFallY
+      const s = this.bounds?.scale ?? 1;
+      this.x = pos.x / s;
+      this.y = pos.y / s;
       this.setState("jump");
-    }).catch(() => {
-      this.prevFallY = this.y;
-      this.setState("jump");
-    });
+    }).catch(() => this.setState("jump"));
+  }
+
+  // ── Bounds ──
+
+  private async refreshBounds(): Promise<void> {
+    try {
+      const raw = await invoke<ScreenBounds>("get_screen_bounds");
+      this.bounds = {
+        x: raw.x / raw.scale, y: raw.y / raw.scale,
+        width: raw.width / raw.scale, height: raw.height / raw.scale,
+        scale: raw.scale,
+      };
+    } catch {
+      this.bounds = { x: 0, y: 25, width: 1920, height: 990, scale: 1 };
+    }
+    this.recomputeGround();
+  }
+
+  private recomputeGround(): void {
+    if (!this.bounds) return;
+    this.groundY = this.bounds.y + this.bounds.height - this.windowHeight - this.edgePadding;
+  }
+
+  // ── Behavior system ──
+
+  private pickBehavior(): void {
+    const b = this.bounds;
+    if (!b) { this.startStroll(); return; }
+
+    // Check if mouse is close → chase
+    const pcx = this.x + this.windowWidth / 2;
+    const dx = this.mouseX - pcx;
+    const dist = Math.abs(dx);
+    if (dist < this.mouseAttractionDistance * 0.4 && dist > 30) {
+      this.behavior = "chase";
+      this.behaviorTimer = 2 + Math.random() * 3;
+      this.vx = Math.sign(dx) * this.runSpeed;
+      this.onFacingChange?.(this.vx >= 0 ? 1 : -1);
+      this.setState("run");
+      return;
+    }
+
+    // Weighted random behavior
+    const r = Math.random();
+    if (r < 0.35) {
+      this.startStroll();
+    } else if (r < 0.55) {
+      this.startExplore(b);
+    } else if (r < 0.70) {
+      this.startSprint(b);
+    } else if (r < 0.85) {
+      this.startRest();
+    } else {
+      this.startStroll();
+      // Maybe spontaneous jump during stroll
+      this.spontaneousJumpTimer = 2 + Math.random() * 5;
+    }
+  }
+
+  private startStroll(): void {
+    this.behavior = "stroll";
+    this.behaviorTimer = 4 + Math.random() * 6;
+    this.vx = (Math.random() > 0.5 ? 1 : -1) * (this.walkSpeed * (0.6 + Math.random() * 0.4));
+    this.onFacingChange?.(this.vx >= 0 ? 1 : -1);
+    this.setState("walk");
+  }
+
+  private startExplore(b: ScreenBounds): void {
+    this.behavior = "explore";
+    this.behaviorTimer = 8 + Math.random() * 8;
+    // Pick a random X target on screen
+    this.exploreTargetX = b.x + 50 + Math.random() * (b.width - this.windowWidth - 100);
+    // Walk toward it
+    const dir = this.exploreTargetX > this.x ? 1 : -1;
+    this.vx = dir * this.walkSpeed * (0.7 + Math.random() * 0.3);
+    this.onFacingChange?.(this.vx >= 0 ? 1 : -1);
+    this.setState("walk");
+  }
+
+  private startSprint(b: ScreenBounds): void {
+    this.behavior = "sprint";
+    this.behaviorTimer = 1.5 + Math.random() * 2;
+    // Sprint to a random side
+    const dir = Math.random() > 0.5 ? 1 : -1;
+    this.vx = dir * this.runSpeed;
+    this.onFacingChange?.(this.vx >= 0 ? 1 : -1);
+    this.setState("run");
+  }
+
+  private startRest(): void {
+    this.behavior = "rest";
+    this.restCount++;
+    // Vary rest duration — sometimes short, sometimes long
+    const long = this.restCount % 3 === 0;
+    this.behaviorTimer = long ? (5 + Math.random() * 8) : (2 + Math.random() * 3);
+    this.vx = 0;
+    this.idleTimer = this.behaviorTimer;
+    this.setState("idle");
   }
 
   // ── Private ──
@@ -207,23 +300,18 @@ export class PhysicsEngine {
     this.onStateChange?.(s);
   }
 
-  private recomputeGround(): void {
-    if (!this.bounds) return;
-    this.groundY = this.bounds.y + this.bounds.height - this.windowHeight - this.edgePadding;
-  }
-
-  private setHorizontalRandomDirection(): void {
-    this.vx = (Math.random() > 0.5 ? 1 : -1) * this.walkSpeed;
-    this.vy = 0;
-    this.directionTimer = this.directionChangeInterval * (0.7 + Math.random() * 0.6);
-    this.onFacingChange?.(this.vx >= 0 ? 1 : -1);
-  }
-
   private tick(nowMs: number): void {
     if (!this.running) return;
     const now = nowMs / 1000;
     const dt = Math.min(now - this.lastTime, 0.1);
     this.lastTime = now;
+
+    // Periodic bounds refresh (in case monitors change)
+    this._boundsTimer = (this._boundsTimer || 0) + dt;
+    if (this._boundsTimer > 10) {
+      this._boundsTimer = 0;
+      this.refreshBounds();
+    }
 
     switch (this.state) {
       case "dragged": break;
@@ -237,62 +325,81 @@ export class PhysicsEngine {
       case "hitWall": this.tickHitWall(dt); break;
       case "slide":   this.tickSlide(dt); break;
     }
+
     this.safetyClamp();
     this.rafId = requestAnimationFrame(this.tick.bind(this));
   }
+  private _boundsTimer = 0;
 
   // ── State handlers ──
 
   private tickIdle(dt: number): void {
     this.y = this.groundY;
+    this.behaviorTimer -= dt;
     this.idleTimer -= dt;
-    if (this.idleTimer <= 0) {
-      this.setHorizontalRandomDirection();
-      this.setState("walk");
+    if (this.behaviorTimer <= 0 || this.idleTimer <= 0) {
+      this.pickBehavior();
     }
   }
 
   private tickWalk(dt: number): void {
     this.y = this.groundY;
+    this.behaviorTimer -= dt;
     this.directionTimer -= dt;
 
-    // Check if should run (mouse nearby)
-    const petCenterX = this.x + this.windowWidth / 2;
-    const dx = this.mouseX - petCenterX;
-    const dist = Math.abs(dx);
-    if (dist < this.mouseAttractionDistance * 0.5 && dist > 20) {
-      this.vx = Math.sign(dx) * this.runSpeed;
-      this.onFacingChange?.(this.vx >= 0 ? 1 : -1);
-      this.setState("run");
+    // Spontaneous jump timer
+    this.spontaneousJumpTimer -= dt;
+    if (this.spontaneousJumpTimer <= 0 && Math.random() < 0.4) {
+      this.vy = -300; // upward impulse
+      this.spontaneousJumpTimer = 10 + Math.random() * 20;
+      this.setState("jump");
       return;
     }
 
-    if (this.directionTimer <= 0) {
-      if (Math.random() < this.idleProbability) {
+    // Behavior-specific logic
+    if (this.behavior === "explore") {
+      // Walk toward explore target
+      const dx = this.exploreTargetX - this.x;
+      if (Math.abs(dx) < 20) {
+        // Reached target → pause then pick new behavior
         this.vx = 0;
-        this.idleTimer = this.idleDurationMin +
-          Math.random() * (this.idleDurationMax - this.idleDurationMin);
+        this.idleTimer = 1 + Math.random() * 2;
         this.setState("idle");
+        this.behaviorTimer = this.idleTimer;
         return;
       }
-      this.setHorizontalRandomDirection();
+      this.vx = Math.sign(dx) * this.walkSpeed * 0.8;
+      this.onFacingChange?.(this.vx >= 0 ? 1 : -1);
     }
 
-    // Mouse attraction (gentle)
-    if (this.mouseAttraction > 0) {
-      const d = Math.abs(this.mouseX - petCenterX);
-      if (d < this.mouseAttractionDistance && d > 10) {
-        const str = this.mouseAttraction * (1 - d / this.mouseAttractionDistance);
-        this.vx += Math.sign(this.mouseX - petCenterX) * str * this.walkSpeed;
-        const max = this.walkSpeed * 1.3;
+    // Mouse attraction (gentle nudge toward cursor)
+    if (this.mouseAttraction > 0 && this.behavior !== "explore") {
+      const pcx = this.x + this.windowWidth / 2;
+      const d = Math.abs(this.mouseX - pcx);
+      if (d < this.mouseAttractionDistance && d > 15) {
+        const str = this.mouseAttraction * (1 - d / this.mouseAttractionDistance) * 0.5;
+        this.vx += Math.sign(this.mouseX - pcx) * str * this.walkSpeed;
+        const max = this.walkSpeed * 1.2;
         if (Math.abs(this.vx) > max) this.vx = Math.sign(this.vx) * max;
       }
     }
 
+    if (this.directionTimer <= 0 && this.behavior === "stroll") {
+      if (Math.random() < this.idleProbability * 0.5) {
+        this.vx = 0;
+        this.idleTimer = 1 + Math.random() * 3;
+        this.setState("idle");
+        return;
+      }
+      this.vx = (Math.random() > 0.5 ? 1 : -1) * this.walkSpeed * (0.5 + Math.random() * 0.5);
+      this.directionTimer = this.directionChangeInterval * (0.7 + Math.random() * 0.8);
+      this.onFacingChange?.(this.vx >= 0 ? 1 : -1);
+    }
+
+    // Move
     let newX = this.x + this.vx * dt;
-    const clamped = this.clampHorizontal(newX);
+    const clamped = this.clampX(newX);
     if (clamped !== newX) {
-      // Hit wall!
       this.vx = 0;
       this.hitWallTimer = this.hitWallDuration;
       this.x = clamped;
@@ -300,28 +407,32 @@ export class PhysicsEngine {
       return;
     }
     this.x = clamped;
+
+    // End behavior timer
+    if (this.behaviorTimer <= 0) this.pickBehavior();
+
     this.moveWindow();
   }
 
   private tickRun(dt: number): void {
     this.y = this.groundY;
-    const petCenterX = this.x + this.windowWidth / 2;
-    const dx = this.mouseX - petCenterX;
-    const dist = Math.abs(dx);
+    this.behaviorTimer -= dt;
 
-    // Stop running if mouse is far or reached it
-    if (dist > this.mouseAttractionDistance * 0.7 || dist < 15) {
-      this.vx *= 0.5;
-      this.setState("walk");
-      this.directionTimer = 1;
-      return;
+    if (this.behavior === "chase") {
+      const pcx = this.x + this.windowWidth / 2;
+      const dx = this.mouseX - pcx;
+      const dist = Math.abs(dx);
+      if (dist > this.mouseAttractionDistance * 0.7 || dist < 15) {
+        this.vx *= 0.5;
+        this.pickBehavior();
+        return;
+      }
+      this.vx = Math.sign(dx) * this.runSpeed;
+      this.onFacingChange?.(this.vx >= 0 ? 1 : -1);
     }
 
-    this.vx = Math.sign(dx) * this.runSpeed;
-    this.onFacingChange?.(this.vx >= 0 ? 1 : -1);
-
     let newX = this.x + this.vx * dt;
-    const clamped = this.clampHorizontal(newX);
+    const clamped = this.clampX(newX);
     if (clamped !== newX) {
       this.vx = 0;
       this.hitWallTimer = this.hitWallDuration;
@@ -330,37 +441,42 @@ export class PhysicsEngine {
       return;
     }
     this.x = clamped;
+
+    if (this.behaviorTimer <= 0) this.pickBehavior();
     this.moveWindow();
   }
 
   private tickJump(dt: number): void {
-    // Brief jump animation — apply small upward velocity then transition to falling
     this.jumpTimer += dt;
+    this.vy += this.gravity * dt * 0.5;
     this.y += this.vy * dt;
-    this.vy += this.gravity * dt * 0.5;  // Gentle gravity during jump
     this.x += this.vx * dt * 0.3;
-    this.x = this.clampHorizontal(this.x);
+    this.x = this.clampX(this.x);
 
-    if (this.jumpTimer >= this.jumpDuration) {
+    // If jumped high enough or timer expired → falling
+    if (this.jumpTimer >= this.jumpDuration || this.vy > 0) {
       this.jumpTimer = 0;
-      this.prevFallY = this.y;
       this.setState("falling");
     }
     this.moveWindow();
   }
 
   private tickFalling(dt: number): void {
-    // Store previous position BEFORE updating
     const oldY = this.y;
 
-    // Apply gravity
     this.vy += this.gravity * dt;
     this.vx *= 0.995;
 
     let newX = this.x + this.vx * dt;
     let newY = this.y + this.vy * dt;
 
-    // Check platform collision using PREVIOUS position vs NEW position
+    // Y clamp: don't go above screen top
+    if (this.bounds && newY < this.bounds.y) {
+      newY = this.bounds.y;
+      this.vy = Math.abs(this.vy) * 0.2; // bounce downward gently
+    }
+
+    // Platform collision
     let landY = this.groundY;
     const prevBottom = oldY + this.windowHeight;
     const newBottom = newY + this.windowHeight;
@@ -375,46 +491,33 @@ export class PhysicsEngine {
       }
     }
 
-    // Ground collision: prev was above ground, new is at/below
+    // Ground collision
     if (prevBottom <= landY + 4 && newBottom >= landY - 4) {
-      newY = landY;
       const speed = Math.abs(this.vy);
 
       if (speed > 300) {
-        // Hard landing → dizzy
-        this.vy = 0;
-        this.vx *= 0.3;
-        this.y = landY;
-        this.x = this.clampHorizontal(newX);
+        this.vy = 0; this.vx *= 0.3;
+        this.y = landY; this.x = this.clampX(newX);
         this.dizzyTimer = this.dizzyDuration;
         this.setState("dizzy");
       } else if (Math.abs(this.vx) > 30) {
-        // Has horizontal speed → slide
         this.vy = 0;
-        this.y = landY;
-        this.x = this.clampHorizontal(newX);
+        this.y = landY; this.x = this.clampX(newX);
         this.setState("slide");
       } else if (speed > 30) {
-        // Medium landing → brief landing recovery
-        this.vy = 0;
-        this.vx = 0;
-        this.y = landY;
-        this.x = this.clampHorizontal(newX);
+        this.vy = 0; this.vx = 0;
+        this.y = landY; this.x = this.clampX(newX);
         this.landingTimer = this.landingDuration;
         this.setState("landing");
       } else {
-        // Soft landing → just walk
-        this.vy = 0;
-        this.vx = 0;
-        this.y = landY;
-        this.x = this.clampHorizontal(newX);
-        this.setHorizontalRandomDirection();
-        this.setState("walk");
+        this.vy = 0; this.vx = 0;
+        this.y = landY; this.x = this.clampX(newX);
+        this.pickBehavior();
       }
       return;
     }
 
-    this.x = this.clampHorizontal(newX);
+    this.x = this.clampX(newX);
     this.y = newY;
     this.moveWindow();
   }
@@ -422,29 +525,19 @@ export class PhysicsEngine {
   private tickLanding(dt: number): void {
     this.y = this.groundY;
     this.landingTimer -= dt;
-    if (this.landingTimer <= 0) {
-      this.setHorizontalRandomDirection();
-      this.setState("walk");
-    }
+    if (this.landingTimer <= 0) this.pickBehavior();
   }
 
   private tickDizzy(dt: number): void {
     this.y = this.groundY;
     this.dizzyTimer -= dt;
-    if (this.dizzyTimer <= 0) {
-      this.setHorizontalRandomDirection();
-      this.setState("walk");
-    }
+    if (this.dizzyTimer <= 0) this.pickBehavior();
   }
 
   private tickHitWall(dt: number): void {
     this.y = this.groundY;
     this.hitWallTimer -= dt;
-    if (this.hitWallTimer <= 0) {
-      // Reverse direction and walk away
-      this.setHorizontalRandomDirection();
-      this.setState("walk");
-    }
+    if (this.hitWallTimer <= 0) this.pickBehavior();
   }
 
   private tickSlide(dt: number): void {
@@ -452,9 +545,8 @@ export class PhysicsEngine {
     this.vx *= this.slideFriction;
 
     let newX = this.x + this.vx * dt;
-    const clamped = this.clampHorizontal(newX);
+    const clamped = this.clampX(newX);
     if (clamped !== newX) {
-      // Hit wall while sliding → stop
       this.vx = 0;
       this.hitWallTimer = this.hitWallDuration * 0.5;
       this.x = clamped;
@@ -463,35 +555,44 @@ export class PhysicsEngine {
     }
     this.x = clamped;
 
-    // Stop sliding when slow enough
     if (Math.abs(this.vx) < 5) {
       this.vx = 0;
-      this.idleTimer = this.idleDurationMin + Math.random() * 2;
-      this.setState("idle");
+      this.pickBehavior();
     }
-
     this.moveWindow();
   }
 
-  private clampHorizontal(newX: number): number {
+  // ── Helpers ──
+
+  /** Clamp X to screen edges */
+  private clampX(newX: number): number {
     if (!this.bounds) return newX;
-    const pad = this.edgePadding;
-    const minX = this.bounds.x + pad;
-    const maxX = this.bounds.x + this.bounds.width - this.windowWidth - pad;
+    const minX = this.bounds.x + this.edgePadding;
+    const maxX = this.bounds.x + this.bounds.width - this.windowWidth - this.edgePadding;
     return Math.max(minX, Math.min(maxX, newX));
   }
 
+  /** Safety: catch any escape and reset */
   private safetyClamp(): void {
     if (!this.bounds || this.state === "dragged") return;
     const b = this.bounds;
-    const m = 100;
-    if (this.x < b.x - m || this.x > b.x + b.width + m ||
-        this.y < b.y - m || this.y > b.y + b.height + m) {
-      console.warn("[Physics] Pet escaped! Resetting.", { x: this.x, y: this.y });
+    const safe = 50; // tight margin
+
+    let needsReset = false;
+    if (this.x < b.x - safe || this.x > b.x + b.width + safe) needsReset = true;
+    if (this.y < b.y - safe || this.y > b.y + b.height + safe) needsReset = true;
+
+    // Also: if on ground but Y drifted
+    if (["idle", "walk", "run", "hitWall", "slide", "landing", "dizzy"].includes(this.state)) {
+      if (Math.abs(this.y - this.groundY) > 5) needsReset = true;
+    }
+
+    if (needsReset) {
+      console.warn("[Physics] Pet out of bounds, resetting.", { x: this.x, y: this.y, state: this.state });
       this.x = b.x + b.width / 2 - this.windowWidth / 2;
       this.y = this.groundY;
       this.vx = 0; this.vy = 0;
-      this.setState("idle");
+      this.pickBehavior();
       this.moveWindow();
     }
   }

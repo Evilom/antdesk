@@ -145,7 +145,7 @@ export default function Pet() {
   useEffect(() => {
     const physics = new PhysicsEngine({
       windowWidth: 200, windowHeight: 200,
-      walkSpeed: 35, idleProbability: 0.3, edgePadding: 2, mouseAttraction: 0.1,
+      walkSpeed: 35, runSpeed: 85, idleProbability: 0.3, edgePadding: 4, mouseAttraction: 0.12,
       onStateChange: (state) => {
         setPhysState(state);
         const anims: Record<string, { anim: string; loop: boolean; mood?: string; moodEmoji?: string }> = {
