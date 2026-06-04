@@ -28,6 +28,10 @@ export type PetState =
 
 type Behavior = "stroll" | "sprint" | "explore" | "rest" | "chase";
 
+export interface BehaviorWeights {
+  stroll: number; sprint: number; explore: number; rest: number; chase: number;
+}
+
 interface ScreenBounds {
   x: number; y: number;
   width: number; height: number;
@@ -76,6 +80,7 @@ export class PhysicsEngine {
   private bounds: ScreenBounds | null = null;
   private groundY = 0;
   private platforms: Platform[] = [];
+  private behaviorWeights: BehaviorWeights = { stroll: 0.35, sprint: 0.15, explore: 0.20, rest: 0.15, chase: 0.15 };
 
   // Behavior
   private behavior: Behavior = "stroll";
@@ -179,6 +184,17 @@ export class PhysicsEngine {
 
   setPlatforms(platforms: Platform[]): void { this.platforms = platforms; }
   refreshPlatforms(p: Platform[]): void { this.platforms = p; }
+
+  /** Set behavior weights from EmotionEngine. Normalizes internally. */
+  setBehaviorWeights(w: BehaviorWeights): void {
+    const total = w.stroll + w.sprint + w.explore + w.rest + w.chase;
+    if (total > 0) {
+      this.behaviorWeights = {
+        stroll: w.stroll / total, sprint: w.sprint / total,
+        explore: w.explore / total, rest: w.rest / total, chase: w.chase / total,
+      };
+    }
+  }
   getState(): PetState { return this.state; }
 
   onDragStart(): void { this.setState("dragged"); }
@@ -221,11 +237,11 @@ export class PhysicsEngine {
     const b = this.bounds;
     if (!b) { this.startStroll(); return; }
 
-    // Check if mouse is close → chase
+    // Check if mouse is close → chase (overrides weights)
     const pcx = this.x + this.windowWidth / 2;
     const dx = this.mouseX - pcx;
     const dist = Math.abs(dx);
-    if (dist < this.mouseAttractionDistance * 0.4 && dist > 30) {
+    if (dist < this.mouseAttractionDistance * 0.4 && dist > 30 && this.behaviorWeights.chase > 0.05) {
       this.behavior = "chase";
       this.behaviorTimer = 2 + Math.random() * 3;
       this.vx = Math.sign(dx) * this.runSpeed;
@@ -234,21 +250,26 @@ export class PhysicsEngine {
       return;
     }
 
-    // Weighted random behavior
+    // Weighted random behavior using emotion-driven weights
+    const w = this.behaviorWeights;
     const r = Math.random();
-    if (r < 0.35) {
-      this.startStroll();
-    } else if (r < 0.55) {
-      this.startExplore(b);
-    } else if (r < 0.70) {
-      this.startSprint(b);
-    } else if (r < 0.85) {
-      this.startRest();
-    } else {
-      this.startStroll();
-      // Maybe spontaneous jump during stroll
-      this.spontaneousJumpTimer = 2 + Math.random() * 5;
-    }
+    let cumulative = 0;
+
+    cumulative += w.stroll;
+    if (r < cumulative) { this.startStroll(); return; }
+
+    cumulative += w.explore;
+    if (r < cumulative) { this.startExplore(b); return; }
+
+    cumulative += w.sprint;
+    if (r < cumulative) { this.startSprint(b); return; }
+
+    cumulative += w.rest;
+    if (r < cumulative) { this.startRest(); return; }
+
+    // Remaining → stroll with spontaneous jump
+    this.startStroll();
+    this.spontaneousJumpTimer = 2 + Math.random() * 5;
   }
 
   private startStroll(): void {

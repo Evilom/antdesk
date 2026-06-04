@@ -11,6 +11,7 @@ import { PetBrain, MODE_PHYSICS, type PetMode, type BehaviorState } from "./lib/
 import { KanbanBridge } from "./lib/kanbanBridge";
 import { useKanbanStore } from "./stores/kanbanStore";
 import type { KanbanData } from "./types/kanban";
+import { EmotionEngine } from "./lib/EmotionEngine";
 
 const BEHAVIOR_EMOJI: Record<BehaviorState, string> = {
   idle: "😊", walk: "🚶", interact: "😄", sleep: "😴",
@@ -40,6 +41,7 @@ export default function Pet() {
   const [pendingCount, setPendingCount] = useState(0);
   const [notifyMsg, setNotifyMsg] = useState<string | null>(null);
   const [physState, setPhysState] = useState<string>("idle");
+  const [emotionMood, setEmotionMood] = useState<{emoji: string; text: string} | null>(null);
 
   const didDrag = useRef(false);
   const spineRef = useRef<SpinePetHandle>(null);
@@ -49,6 +51,7 @@ export default function Pet() {
   const windowInteractionRef = useRef(windowInteraction);
   const notifyTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const arbiterRef = useRef<StateArbiter | null>(null);
+  const emotionRef = useRef<EmotionEngine | null>(null);
 
   const setKanbanData = useKanbanStore((s) => s.setData);
   const setKanbanConnected = useKanbanStore((s) => s.setConnected);
@@ -89,6 +92,28 @@ export default function Pet() {
     bridge.start();
     return () => bridge.dispose();
   }, [kanbanEndpoint]);
+
+  /* ═══ EmotionEngine — multi-dimensional emotion system ═══ */
+  useEffect(() => {
+    const emotion = new EmotionEngine({
+      onChange: (state) => {
+        // Push behavior weights to physics
+        physicsRef.current?.setBehaviorWeights(emotion.getBehaviorWeights());
+        // Update mood for thought bubble
+        const mood = emotion.getMoodText();
+        setEmotionMood(mood);
+      },
+    });
+    emotion.start();
+    emotionRef.current = emotion;
+
+    // Time-of-day events
+    const hour = new Date().getHours();
+    if (hour >= 6 && hour < 10) emotion.emit("morning_start");
+    if (hour >= 21 || hour < 2) emotion.emit("evening");
+
+    return () => { emotion.dispose(); emotionRef.current = null; };
+  }, []);
 
   /* ═══ StateArbiter — priority-based state resolution ═══ */
   useEffect(() => {
@@ -137,6 +162,7 @@ export default function Pet() {
           // Resume physics if was sleeping
           if (!lockedRef.current) physicsRef.current?.start().catch(() => {});
         } else if (phase === "sleeping") {
+          emotionRef.current?.emit("sleeping");
           physicsRef.current?.stop();
         }
       },
@@ -194,10 +220,13 @@ export default function Pet() {
       onModeChange: (mode) => {
         setPetMode(mode);
         physicsRef.current?.configure(MODE_PHYSICS[mode]);
+        if (mode === "anxious" || mode === "alert") emotionRef.current?.emit("task_overdue");
+        if (mode === "celebrate") emotionRef.current?.emit("task_completed");
       },
       onMoodChange: (mood) => setMoodText(mood),
       onNotify: (msg) => {
         setNotifyMsg(msg);
+        emotionRef.current?.emit("notification");
         arbiterRef.current?.request({
           state: "notification", source: "notification",
           oneshot: true, durationMs: 6000,
@@ -207,6 +236,7 @@ export default function Pet() {
       },
       onKanbanEvent: (_e, detail) => {
         setNotifyMsg(detail);
+        emotionRef.current?.emit("notification");
         arbiterRef.current?.request({
           state: "notification", source: "notification",
           oneshot: true, durationMs: 8000,
@@ -342,6 +372,7 @@ export default function Pet() {
     if (didDrag.current) return;
     if (menuOpen) { setMenuOpen(false); return; }
     brainRef.current?.interact();
+    emotionRef.current?.emit("user_interaction");
     invoke("toggle_notepad");
   }, [menuOpen]);
 
@@ -378,6 +409,7 @@ export default function Pet() {
     if (petMode === "celebrate") pool.push({ emoji: "🎉", text: "干得漂亮!", key: "celebrate" });
     if (totalBadge > 0) pool.push({ emoji: "📋", text: `${totalBadge}个待办`, key: "badge" });
     if (moodText) pool.push({ emoji: moodEmoji, text: moodText, key: "mood" });
+    if (emotionMood && emotionMood.text !== "~") pool.push({ emoji: emotionMood.emoji, text: emotionMood.text, key: "emotion" });
     if (petBehavior === "walk" && !locked) pool.push({ emoji: "🐾", text: "散步中~", key: "walk" });
     if (sleeping) pool.push({ emoji: "💤", text: "zzZ", key: "sleep" });
     if (connected) pool.push({ emoji: "🔗", text: "已连接", key: "conn" });
