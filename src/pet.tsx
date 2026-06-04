@@ -5,6 +5,8 @@ import { LogicalPosition } from "@tauri-apps/api/dpi";
 import { useEffect, useState, useCallback, useRef } from "react";
 import SpinePet, { type SpinePetHandle } from "./components/SpinePet";
 import { PhysicsEngine } from "./lib/PhysicsEngine";
+import { StateArbiter } from "./lib/StateArbiter";
+import { SleepSequence } from "./lib/SleepSequence";
 import { PetBrain, MODE_PHYSICS, type PetMode, type BehaviorState } from "./lib/PetBrain";
 import { KanbanBridge } from "./lib/kanbanBridge";
 import { useKanbanStore } from "./stores/kanbanStore";
@@ -46,6 +48,7 @@ export default function Pet() {
   const lockedRef = useRef(false);
   const windowInteractionRef = useRef(windowInteraction);
   const notifyTimer = useRef<ReturnType<typeof setTimeout>>(null);
+  const arbiterRef = useRef<StateArbiter | null>(null);
 
   const setKanbanData = useKanbanStore((s) => s.setData);
   const setKanbanConnected = useKanbanStore((s) => s.setConnected);
@@ -87,6 +90,70 @@ export default function Pet() {
     return () => bridge.dispose();
   }, [kanbanEndpoint]);
 
+  /* ═══ StateArbiter — priority-based state resolution ═══ */
+  useEffect(() => {
+    const arbiter = new StateArbiter({
+      onResolved: (state, _prev) => {
+        setPhysState(state);
+        const anims: Record<string, { anim: string; loop: boolean; mood?: string; moodEmoji?: string }> = {
+          walk:    { anim: "walk",   loop: true },
+          run:     { anim: "run",    loop: true,  mood: "冲啊!", moodEmoji: "🏃" },
+          idle:    { anim: "stand",  loop: true },
+          jump:    { anim: "jump",   loop: false, mood: "哇!",   moodEmoji: "😮" },
+          falling: { anim: "fall",   loop: true,  mood: "啊啊啊!", moodEmoji: "😱" },
+          landing: { anim: "stand",  loop: false, mood: "呼...",  moodEmoji: "😮\u200d💨" },
+          dizzy:   { anim: "dizzy",  loop: false, mood: "晕了...", moodEmoji: "😵" },
+          hitWall: { anim: "stand",  loop: false, mood: "好痛!",  moodEmoji: "😣" },
+          slide:   { anim: "walk",   loop: true,  mood: "刹不住!", moodEmoji: "🫨" },
+          dragged: { anim: "idle",   loop: true },
+          sleep:   { anim: "sleep",  loop: true },
+          dozing:  { anim: "stand",  loop: true,  mood: "好困...", moodEmoji: "😪" },
+          yawn:    { anim: "stand",  loop: false, mood: "哈~",    moodEmoji: "🥱" },
+          notification: { anim: "idle", loop: false, mood: "!", moodEmoji: "⚠️" },
+          celebrate:    { anim: "run",  loop: false, mood: "太棒了!", moodEmoji: "🎉" },
+          anxious:      { anim: "walk", loop: true,  mood: "任务有点多...", moodEmoji: "😰" },
+          interact:     { anim: "idle", loop: false },
+          explore:      { anim: "walk", loop: true },
+        };
+        const cfg = anims[state] ?? anims.idle;
+        spineRef.current?.setAnimation(cfg.anim, cfg.loop);
+        if (cfg.mood) {
+          setMoodEmoji(cfg.moodEmoji || "😊");
+          setMoodText(cfg.mood);
+          const dur = state === "dizzy" ? 1500 : state === "hitWall" ? 800 : state === "landing" ? 600 : 1200;
+          setTimeout(() => setMoodText(""), dur);
+        }
+      },
+    });
+    arbiterRef.current = arbiter;
+
+    // Sleep sequence — mouse idle detection
+    const sleep = new SleepSequence({
+      arbiter,
+      yawnDelayMs: 60000,
+      dozeDurationMs: 10000,
+      onSleepChange: (phase) => {
+        if (phase === "awake") {
+          // Resume physics if was sleeping
+          if (!lockedRef.current) physicsRef.current?.start().catch(() => {});
+        } else if (phase === "sleeping") {
+          physicsRef.current?.stop();
+        }
+      },
+    });
+    sleep.start();
+
+    // Track mouse for sleep detection
+    const onMouse = (e: MouseEvent) => sleep.updateMouse(e.screenX, e.screenY);
+    document.addEventListener("mousemove", onMouse);
+
+    return () => {
+      arbiter.dispose(); arbiterRef.current = null;
+      sleep.dispose();
+      document.removeEventListener("mousemove", onMouse);
+    };
+  }, []);
+
   /* ═══ Window Interaction — periodic refresh of window platforms ═══ */
   useEffect(() => {
     const refreshPlatforms = async () => {
@@ -115,10 +182,14 @@ export default function Pet() {
     const brain = new PetBrain({
       onBehaviorChange: (state, anim) => {
         setPetBehavior(state);
-        setMoodEmoji(BEHAVIOR_EMOJI[state] || "😊");
-        spineRef.current?.setAnimation(anim, state !== "interact");
-        if (state === "sleep") physicsRef.current?.stop();
-        else if (state === "walk" && !lockedRef.current) physicsRef.current?.start();
+        // Brain states have priority 1 (same as physics locomotion)
+        // Higher priority events (notification, anxious) will override
+        arbiterRef.current?.request({ state, source: "brain" });
+        if (state === "sleep") {
+          physicsRef.current?.stop();
+        } else if (state === "walk" && !lockedRef.current) {
+          physicsRef.current?.start().catch(() => {});
+        }
       },
       onModeChange: (mode) => {
         setPetMode(mode);
@@ -127,11 +198,19 @@ export default function Pet() {
       onMoodChange: (mood) => setMoodText(mood),
       onNotify: (msg) => {
         setNotifyMsg(msg);
+        arbiterRef.current?.request({
+          state: "notification", source: "notification",
+          oneshot: true, durationMs: 6000,
+        });
         if (notifyTimer.current) clearTimeout(notifyTimer.current);
         notifyTimer.current = setTimeout(() => setNotifyMsg(null), 6000);
       },
       onKanbanEvent: (_e, detail) => {
         setNotifyMsg(detail);
+        arbiterRef.current?.request({
+          state: "notification", source: "notification",
+          oneshot: true, durationMs: 8000,
+        });
         if (notifyTimer.current) clearTimeout(notifyTimer.current);
         notifyTimer.current = setTimeout(() => setNotifyMsg(null), 8000);
       },
@@ -147,27 +226,7 @@ export default function Pet() {
       windowWidth: 200, windowHeight: 200,
       walkSpeed: 35, runSpeed: 85, idleProbability: 0.3, edgePadding: 4, mouseAttraction: 0.12,
       onStateChange: (state) => {
-        setPhysState(state);
-        const anims: Record<string, { anim: string; loop: boolean; mood?: string; moodEmoji?: string }> = {
-          walk:    { anim: "walk",   loop: true },
-          run:     { anim: "run",    loop: true,  mood: "冲啊!", moodEmoji: "🏃" },
-          idle:    { anim: "stand",  loop: true },
-          jump:    { anim: "jump",   loop: false, mood: "哇!",   moodEmoji: "😮" },
-          falling: { anim: "fall",   loop: true,  mood: "啊啊啊!", moodEmoji: "😱" },
-          landing: { anim: "stand",  loop: false, mood: "呼...",  moodEmoji: "😮‍💨" },
-          dizzy:   { anim: "dizzy",  loop: false, mood: "晕了...", moodEmoji: "😵" },
-          hitWall: { anim: "stand",  loop: false, mood: "好痛!",  moodEmoji: "😣" },
-          slide:   { anim: "walk",   loop: true,  mood: "刹不住!", moodEmoji: "🫨" },
-          dragged: { anim: "idle",   loop: true },
-        };
-        const cfg = anims[state] ?? anims.idle;
-        spineRef.current?.setAnimation(cfg.anim, cfg.loop);
-        if (cfg.mood) {
-          setMoodEmoji(cfg.moodEmoji || "😊");
-          setMoodText(cfg.mood);
-          const dur = state === "dizzy" ? 1500 : state === "hitWall" ? 800 : state === "landing" ? 600 : 1200;
-          setTimeout(() => setMoodText(""), dur);
-        }
+        arbiterRef.current?.request({ state, source: "physics" });
       },
       onFacingChange: (dir) => spineRef.current?.setFacingDirection(dir),
     });
