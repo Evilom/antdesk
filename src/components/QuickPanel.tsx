@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { IconLock, IconUnlock, IconX } from "./Icons";
 
 interface Todo {
   id: string;
@@ -232,14 +233,14 @@ export default function QuickPanel() {
           onClick={() => setLocked(!locked)}
           title={locked ? "解锁（恢复正常交互）" : "锁定（鼠标穿透）"}
         >
-          {locked ? "🔒" : "🔓"}
+          {locked ? <IconLock size={11} /> : <IconUnlock size={11} />}
         </button>
         <button
           className="quick-lock-btn"
           onClick={handleClose}
           title="关闭面板"
         >
-          ✕
+          <IconX size={11} />
         </button>
       </div>
 
@@ -247,7 +248,7 @@ export default function QuickPanel() {
         <div className="quick-loading">加载中</div>
       ) : displayTodos.length === 0 ? (
         <div className="quick-empty">
-          {filterTag === "all" ? "🎉 全部完成" : `无 ${filterTag} 待办`}
+          {filterTag === "all" ? "全部完成" : `无 ${filterTag} 待办`}
         </div>
       ) : (
         <div className="quick-list">

@@ -1,5 +1,4 @@
-import { useEffect, useCallback, useState, useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useCallback, useState } from "react";
 import { getCurrentWindow, LogicalSize, LogicalPosition } from "@tauri-apps/api/window";
 import { useAppStore, applyTheme } from "./stores/appStore";
 import { getNotionToken, fetchTodos, fetchReports, fetchProjects } from "./lib/notion";
@@ -8,15 +7,14 @@ import Reports from "./components/Reports";
 import Agenda from "./components/Agenda";
 import Settings from "./components/Settings";
 import SearchModal from "./components/SearchModal";
+import { IconCalendar, IconEdit, IconMinimize, IconSearch, IconSettings, IconTarget, IconX } from "./components/Icons";
 import type { Page } from "./types";
 
-const NAV_ITEMS: { id: Page; label: string; icon: string }[] = [
-  { id: "agenda", label: "日程", icon: "\u{1F4C5}" },
-  { id: "reports", label: "日报", icon: "\u{1F4DD}" },
-  { id: "goals", label: "目标", icon: "\u{1F4CB}" },
+const NAV_ITEMS = [
+  { id: "agenda" as Page, label: "日程", Icon: IconCalendar },
+  { id: "reports" as Page, label: "日报", Icon: IconEdit },
+  { id: "goals" as Page, label: "目标", Icon: IconTarget },
 ];
-
-const PAGE_INDEX: Record<Page, number> = { agenda: 0, reports: 1, goals: 2 };
 
 export default function App() {
   const currentPage = useAppStore((s) => s.currentPage);
@@ -31,19 +29,12 @@ export default function App() {
   const notionConnected = useAppStore((s) => s.notionConnected);
   const settings = useAppStore((s) => s.settings);
   const todos = useAppStore((s) => s.todos);
-  const [pageKey, setPageKey] = useState(0);
-  const [direction, setDirection] = useState<"left" | "right">("right");
-  const navRef = useRef<HTMLDivElement>(null);
 
   // Apply theme on mount and when settings change
   useEffect(() => {
     applyTheme(settings);
-
-    // Listen for system theme changes (auto mode)
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => {
-      if (settings.theme === "auto") applyTheme(settings);
-    };
+    const handler = () => { if (settings.theme === "auto") applyTheme(settings); };
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, [settings.theme, settings.accent, settings.fontSize, settings.glass]);
@@ -55,18 +46,9 @@ export default function App() {
       setNotionConnected(true);
 
       const [todos, reports, projects] = await Promise.all([
-        fetchTodos(token).catch((e) => {
-          console.error("fetchTodos error:", e);
-          return [];
-        }),
-        fetchReports(token).catch((e) => {
-          console.error("fetchReports error:", e);
-          return [];
-        }),
-        fetchProjects(token).catch((e) => {
-          console.error("fetchProjects error:", e);
-          return [];
-        }),
+        fetchTodos(token).catch((e) => { console.error("fetchTodos error:", e); return []; }),
+        fetchReports(token).catch((e) => { console.error("fetchReports error:", e); return []; }),
+        fetchProjects(token).catch((e) => { console.error("fetchProjects error:", e); return []; }),
       ]);
       setTodos(todos);
       setReports(reports);
@@ -77,20 +59,10 @@ export default function App() {
     }
   }, [setTodos, setReports, setProjects, setNotionConnected, updateSettings]);
 
-  useEffect(() => {
-    loadData();
-    checkForUpdates();
-  }, [loadData]);
+  useEffect(() => { loadData(); checkForUpdates(); }, [loadData]);
 
   const checkForUpdates = useCallback(async () => {
-    // 跳过开发模式（web dev server 或 Tauri dev mode）
-    if (
-      window.location.hostname === "localhost" ||
-      window.location.protocol === "http:" ||
-      window.location.protocol === "tauri:" ||
-      !(window as any).__TAURI_INTERNALS__
-    )
-      return;
+    if (window.location.hostname === "localhost" || window.location.protocol === "http:" || window.location.protocol === "tauri:" || !(window as any).__TAURI_INTERNALS__) return;
     try {
       const { check } = await import("@tauri-apps/plugin-updater");
       const update = await check();
@@ -99,36 +71,24 @@ export default function App() {
           await update.downloadAndInstall();
           const { relaunch } = await import("@tauri-apps/plugin-process");
           await relaunch();
-        } catch (e) {
-          console.log("Auto-update install failed:", e);
-        }
+        } catch (e) { console.log("Auto-update install failed:", e); }
       }
-    } catch (e) {
-      console.log("Update check skipped:", e);
-    }
+    } catch (e) { console.log("Update check skipped:", e); }
   }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-        e.preventDefault();
-        setShowSearch((v) => !v);
-        setShowSettings(false);
-      }
-      if (e.key === "Escape") {
-        if (showSearch) setShowSearch(false);
-        else if (showSettings) setShowSettings(false);
-      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") { e.preventDefault(); setShowSearch((v) => !v); setShowSettings(false); }
+      if (e.key === "Escape") { if (showSearch) setShowSearch(false); else if (showSettings) setShowSettings(false); }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showSearch, showSettings]);
 
-  // Restore and persist window state
+  // Window state persistence
   useEffect(() => {
     const win = getCurrentWindow();
     const KEY = "antdesk_window";
-
     const saved = localStorage.getItem(KEY);
     if (saved) {
       try {
@@ -137,166 +97,130 @@ export default function App() {
         if (x != null && y != null) win.setPosition(new LogicalPosition(x, y));
       } catch {}
     }
-
-    const unlistenResize = win.onResized(async () => {
+    const save = async () => {
       try {
-        const size = await win.innerSize();
-        const pos = await win.outerPosition();
-        const scale = await win.scaleFactor();
-        localStorage.setItem(KEY, JSON.stringify({
-          width: size.width / scale,
-          height: size.height / scale,
-          x: pos.x / scale,
-          y: pos.y / scale,
-        }));
+        const [size, pos] = await Promise.all([win.innerSize(), win.outerPosition()]);
+        localStorage.setItem(KEY, JSON.stringify({ width: size.width, height: size.height, x: pos.x, y: pos.y }));
       } catch {}
-    });
-
-    const unlistenMove = win.onMoved(async () => {
-      try {
-        const size = await win.innerSize();
-        const pos = await win.outerPosition();
-        const scale = await win.scaleFactor();
-        localStorage.setItem(KEY, JSON.stringify({
-          width: size.width / scale,
-          height: size.height / scale,
-          x: pos.x / scale,
-          y: pos.y / scale,
-        }));
-      } catch {}
-    });
-
-    return () => {
-      unlistenResize.then((fn) => fn());
-      unlistenMove.then((fn) => fn());
     };
+    const unlistenResize = win.onResized(save);
+    const unlistenMove = win.onMoved(save);
+    return () => { unlistenResize.then((f) => f()); unlistenMove.then((f) => f()); };
   }, []);
 
-  const handleClose = async () => {
-    try { await invoke("window_close"); } catch {}
-  };
-
-  const handleMinimize = async () => {
-    try { await invoke("window_minimize"); } catch {}
-  };
-
-  const handleNavClick = (id: Page) => {
-    if (id !== currentPage) {
-      setDirection(PAGE_INDEX[id] > PAGE_INDEX[currentPage] ? "left" : "right");
-      setPageKey((k) => k + 1);
-      setCurrentPage(id);
-    }
-  };
+  const handleMinimize = useCallback(() => getCurrentWindow().minimize(), []);
+  const handleClose = useCallback(() => getCurrentWindow().hide(), []);
 
   const renderPage = () => {
     switch (currentPage) {
-      case "agenda":
-        return <Agenda onRefresh={loadData} />;
-      case "goals":
-        return <ProjectView />;
-      case "reports":
-        return <Reports />;
+      case "agenda": return <Agenda onRefresh={loadData} />;
+      case "reports": return <Reports />;
+      case "goals": return <ProjectView />;
+      default: return <Agenda onRefresh={loadData} />;
     }
   };
 
   return (
-    <div className="h-screen flex flex-col text-text-primary">
-      {/* Title Bar */}
-      <div
-        className="titlebar flex items-center justify-between px-4 shrink-0"
-        style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)", height: "36px" }}
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-sm">&#129514;</span>
-          <span className="text-xs font-medium text-text-secondary">AntDesk</span>
-          <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-500 ${notionConnected ? "bg-accent-green" : "bg-accent-red"}`} />
+    <div className="flex flex-col h-screen relative overflow-hidden">
+      {/* Titlebar */}
+      <div className="titlebar">
+        {/* Left: Brand */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-[9px] bg-accent-blue/10 flex items-center justify-center shadow-sm">
+            <IconTarget size={15} className="text-accent-blue" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[12px] font-semibold text-text-primary tracking-tight leading-tight">AntDesk</span>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-[5px] h-[5px] rounded-full ${notionConnected ? "bg-accent-green animate-pulse" : "bg-accent-red"}`} />
+              <span className="text-[9px] text-text-muted font-medium">{notionConnected ? "Connected" : "Offline"}</span>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
+
+        {/* Right: Actions */}
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => { setShowSearch(true); setShowSettings(false); }}
-            className="titlebar-btn w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary"
-            title="搜索 (Ctrl+K)"
+            className="h-7 px-2.5 flex items-center gap-1.5 rounded-full bg-bg-card border border-border-card text-text-muted hover:text-text-primary hover:border-border-hover transition-all"
           >
-            &#128269;
+            <IconSearch size={13} />
+            <span className="text-[10px] hidden">搜索</span>
+            <kbd className="text-[8px] bg-bg-hover px-1 py-px rounded text-text-muted border border-border-card ml-0.5 font-mono">⌘K</kbd>
           </button>
+
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className={`titlebar-btn w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary ${showSettings ? "active" : ""}`}
+            className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${showSettings ? "bg-bg-card text-accent-blue" : "text-text-muted hover:text-text-primary hover:bg-bg-hover"}`}
           >
-            &#x2699;
+            <IconSettings size={14} />
           </button>
-          <button
-            onClick={handleMinimize}
-            className="titlebar-btn w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary"
-          >
-            &#x2013;
+          
+          <div className="h-3.5 w-px bg-border-card mx-0.5" />
+
+          <button onClick={handleMinimize} className="w-6 h-6 flex items-center justify-center rounded-full text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors">
+            <IconMinimize size={13} />
           </button>
-          <button
-            onClick={handleClose}
-            className="titlebar-btn w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-white"
-            style={{ "--hover-bg": "rgba(255,59,48,0.8)" } as React.CSSProperties}
-          >
-            &#x2715;
+          <button onClick={handleClose} className="w-6 h-6 flex items-center justify-center rounded-full text-text-muted hover:bg-accent-red hover:text-white transition-colors">
+            <IconX size={12} />
           </button>
         </div>
       </div>
 
-      {/* Content — animated page transition */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {!notionConnected && todos.length === 0 ? (
-          <div className="space-y-3">
-            <div className="skeleton h-14" />
-            <div className="skeleton h-24" />
-            <div className="skeleton h-20" />
-            <div className="skeleton h-20" />
-            <div className="skeleton h-12" />
-          </div>
-        ) : (
-          <div key={pageKey} className={direction === "left" ? "page-enter-left" : "page-enter-right"}>
-            {renderPage()}
-          </div>
-        )}
-      </div>
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-hidden relative">
+        <div className="h-full overflow-y-auto px-4 pb-24 pt-2 custom-scrollbar">
+          {!notionConnected && todos.length === 0 ? (
+            <div className="space-y-3 pt-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-20 skeleton" />
+              ))}
+            </div>
+          ) : (
+            <div className="page-content-wrapper">
+              {renderPage()}
+            </div>
+          )}
+        </div>
+      </main>
 
-      {/* Bottom Nav */}
-      <div
-        ref={navRef}
-        className="relative flex items-center justify-around shrink-0 py-2"
-        style={{ background: "rgba(255,255,255,0.03)", borderTop: "1px solid rgba(255,255,255,0.06)" }}
-      >
-        {NAV_ITEMS.map((item) => {
-          const isActive = currentPage === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => handleNavClick(item.id)}
-              className={`nav-item flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl ${
-                isActive ? "text-accent-blue nav-item-active" : "text-text-muted hover:text-text-secondary"
-              }`}
-            >
-              <span className="text-sm leading-none">{item.icon}</span>
-              <span className="text-[10px]">{item.label}</span>
-            </button>
-          );
-        })}
-        <div
-          className="nav-indicator"
-          style={{
-            left: `${PAGE_INDEX[currentPage] * 33.33 + 10}%`,
-            width: "16%",
-          }}
-        />
+      {/* Bottom Navigation — Floating Pill */}
+      <div className="absolute bottom-5 left-0 right-0 flex justify-center pointer-events-none z-50">
+        <div className="pointer-events-auto nav-pill">
+          {NAV_ITEMS.map((item) => {
+            const isActive = currentPage === item.id;
+            const Icon = item.Icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setCurrentPage(item.id)}
+                className={`nav-item ${isActive ? "active" : ""}`}
+              >
+                <span className="nav-icon"><Icon size={15} /></span>
+                <span className="nav-label">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Settings Slide-over */}
       {showSettings && (
-        <div className="absolute inset-0 z-50 flex justify-end settings-backdrop" onClick={() => setShowSettings(false)}>
+        <div className="absolute inset-0 z-[60] flex justify-end animate-fade-in" style={{ background: "var(--overlay-bg)", backdropFilter: "blur(6px)" }} onClick={() => setShowSettings(false)}>
           <div
-            className="w-72 h-full overflow-y-auto p-4 settings-panel"
-            style={{ background: "rgba(15,15,20,0.95)", backdropFilter: "blur(30px)", borderLeft: "1px solid rgba(255,255,255,0.08)" }}
+            className="w-[300px] h-full overflow-y-auto animate-slide-in-right"
+            style={{ background: "rgba(18,18,22,0.96)", backdropFilter: "blur(60px) saturate(200%)", WebkitBackdropFilter: "blur(60px) saturate(200%)", borderLeft: "0.5px solid var(--border-card)", boxShadow: "-8px 0 40px rgba(0,0,0,0.2)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <Settings />
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-sm font-semibold text-text-primary tracking-tight">设置</h2>
+                <button onClick={() => setShowSettings(false)} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-bg-hover transition-colors text-text-muted hover:text-text-primary">
+                  <IconX size={13} />
+                </button>
+              </div>
+              <Settings />
+            </div>
           </div>
         </div>
       )}

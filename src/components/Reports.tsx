@@ -2,6 +2,8 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useAppStore } from "../stores/appStore";
 import { fetchReportContent, createReport, fetchReports } from "../lib/notion";
 import { sendChatMessage } from "../lib/chat";
+import { localDateString } from "../lib/date";
+import { IconBrain, IconChevronLeft, IconChevronRight, IconEdit, IconReport } from "./Icons";
 import KamiReport from "./KamiReport";
 
 /* ── Markdown renderer for daily reports ── */
@@ -13,73 +15,32 @@ function ReportContent({ content }: { content: string }) {
   while (i < lines.length) {
     const line = lines[i];
 
-    // --- separator
     if (/^-{3,}$/.test(line.trim())) {
-      elements.push(
-        <hr
-          key={`hr-${i}`}
-          style={{
-            border: "none",
-            borderTop: "1px solid rgba(255,255,255,0.06)",
-            margin: "10px 0",
-          }}
-        />
-      );
+      elements.push(<hr key={`hr-${i}`} />);
       i++;
       continue;
     }
 
-    // ## heading
     if (line.trim().startsWith("## ")) {
       elements.push(
-        <div
-          key={`h-${i}`}
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: "rgba(255,255,255,0.9)",
-            marginTop: elements.length > 0 ? 12 : 0,
-            marginBottom: 6,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <span style={{
-            width: 3,
-            height: 12,
-            borderRadius: 2,
-            background: "rgba(0, 122, 255, 0.6)",
-            flexShrink: 0,
-          }} />
-          {line.trim().slice(3)}
+        <div key={`h-${i}`} className="report-content">
+          <h2>{line.trim().slice(3)}</h2>
         </div>
       );
       i++;
       continue;
     }
 
-    // ### subheading
     if (line.trim().startsWith("### ")) {
       elements.push(
-        <div
-          key={`h3-${i}`}
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: "rgba(255,255,255,0.7)",
-            marginTop: 8,
-            marginBottom: 4,
-          }}
-        >
-          {line.trim().slice(4)}
+        <div key={`h3-${i}`} className="report-content">
+          <h3>{line.trim().slice(4)}</h3>
         </div>
       );
       i++;
       continue;
     }
 
-    // - list item
     if (line.trim().startsWith("- ")) {
       const items: string[] = [];
       while (i < lines.length && lines[i].trim().startsWith("- ")) {
@@ -89,59 +50,24 @@ function ReportContent({ content }: { content: string }) {
       elements.push(
         <ul key={`ul-${i}`} style={{ margin: "4px 0", paddingLeft: 16 }}>
           {items.map((item, j) => (
-            <li
-              key={j}
-              style={{
-                fontSize: 12,
-                lineHeight: 1.7,
-                color: "rgba(255,255,255,0.7)",
-                listStyleType: "none",
-                position: "relative",
-                paddingLeft: 10,
-              }}
-            >
-              <span style={{
-                position: "absolute",
-                left: 0,
-                top: 0,
-                color: "rgba(0, 122, 255, 0.5)",
-                fontSize: 10,
-              }}>›</span>
-              {renderInline(item)}
-            </li>
+            <li key={j}>{renderInline(item)}</li>
           ))}
         </ul>
       );
       continue;
     }
 
-    // Blank line
-    if (!line.trim()) {
-      i++;
-      continue;
-    }
+    if (!line.trim()) { i++; continue; }
 
-    // Normal paragraph
     elements.push(
-      <p
-        key={`p-${i}`}
-        style={{
-          fontSize: 12,
-          lineHeight: 1.7,
-          color: "rgba(255,255,255,0.6)",
-          margin: "3px 0",
-        }}
-      >
-        {renderInline(line)}
-      </p>
+      <p key={`p-${i}`}>{renderInline(line)}</p>
     );
     i++;
   }
 
-  return <>{elements}</>;
+  return <div className="report-content">{elements}</div>;
 }
 
-/** Render **bold** and `code` inline */
 function renderInline(text: string): (string | React.ReactElement)[] {
   const parts: (string | React.ReactElement)[] = [];
   let remaining = text;
@@ -155,52 +81,16 @@ function renderInline(text: string): (string | React.ReactElement)[] {
     let type = "";
 
     if (boldMatch && codeMatch) {
-      if ((boldMatch.index ?? 0) < (codeMatch.index ?? 0)) {
-        firstMatch = boldMatch;
-        type = "bold";
-      } else {
-        firstMatch = codeMatch;
-        type = "code";
-      }
-    } else if (boldMatch) {
-      firstMatch = boldMatch;
-      type = "bold";
-    } else if (codeMatch) {
-      firstMatch = codeMatch;
-      type = "code";
-    }
+      if ((boldMatch.index ?? 0) < (codeMatch.index ?? 0)) { firstMatch = boldMatch; type = "bold"; }
+      else { firstMatch = codeMatch; type = "code"; }
+    } else if (boldMatch) { firstMatch = boldMatch; type = "bold"; }
+    else if (codeMatch) { firstMatch = codeMatch; type = "code"; }
 
-    if (!firstMatch || firstMatch.index === undefined) {
-      parts.push(remaining);
-      break;
-    }
+    if (!firstMatch || firstMatch.index === undefined) { parts.push(remaining); break; }
+    if (firstMatch.index > 0) parts.push(remaining.slice(0, firstMatch.index));
 
-    if (firstMatch.index > 0) {
-      parts.push(remaining.slice(0, firstMatch.index));
-    }
-
-    if (type === "bold") {
-      parts.push(
-        <strong key={key++} style={{ color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>
-          {firstMatch[1]}
-        </strong>
-      );
-    } else {
-      parts.push(
-        <code
-          key={key++}
-          style={{
-            fontSize: 11,
-            padding: "1px 4px",
-            borderRadius: 3,
-            background: "rgba(255,255,255,0.08)",
-            color: "#ff9f0a",
-          }}
-        >
-          {firstMatch[1]}
-        </code>
-      );
-    }
+    if (type === "bold") parts.push(<strong key={key++}>{firstMatch[1]}</strong>);
+    else parts.push(<code key={key++}>{firstMatch[1]}</code>);
 
     remaining = remaining.slice(firstMatch.index + firstMatch[0].length);
   }
@@ -208,273 +98,204 @@ function renderInline(text: string): (string | React.ReactElement)[] {
   return parts;
 }
 
-// ── Get calendar days for a month ──
-function getMonthDays(year: number, month: number) {
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const startPad = firstDay.getDay(); // 0=Sun
-  const totalDays = lastDay.getDate();
-  const days: (number | null)[] = [];
-  for (let p = 0; p < startPad; p++) days.push(null);
-  for (let d = 1; d <= totalDays; d++) days.push(d);
-  return days;
-}
-
+/* ═══════════════════════════════════════════
+   Main Reports Component
+   ═══════════════════════════════════════════ */
 export default function Reports() {
-  const reports = useAppStore((s) => s.reports);
   const todos = useAppStore((s) => s.todos);
+  const reports = useAppStore((s) => s.reports);
   const projects = useAppStore((s) => s.projects);
   const token = useAppStore((s) => s.settings.notionToken);
   const setReports = useAppStore((s) => s.setReports);
 
-  const today = new Date();
-  const [viewYear, setViewYear] = useState(today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-indexed
-  const [selectedDate, setSelectedDate] = useState<string | null>(
-    today.toISOString().slice(0, 10)
-  );
-  const [selectedContent, setSelectedContent] = useState<string>("");
-  const [contentLoading, setContentLoading] = useState(false);
-
-  // Quick write
-  const [writeOpen, setWriteOpen] = useState(false);
+  const [showWrite, setShowWrite] = useState(false);
   const [writeContent, setWriteContent] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Kami view toggle
+  // Calendar state
+  const today = new Date();
+  const todayStr = localDateString(today);
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [selectedDate, setSelectedDate] = useState<string | null>(todayStr);
+  const [selectedContent, setSelectedContent] = useState<string | null>(null);
+  const [contentLoading, setContentLoading] = useState(false);
   const [kamiView, setKamiView] = useState(false);
+  const reportDate = selectedDate && selectedDate <= todayStr ? selectedDate : todayStr;
 
-  // Auto-generate draft
-  const [generating, setGenerating] = useState(false);
-  const settings = useAppStore((s) => s.settings);
-  const abortRef = useRef<AbortController | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleAutoGenerate = useCallback(async () => {
-    if (generating) return;
-    setGenerating(true);
-    setWriteOpen(true);
-
-    const todayISO = today.toISOString().slice(0, 10);
-    const doneToday = todos.filter((t) => t.status && t.dueDate === todayISO);
-    const allDone = todos.filter((t) => t.status);
-    const pending = todos.filter((t) => !t.status);
-    const completedList = (doneToday.length > 0 ? doneToday : allDone).map((t) => `- ${t.name}`).join("\n") || "（暂无已完成任务）";
-    const pendingList = pending.slice(0, 10).map((t) => `- ${t.name}（${t.priority}）`).join("\n") || "（无）";
-
-    const prompt = `帮我生成今天的日报草稿，用 markdown 格式，包含以下章节：
-## 完成事项
-（基于以下已完成任务）
-${completedList}
-
-## 进行中
-（基于以下未完成任务，简述进展）
-${pendingList}
-
-## 明日计划
-（根据未完成任务给出 2-3 条建议）
-
-请简洁，每条一行。`;
-
-    abortRef.current = new AbortController();
-    let result = "";
-
-    try {
-      await sendChatMessage(
-        settings.aiEndpoint,
-        settings.aiModel,
-        [{ role: "user", content: prompt }],
-        (chunk) => { result += chunk; },
-        abortRef.current.signal
-      );
-      setWriteContent(result || "生成失败，请手动编写");
-    } catch {
-      setWriteContent("生成失败，请手动编写");
-    } finally {
-      setGenerating(false);
-      abortRef.current = null;
-    }
-  }, [generating, todos, settings, today]);
-
-  // Build date → report map
+  // Report date set
   const reportMap = useMemo(() => {
-    const map = new Map<string, { id: string; summary?: string }>();
+    const map = new Map<string, string>();
     for (const r of reports) {
-      map.set(r.date, { id: r.id, summary: r.summary });
+      if (r.date) map.set(r.date, r.id);
     }
     return map;
   }, [reports]);
 
-  // Calendar days for current view month
-  const calendarDays = useMemo(() => getMonthDays(viewYear, viewMonth), [viewYear, viewMonth]);
+  // Calendar days
+  const calendarDays = useMemo(() => {
+    const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const days: (number | null)[] = [];
+    for (let i = 0; i < firstDay; i++) days.push(null);
+    for (let d = 1; d <= daysInMonth; d++) days.push(d);
+    return days;
+  }, [viewYear, viewMonth]);
 
   const monthLabel = `${viewYear}年${viewMonth + 1}月`;
   const weekHeaders = ["日", "一", "二", "三", "四", "五", "六"];
+  const monthReportCount = useMemo(() => {
+    const prefix = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
+    return reports.filter((r) => r.date.startsWith(prefix)).length;
+  }, [reports, viewMonth, viewYear]);
 
-  // Navigate months
-  const prevMonth = useCallback(() => {
-    if (viewMonth === 0) {
-      setViewYear(viewYear - 1);
-      setViewMonth(11);
-    } else {
-      setViewMonth(viewMonth - 1);
-    }
-  }, [viewYear, viewMonth]);
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); }
+    else setViewMonth(viewMonth - 1);
+  };
 
-  const nextMonth = useCallback(() => {
-    if (viewMonth === 11) {
-      setViewYear(viewYear + 1);
-      setViewMonth(0);
-    } else {
-      setViewMonth(viewMonth + 1);
-    }
-  }, [viewYear, viewMonth]);
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); }
+    else setViewMonth(viewMonth + 1);
+  };
 
-  // Load content when selected date changes
+  // Fetch content for selected date
   useEffect(() => {
-    if (!selectedDate) {
-      setSelectedContent("");
-      return;
-    }
-    const report = reportMap.get(selectedDate);
-    if (!report) {
-      setSelectedContent("");
-      return;
-    }
+    if (!selectedDate || !reportMap.has(selectedDate)) { setSelectedContent(null); return; }
+    const reportId = reportMap.get(selectedDate)!;
     setContentLoading(true);
-    fetchReportContent(token, report.id)
+    fetchReportContent(token, reportId)
       .then((c) => setSelectedContent(c))
-      .catch(() => setSelectedContent("加载失败"))
+      .catch(() => setSelectedContent(null))
       .finally(() => setContentLoading(false));
   }, [selectedDate, reportMap, token]);
 
-  const handleQuoteToday = useCallback(() => {
-    const todayStr = today.toISOString().slice(0, 10);
-    const doneToday = todos.filter(
-      (t) => t.status && t.dueDate === todayStr
-    );
-    if (doneToday.length === 0) {
-      const allDone = todos.filter((t) => t.status);
-      if (allDone.length === 0) return;
-      const bullets = allDone.map((t) => `- ${t.name}`).join("\n");
-      setWriteContent((prev) => (prev ? prev + "\n" + bullets : bullets));
-      return;
-    }
-    const bullets = doneToday.map((t) => `- ${t.name}`).join("\n");
-    setWriteContent((prev) => (prev ? prev + "\n" + bullets : bullets));
-  }, [todos, today]);
-
+  // Save report
   const handleSave = useCallback(async () => {
-    if (!writeContent.trim()) return;
+    if (!writeContent.trim() || saving) return;
     setSaving(true);
     try {
-      const todayStr = today.toISOString().slice(0, 10);
-      await createReport(token, todayStr, writeContent);
-      const fresh = await fetchReports(token);
-      setReports(fresh);
+      await createReport(token, reportDate, writeContent);
+      const updated = await fetchReports(token);
+      setReports(updated);
       setWriteContent("");
-      setWriteOpen(false);
-      setSelectedDate(todayStr);
+      setShowWrite(false);
+      setSelectedDate(reportDate);
     } catch (e) {
-      console.error("Failed to save report:", e);
+      console.error("Save report failed:", e);
     } finally {
       setSaving(false);
     }
-  }, [writeContent, token, today, setReports]);
+  }, [writeContent, saving, token, reportDate, setReports]);
 
-  const todayStr = today.toISOString().slice(0, 10);
+  // AI Draft
+  const [draftLoading, setDraftLoading] = useState(false);
+  const handleAIDraft = useCallback(async () => {
+    if (draftLoading) return;
+    setDraftLoading(true);
+    const completedToday = todos.filter((t) => t.status && t.dueDate === todayStr);
+    const pending = todos.filter((t) => !t.status);
+    const taskList = completedToday.map((t) => `- ${t.name}`).join("\n") || "- （暂无完成任务）";
+    const pendingList = pending.slice(0, 5).map((t) => `- ${t.name}（${t.priority}）`).join("\n");
+
+    const prompt = `请根据以下信息生成一份简洁的中文日报草稿，包含"今日完成"、"进行中"和"明日计划"三个部分：\n\n今日完成：\n${taskList}\n\n待办任务：\n${pendingList}`;
+
+    let result = "";
+    try {
+      const ac = new AbortController();
+      await sendChatMessage(
+        useAppStore.getState().settings.aiEndpoint,
+        useAppStore.getState().settings.aiModel,
+        [{ role: "user", content: prompt }],
+        (chunk) => { result += chunk; },
+        ac.signal
+      );
+      if (result) {
+        setWriteContent(result);
+        setShowWrite(true);
+      }
+    } catch (e) {
+      console.error("AI draft failed:", e);
+    } finally {
+      setDraftLoading(false);
+    }
+  }, [todos, todayStr, draftLoading]);
+
+  const completedToday = useMemo(() => todos.filter((t) => t.status && t.dueDate === todayStr), [todos, todayStr]);
 
   return (
     <div className="space-y-3 fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium">日报</h2>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-text-muted">{reports.length} 条</span>
-          <button
-            onClick={() => setKamiView(!kamiView)}
-            className={`text-[10px] px-2 py-0.5 rounded-md transition-colors ${
-              kamiView
-                ? "bg-[#1B365D]/30 text-[#8BA4C9] border border-[#1B365D]/40"
-                : "bg-white/5 text-text-muted hover:bg-white/10"
-            }`}
-            title="Kami 排版视图"
-          >
-            {kamiView ? "标准" : "Kami"}
+      <div className="flex items-center justify-between px-1 pt-1 pb-1">
+        <div>
+          <h1 className="text-display text-text-primary">日报</h1>
+          <p className="text-[10px] text-text-muted mt-0.5">{monthReportCount} 篇本月记录</p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button onClick={handleAIDraft} disabled={draftLoading} className="btn-ghost text-[10px] px-2.5 py-1 disabled:opacity-40 inline-flex items-center gap-1.5">
+            <IconBrain size={12} />
+            {draftLoading ? "生成中..." : "AI 草稿"}
           </button>
-          <button
-            onClick={() => setWriteOpen(!writeOpen)}
-            className="text-[10px] px-2 py-0.5 rounded-md bg-accent/20 text-accent hover:bg-accent/30 transition-colors"
-          >
-            {writeOpen ? "收起" : "写日报"}
-          </button>
-          <button
-            onClick={handleAutoGenerate}
-            disabled={generating}
-            className="text-[10px] px-2 py-0.5 rounded-md bg-accent-blue/15 text-accent-blue hover:bg-accent-blue/25 transition-colors disabled:opacity-40"
-          >
-            {generating ? "生成中..." : "AI 草稿"}
+          <button onClick={() => setShowWrite(!showWrite)} className="btn-primary text-[11px] px-3 py-1.5 inline-flex items-center gap-1.5">
+            <IconEdit size={12} />
+            {showWrite ? "收起" : "写日报"}
           </button>
         </div>
       </div>
 
-      {/* Quick write area */}
-      {writeOpen && (
-        <div className="bg-bg-card rounded-card p-3 space-y-2 fade-in">
+      {/* Quick Write Area */}
+      {showWrite && (
+        <div className="card p-3.5 anim-card">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-medium text-text-primary">写入 {reportDate}</span>
+            <span className="text-[9px] text-text-muted">{writeContent.length} 字</span>
+          </div>
           <textarea
+            ref={textareaRef}
             value={writeContent}
             onChange={(e) => setWriteContent(e.target.value)}
-            placeholder={"## 完成事项\n- 任务1\n- 任务2\n\n## 进行中\n- 任务3\n\n## 明日计划\n- 任务4"}
-            className="w-full h-28 bg-white/5 rounded-lg p-2 text-xs text-text-primary placeholder:text-text-muted resize-none outline-none border border-white/10 focus:border-white/20"
-            style={{ fontFamily: "monospace" }}
+            placeholder="今天完成了什么..."
+            className="input-field min-h-[100px] resize-none text-[12px] leading-relaxed"
+            style={{ background: "var(--bg-input)" }}
           />
-          <div className="flex gap-2">
+          <div className="flex items-center justify-between mt-2.5">
             <button
-              onClick={handleQuoteToday}
-              className="flex-1 py-1.5 text-[10px] bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-text-secondary"
+              onClick={() => {
+                const bullets = completedToday.map((t) => `- ${t.name}`).join("\n");
+                setWriteContent((prev) => prev + (prev ? "\n" : "") + bullets);
+              }}
+              className="btn-ghost text-[10px] px-2 py-1"
+              disabled={completedToday.length === 0}
             >
-              引用今日任务
+              引用今日任务 ({completedToday.length})
             </button>
-            <button
-              onClick={handleSave}
-              disabled={saving || !writeContent.trim()}
-              className="flex-1 py-1.5 text-[10px] bg-accent/20 hover:bg-accent/30 rounded-lg transition-colors text-accent disabled:opacity-40"
-            >
+            <button onClick={handleSave} disabled={saving || !writeContent.trim()} className="btn-primary text-[11px] px-4 py-1.5 disabled:opacity-40">
               {saving ? "保存中..." : "保存"}
             </button>
           </div>
         </div>
       )}
 
-      {/* Calendar with integrated content */}
-      <div className="bg-bg-card rounded-card overflow-hidden">
+      {/* Calendar */}
+      <div className="card overflow-hidden">
         {/* Month navigation */}
-        <div className="flex items-center justify-between px-3 pt-3 pb-2">
-          <button
-            onClick={prevMonth}
-            className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/10 transition-colors text-text-muted text-xs"
-          >
-            ‹
-          </button>
-          <span className="text-xs font-medium text-text-primary">{monthLabel}</span>
-          <button
-            onClick={nextMonth}
-            className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/10 transition-colors text-text-muted text-xs"
-          >
-            ›
-          </button>
+        <div className="flex items-center justify-between px-3.5 pt-3 pb-2">
+          <button onClick={prevMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-bg-hover transition-colors text-text-muted text-xs"><IconChevronLeft size={14} /></button>
+          <span className="text-[12px] font-semibold text-text-primary tracking-tight">{monthLabel}</span>
+          <button onClick={nextMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-bg-hover transition-colors text-text-muted text-xs"><IconChevronRight size={14} /></button>
         </div>
 
         {/* Week headers */}
-        <div className="grid grid-cols-7 gap-0.5 px-3 mb-1">
+        <div className="grid grid-cols-7 gap-0.5 px-3.5 mb-1">
           {weekHeaders.map((d) => (
-            <div key={d} className="text-center text-[9px] text-text-muted py-0.5">
-              {d}
-            </div>
+            <div key={d} className="text-center text-[9px] text-text-muted py-0.5 font-medium">{d}</div>
           ))}
         </div>
 
         {/* Day grid */}
-        <div className="grid grid-cols-7 gap-0.5 px-3 pb-2">
+        <div className="grid grid-cols-7 gap-0.5 px-3.5 pb-2.5">
           {calendarDays.map((day, idx) => {
             if (day === null) return <div key={`pad-${idx}`} />;
             const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -486,28 +307,13 @@ ${pendingList}
               <button
                 key={dateStr}
                 onClick={() => setSelectedDate(dateStr === selectedDate ? null : dateStr)}
-                className={`
-                  relative aspect-square rounded-lg flex flex-col items-center justify-center gap-0.5
-                  transition-all duration-150 text-xs
-                  ${isSelected
-                    ? "bg-accent/25 border border-accent/40"
-                    : hasReport
-                      ? "bg-white/8 hover:bg-white/12 border border-transparent"
-                      : "hover:bg-white/5 border border-transparent"
-                  }
-                  ${isToday ? "ring-1 ring-accent/30" : ""}
-                `}
+                className={`calendar-day ${hasReport ? "has-report" : ""} ${isSelected ? "selected" : ""} ${isToday ? "today" : ""}`}
               >
-                <span className={`text-[11px] ${isSelected ? "text-accent font-medium" : isToday ? "text-text-primary font-medium" : "text-text-secondary"}`}>
+                <span className={`text-[11px] ${isSelected ? "text-accent-blue font-semibold" : isToday ? "text-text-primary font-semibold" : "text-text-secondary"}`}>
                   {day}
                 </span>
                 {hasReport && (
-                  <span
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{
-                      background: isSelected ? "rgba(0, 122, 255, 0.8)" : "rgba(0, 122, 255, 0.4)",
-                    }}
-                  />
+                  <span className="w-[4px] h-[4px] rounded-full" style={{ background: isSelected ? "var(--accent-primary)" : "rgba(10,132,255,0.35)" }} />
                 )}
               </button>
             );
@@ -516,44 +322,55 @@ ${pendingList}
 
         {/* Selected date content */}
         {selectedDate && (
-          <div className="border-t border-white/5">
-            <div className="px-3 py-2 flex items-center justify-between">
+          <div className="border-t" style={{ borderColor: "var(--border-separator)" }}>
+            <div className="px-3.5 py-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-text-primary">{selectedDate}</span>
+                <span className="text-[12px] font-semibold text-text-primary">{selectedDate}</span>
                 <span className="text-[9px] text-text-muted">
                   {["周日", "周一", "周二", "周三", "周四", "周五", "周六"][new Date(selectedDate + "T00:00:00").getDay()]}
                 </span>
               </div>
-              {reportMap.has(selectedDate) && (
-                <span className="text-[9px] text-accent/60">已记录</span>
-              )}
-              {!reportMap.has(selectedDate) && selectedDate <= todayStr && (
-                <span className="text-[9px] text-text-muted">未记录</span>
-              )}
+              <div className="flex items-center gap-2">
+                {reportMap.has(selectedDate) && (
+                  <button onClick={() => setKamiView(!kamiView)} className="text-[9px] text-accent-blue/60 hover:text-accent-blue transition-colors">
+                    {kamiView ? "普通视图" : "Kami 视图"}
+                  </button>
+                )}
+                {reportMap.has(selectedDate) && <span className="text-[9px] text-accent-green/60">已记录</span>}
+                {!reportMap.has(selectedDate) && selectedDate <= todayStr && <span className="text-[9px] text-text-muted">未记录</span>}
+              </div>
             </div>
 
-            <div className="px-3 pb-3 max-h-72 overflow-y-auto">
+            <div className="px-3.5 pb-3 max-h-72 overflow-y-auto">
               {contentLoading ? (
-                <div className="text-center text-text-muted text-xs py-6">加载中...</div>
+                <div className="text-center text-text-muted text-[11px] py-6">加载中...</div>
               ) : reportMap.has(selectedDate) ? (
                 selectedContent ? (
                   kamiView ? (
-                    <KamiReport
-                      content={selectedContent}
-                      date={selectedDate}
-                      todos={todos}
-                      reports={reports}
-                      projects={projects}
-                    />
+                    <KamiReport content={selectedContent} date={selectedDate} todos={todos} reports={reports} projects={projects} />
                   ) : (
                     <ReportContent content={selectedContent} />
                   )
                 ) : (
-                  <div className="text-center text-text-muted text-xs py-4">无内容</div>
+                  <div className="text-center text-text-muted text-[11px] py-4">无内容</div>
                 )
               ) : (
-                <div className="text-center text-text-muted text-xs py-6">
-                  {selectedDate > todayStr ? "未来日期" : "这一天没有记录"}
+                <div className="text-center text-text-muted text-[11px] py-6">
+                  <div className="mx-auto mb-2 w-8 h-8 rounded-[10px] bg-bg-hover text-text-muted flex items-center justify-center">
+                    <IconReport size={15} />
+                  </div>
+                  <div>{selectedDate > todayStr ? "未来日期" : "这一天没有记录"}</div>
+                  {selectedDate <= todayStr && (
+                    <button
+                      onClick={() => {
+                        setShowWrite(true);
+                        setWriteContent((prev) => prev || `## 今日完成\n\n## 进行中\n\n## 明日计划\n`);
+                      }}
+                      className="mt-2 text-[10px] text-accent-blue hover:text-accent-blue transition-colors"
+                    >
+                      写一篇
+                    </button>
+                  )}
                 </div>
               )}
             </div>

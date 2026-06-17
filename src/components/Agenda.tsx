@@ -1,8 +1,9 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { useAppStore } from "../stores/appStore";
 import { sendChatMessage } from "../lib/chat";
-import type { Todo, Page, ChatMessage } from "../types";
-import { v4 } from "./_uuid";
+import { localDateString } from "../lib/date";
+import { IconBrain, IconPlus, IconRefresh, IconReport, IconTarget, IconX } from "./Icons";
+import type { Todo, Page } from "../types";
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 
@@ -11,7 +12,7 @@ function formatChineseDate(d: Date): string {
 }
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localDateString();
 }
 
 interface Props {
@@ -24,13 +25,11 @@ export default function Agenda({ onRefresh }: Props) {
   const notionConnected = useAppStore((s) => s.notionConnected);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const settings = useAppStore((s) => s.settings);
-  const addChatMessage = useAppStore((s) => s.addChatMessage);
-  const updateLastAssistantMessage = useAppStore((s) => s.updateLastAssistantMessage);
-  const chatMessages = useAppStore((s) => s.chatMessages);
 
   const today = todayStr();
+  const todayDate = new Date();
 
-  // ── Task categorization (from Today.tsx) ──
+  // ── Task categorization ──
   const archivedProjectIds = useMemo(
     () => new Set(projects.filter((p) => p.archived).map((p) => p.id)),
     [projects]
@@ -64,13 +63,16 @@ export default function Agenda({ onRefresh }: Props) {
       e.total++;
       if (t.status) e.done++;
     }
-    return Array.from(map.entries()).map(([pid, stats]) => {
-      const proj = projects.find((p) => p.id === pid);
-      return { id: pid, name: proj?.name || "待办", ...stats };
-    });
+    return Array.from(map.entries())
+      .map(([pid, stats]) => {
+        const proj = projects.find((p) => p.id === pid);
+        return { id: pid, name: proj?.name || "收件箱", ...stats };
+      })
+      .sort((a, b) => (b.total - b.done) - (a.total - a.done))
+      .slice(0, 5);
   }, [activeTodos, projects]);
 
-  // ── AI Suggestion Card ──
+  // ── AI Suggestion ──
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestionDismissed, setSuggestionDismissed] = useState(false);
@@ -87,9 +89,6 @@ export default function Agenda({ onRefresh }: Props) {
     const taskSummary = [overdueList, dueList, highList].filter(Boolean).join("\n") || "（暂无紧急任务）";
 
     const prompt = `根据以下任务状态，给出今天的工作建议（简洁，2-3句话，估算处理时间）：\n${taskSummary}`;
-
-    const userMsg: ChatMessage = { id: v4(), role: "user", content: prompt, timestamp: Date.now() };
-    const assistantMsg: ChatMessage = { id: v4(), role: "assistant", content: "", timestamp: Date.now() };
 
     abortRef.current = new AbortController();
     let result = "";
@@ -111,81 +110,92 @@ export default function Agenda({ onRefresh }: Props) {
     }
   }, [overdue, dueToday, highPriority, settings, suggestLoading]);
 
-  // Auto-generate suggestion on mount if there are actionable tasks
   useEffect(() => {
     if ((overdue.length > 0 || dueToday.length > 0 || highPriority.length > 0) && !suggestion && !suggestionDismissed) {
       generateSuggestion();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleAdopt = useCallback(() => {
-    // Sort tasks: overdue first, then due today, then high priority
-    // This is a UX hint — just navigate to projects with the suggestion context
-    setCurrentPage("goals");
-  }, [setCurrentPage]);
-
+  const handleAdopt = useCallback(() => { setCurrentPage("goals"); }, [setCurrentPage]);
   const navigate = (page: Page) => setCurrentPage(page);
   const hasUrgentTasks = overdue.length > 0 || dueToday.length > 0 || highPriority.length > 0;
 
   let idx = 0;
-  const delay = () => `${(idx++) * 0.06}s`;
+  const delay = () => `${(idx++) * 60}ms`;
+
+  const pendingCount = activeTodos.filter((t) => !t.status).length;
+  const doneCount = activeTodos.length - pendingCount;
 
   return (
-    <div className="space-y-3">
-      {/* Header */}
-      <div className="bg-bg-card rounded-card p-3 flex items-center justify-between anim-card" style={{ animationDelay: "0s" }}>
-        <h1 className="text-sm font-semibold text-text-primary">
-          日程 · {formatChineseDate(new Date())}
-        </h1>
-        <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full transition-colors duration-500 ${notionConnected ? "bg-accent-green" : "bg-accent-red"}`} />
-          <button onClick={onRefresh} className="text-xs text-accent-blue hover:text-accent-blue/80 transition-colors">
-            刷新
-          </button>
+    <div className="space-y-3 fade-in">
+      {/* Date Header */}
+      <div className="flex items-baseline justify-between px-1 pt-1 pb-1">
+        <div className="flex items-baseline gap-2.5">
+          <h1 className="text-display text-text-primary">{formatChineseDate(todayDate)}</h1>
+          <span className="text-caption">{pendingCount} 项待办</span>
         </div>
+        <button
+          onClick={onRefresh}
+          className="btn-ghost text-[10px] px-2 py-1 inline-flex items-center gap-1.5"
+          title="刷新数据"
+        >
+          <IconRefresh size={12} />
+          刷新
+        </button>
       </div>
 
-      {/* Overdue */}
+      <div className="grid grid-cols-3 gap-2 anim-card" style={{ animationDelay: delay() }}>
+        <Metric label="逾期" value={overdue.length} tone="red" />
+        <Metric label="今日" value={dueToday.length} tone="yellow" />
+        <Metric label="已完成" value={doneCount} tone="green" />
+      </div>
+
+      {/* Overdue Tasks */}
       {overdue.length > 0 && (
-        <Section title={`逾期任务 (${overdue.length})`} accent="border-accent-red" delay={delay()}>
-          {overdue.map((t) => (
-            <TaskItem key={t.id} todo={t} dotColor="bg-accent-red" />
-          ))}
+        <Section title="逾期任务" accent="border-l-accent-red" delay={delay()}>
+          <div className="space-y-1">
+            {overdue.map((t) => (
+              <TaskItem key={t.id} todo={t} dotColor="bg-accent-red" />
+            ))}
+          </div>
         </Section>
       )}
 
       {/* Due Today */}
       {dueToday.length > 0 && (
-        <Section title={`今日截止 (${dueToday.length})`} accent="border-accent-yellow" delay={delay()}>
-          {dueToday.map((t) => (
-            <TaskItem key={t.id} todo={t} dotColor="bg-accent-yellow" />
-          ))}
+        <Section title="今日截止" accent="border-l-accent-yellow" delay={delay()}>
+          <div className="space-y-1">
+            {dueToday.map((t) => (
+              <TaskItem key={t.id} todo={t} dotColor="bg-accent-yellow" />
+            ))}
+          </div>
         </Section>
       )}
 
       {/* High Priority */}
       {highPriority.length > 0 && (
-        <Section title={`高优先级 (${highPriority.length})`} accent="border-accent-orange" delay={delay()}>
-          {highPriority.map((t) => (
-            <TaskItem key={t.id} todo={t} dotColor="bg-accent-orange" />
-          ))}
+        <Section title="高优先级" accent="border-l-accent-orange" delay={delay()}>
+          <div className="space-y-1">
+            {highPriority.map((t) => (
+              <TaskItem key={t.id} todo={t} dotColor="bg-accent-orange" />
+            ))}
+          </div>
         </Section>
       )}
 
-      {/* Empty state */}
       {!hasUrgentTasks && (
-        <div className="bg-bg-card rounded-card p-6 text-center anim-card" style={{ animationDelay: delay() }}>
-          <div className="text-2xl mb-2">✨</div>
-          <div className="text-xs text-text-secondary">今天没有紧急任务</div>
-          <div className="text-[10px] text-text-muted mt-1">可以处理低优先级事项或休息一下</div>
-        </div>
+        <EmptyPanel
+          title={pendingCount > 0 ? "今天没有紧急任务" : "任务已清空"}
+          body={pendingCount > 0 ? "可以从项目快览里挑一个推进，或直接记录今天的阶段性进展。" : "现在适合补一篇日报，或者新增下一件明确的小任务。"}
+          delay={delay()}
+        />
       )}
 
       {/* Project Overview */}
       {projectOverview.length > 0 && (
-        <div className="bg-bg-card rounded-card p-3 anim-card" style={{ animationDelay: delay() }}>
-          <h3 className="text-xs font-medium text-text-secondary mb-2">项目快览</h3>
-          <div className="space-y-2">
+        <div className="card p-3.5 anim-card" style={{ animationDelay: delay() }}>
+          <h3 className="text-caption mb-3 px-0.5">项目快览</h3>
+          <div className="space-y-2.5">
             {projectOverview.map((p) => (
               <ProjectRow key={p.id} project={p} />
             ))}
@@ -195,45 +205,30 @@ export default function Agenda({ onRefresh }: Props) {
 
       {/* AI Suggestion Card */}
       {!suggestionDismissed && hasUrgentTasks && (
-        <div
-          className="bg-bg-card rounded-card p-3 border-l-2 border-accent-blue/40 anim-card"
-          style={{ animationDelay: delay() }}
-        >
+        <div className="card p-3.5 border-l-2 border-l-accent-blue/30 anim-card" style={{ animationDelay: delay() }}>
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
-              <span className="text-sm"> </span>
-              <h3 className="text-xs font-medium text-text-secondary">AI 建议</h3>
+              <IconBrain size={14} className="text-accent-blue" />
+              <h3 className="text-caption">AI 建议</h3>
             </div>
             <div className="flex items-center gap-1">
-              <button
-                onClick={generateSuggestion}
-                disabled={suggestLoading}
-                className="text-[10px] text-text-muted hover:text-accent-blue transition-colors disabled:opacity-40"
-                title="刷新建议"
-              >
-                ↻
+              <button onClick={generateSuggestion} disabled={suggestLoading} className="text-text-muted hover:text-accent-blue transition-colors disabled:opacity-40 p-0.5" title="刷新建议">
+                <IconRefresh size={12} />
               </button>
-              <button
-                onClick={() => setSuggestionDismissed(true)}
-                className="text-[10px] text-text-muted hover:text-text-secondary transition-colors"
-                title="关闭"
-              >
-                ✕
+              <button onClick={() => setSuggestionDismissed(true)} className="text-text-muted hover:text-text-secondary transition-colors p-0.5" title="关闭">
+                <IconX size={12} />
               </button>
             </div>
           </div>
           {suggestLoading ? (
-            <div className="flex items-center gap-2 py-2">
-              <span className="inline-block w-3 h-3 border-2 border-accent-blue/30 border-t-accent-blue rounded-full animate-spin" />
-              <span className="text-[11px] text-text-muted">分析任务中...</span>
+            <div className="flex items-center gap-2 py-1.5">
+              <span className="inline-block w-3 h-3 border-[1.5px] border-accent-blue/20 border-t-accent-blue rounded-full animate-spin" />
+              <span className="text-body text-text-muted">分析任务中...</span>
             </div>
           ) : suggestion ? (
             <div>
-              <p className="text-[11px] text-text-secondary leading-relaxed">{suggestion}</p>
-              <button
-                onClick={handleAdopt}
-                className="mt-2 px-3 py-1 text-[10px] bg-accent-blue/15 text-accent-blue rounded-lg hover:bg-accent-blue/25 transition-colors"
-              >
+              <p className="text-body leading-relaxed">{suggestion}</p>
+              <button onClick={handleAdopt} className="mt-2.5 px-3 py-1 text-[11px] bg-accent-blue/10 text-accent-blue rounded-lg hover:bg-accent-blue/20 transition-colors font-medium">
                 采纳 → 查看任务
               </button>
             </div>
@@ -243,45 +238,48 @@ export default function Agenda({ onRefresh }: Props) {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-2 anim-card" style={{ animationDelay: delay() }}>
-        <button
-          onClick={() => navigate("goals")}
-          className="bg-bg-card rounded-card p-3 flex items-center justify-center gap-1.5 hover:bg-bg-hover transition-colors"
-        >
-          <span className="text-sm">➕</span>
-          <span className="text-xs text-text-secondary">快速新增</span>
+        <button onClick={() => navigate("goals")} className="card p-3 flex items-center justify-center gap-2 hover:bg-bg-card-hover transition-colors">
+          <IconPlus size={14} className="text-accent-blue" />
+          <span className="text-body">快速新增</span>
         </button>
-        <button
-          onClick={() => navigate("reports")}
-          className="bg-bg-card rounded-card p-3 flex items-center justify-center gap-1.5 hover:bg-bg-hover transition-colors"
-        >
-          <span className="text-sm"> </span>
-          <span className="text-xs text-text-secondary">写日报</span>
+        <button onClick={() => navigate("reports")} className="card p-3 flex items-center justify-center gap-2 hover:bg-bg-card-hover transition-colors">
+          <IconReport size={14} className="text-accent-blue" />
+          <span className="text-body">写日报</span>
         </button>
       </div>
     </div>
   );
 }
 
-/* ---------- sub-components ---------- */
+/* ── Sub-components ── */
 
-function Section({
-  title,
-  accent,
-  delay,
-  children,
-}: {
-  title: string;
-  accent: string;
-  delay: string;
-  children: React.ReactNode;
-}) {
+function Section({ title, accent, delay, children }: { title: string; accent: string; delay: string; children: React.ReactNode }) {
   return (
-    <div
-      className={`bg-bg-card rounded-card p-3 border-l-2 ${accent} anim-card`}
-      style={{ animationDelay: delay }}
-    >
-      <h3 className="text-xs font-medium text-text-secondary mb-2">{title}</h3>
-      <div className="space-y-1.5">{children}</div>
+    <div className={`card p-3.5 border-l-2 ${accent} anim-card`} style={{ animationDelay: delay }}>
+      <h3 className="text-caption mb-2.5">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+function Metric({ label, value, tone }: { label: string; value: number; tone: "red" | "yellow" | "green" }) {
+  const color = tone === "red" ? "text-accent-red" : tone === "yellow" ? "text-accent-yellow" : "text-accent-green";
+  return (
+    <div className="card p-2.5">
+      <div className={`text-[17px] leading-none font-semibold tabular-nums ${color}`}>{value}</div>
+      <div className="text-[9px] text-text-muted mt-1">{label}</div>
+    </div>
+  );
+}
+
+function EmptyPanel({ title, body, delay }: { title: string; body: string; delay: string }) {
+  return (
+    <div className="card p-4 anim-card text-center" style={{ animationDelay: delay }}>
+      <div className="mx-auto mb-2 w-9 h-9 rounded-[12px] bg-accent-blue/10 text-accent-blue flex items-center justify-center">
+        <IconTarget size={18} />
+      </div>
+      <h3 className="text-[13px] font-semibold text-text-primary">{title}</h3>
+      <p className="text-body mt-1 max-w-[240px] mx-auto">{body}</p>
     </div>
   );
 }
@@ -289,40 +287,28 @@ function Section({
 function TaskItem({ todo, dotColor }: { todo: Todo; dotColor: string }) {
   return (
     <div className="flex items-center gap-2 text-xs task-row">
-      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor}`} />
-      <span className="text-text-primary truncate flex-1">{todo.name}</span>
+      <span className={`w-[5px] h-[5px] rounded-full flex-shrink-0 ${dotColor}`} />
+      <span className="text-text-primary truncate flex-1 font-medium">{todo.name}</span>
       <PriorityBadge priority={todo.priority} />
     </div>
   );
 }
 
 function PriorityBadge({ priority }: { priority: Todo["priority"] }) {
-  const cls =
-    priority === "High"
-      ? "bg-accent-red/20 text-accent-red"
-      : priority === "Medium"
-        ? "bg-accent-yellow/20 text-accent-yellow"
-        : "bg-bg-hover text-text-muted";
-  return (
-    <span className={`px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${cls}`}>
-      {priority === "High" ? "高" : priority === "Medium" ? "中" : "低"}
-    </span>
-  );
+  const cls = priority === "High" ? "priority-high" : priority === "Medium" ? "priority-medium" : "priority-low";
+  const label = priority === "High" ? "高" : priority === "Medium" ? "中" : "低";
+  return <span className={`priority-badge ${cls}`}>{label}</span>;
 }
 
-function ProjectRow({
-  project,
-}: {
-  project: { id: string; name: string; done: number; total: number };
-}) {
+function ProjectRow({ project }: { project: { id: string; name: string; done: number; total: number } }) {
   const pct = project.total > 0 ? (project.done / project.total) * 100 : 0;
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="text-text-primary truncate flex-1">{project.name}</span>
-      <div className="w-16 h-1.5 bg-bg-hover rounded-full overflow-hidden flex-shrink-0">
+    <div className="flex items-center gap-2.5 text-xs">
+      <span className="text-text-primary truncate flex-1 font-medium">{project.name}</span>
+      <div className="w-16 h-[3px] bg-bg-hover rounded-full overflow-hidden flex-shrink-0">
         <div className="h-full bg-accent-green rounded-full progress-fill" style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-text-muted flex-shrink-0">{project.done}/{project.total}</span>
+      <span className="text-text-muted flex-shrink-0 tabular-nums text-[10px]">{project.done}/{project.total}</span>
     </div>
   );
 }

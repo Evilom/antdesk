@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../stores/appStore";
+import { IconCheck } from "./Icons";
 import type { ThemeMode, AccentColor, FontSize, GlassIntensity } from "../types";
 
 const ACCENT_OPTIONS: { id: AccentColor; label: string; color: string }[] = [
@@ -129,10 +130,8 @@ export default function Settings() {
 
   return (
     <div className="space-y-4 fade-in">
-      <h2 className="text-sm font-medium text-text-primary">设置</h2>
-
       {/* ── 外观 ── */}
-      <Section title=" 外观">
+      <Section title="外观">
         {/* 主题 */}
         <Label>主题模式</Label>
         <div className="flex gap-1.5">
@@ -150,7 +149,7 @@ export default function Settings() {
                 border: `1px solid ${settings.theme === mode ? "var(--accent-primary)" : "var(--border-card)"}`,
               }}
             >
-              {mode === "dark" ? " 深色" : mode === "light" ? "☀️ 浅色" : " 跟随系统"}
+              {mode === "dark" ? "深色" : mode === "light" ? "浅色" : "跟随系统"}
             </button>
           ))}
         </div>
@@ -170,7 +169,7 @@ export default function Settings() {
               }}
               title={opt.label}
             >
-              {settings.accent === opt.id && <span className="text-white text-[10px]">✓</span>}
+              {settings.accent === opt.id && <IconCheck size={12} className="text-white" />}
             </button>
           ))}
         </div>
@@ -217,7 +216,7 @@ export default function Settings() {
       </Section>
 
       {/* ── Notion ── */}
-      <Section title=" Notion 连接">
+      <Section title="Notion 连接">
         <div className="flex items-center gap-2 mb-2">
           <span className={`w-2 h-2 rounded-full ${notionConnected ? "bg-accent-green" : "bg-accent-red"}`} />
           <span className="text-xs text-text-secondary">
@@ -230,7 +229,7 @@ export default function Settings() {
           value={tokenInput}
           onChange={(e) => setTokenInput(e.target.value)}
           placeholder="ntn_..."
-          className="w-full bg-bg-input text-text-primary text-xs rounded-button px-2.5 py-1.5 outline-none border border-white/5 focus:border-accent-blue/50 transition-colors placeholder:text-text-muted"
+          className="input-field"
         />
         <button onClick={handleClearCache} className="text-[10px] text-accent-red hover:text-accent-red/80 mt-1 transition-colors">
           清除缓存
@@ -238,19 +237,19 @@ export default function Settings() {
       </Section>
 
       {/* ── AI ── */}
-      <Section title=" AI 配置">
+      <Section title="AI 配置">
         <Label>API 端点</Label>
         <input
           type="text"
           value={endpointInput}
           onChange={(e) => setEndpointInput(e.target.value)}
-          className="w-full bg-bg-input text-text-primary text-xs rounded-button px-2.5 py-1.5 outline-none border border-white/5 focus:border-accent-blue/50 transition-colors mb-2"
+          className="input-field mb-2"
         />
         <Label>模型</Label>
         <select
           value={modelInput}
           onChange={(e) => setModelInput(e.target.value)}
-          className="w-full bg-bg-input text-text-primary text-xs rounded-button px-2 py-1.5 outline-none border border-white/5 cursor-pointer"
+          className="input-field cursor-pointer"
         >
           <option value="DeepSeek-V3.2">DeepSeek-V3.2 (稳定)</option>
           <option value="deepseek-v4-flash-think">deepseek-v4-flash-think (快速)</option>
@@ -258,7 +257,7 @@ export default function Settings() {
       </Section>
 
       {/* ── Kanban ── */}
-      <Section title=" 看板连接">
+      <Section title="看板连接">
         <Label>Hermes 看板端点</Label>
         <input
           type="text"
@@ -268,7 +267,7 @@ export default function Settings() {
             updateSettings({ kanbanEndpoint: e.target.value });
           }}
           placeholder="http://YOUR_IP:8765/kanban.json"
-          className="w-full bg-bg-input text-text-primary text-xs rounded-button px-2.5 py-1.5 outline-none border border-white/5 focus:border-accent-blue/50 transition-colors placeholder:text-text-muted"
+          className="input-field"
         />
         <div className="text-[9px] text-text-muted mt-1">
           运行 kanban-server.py 后填入地址
@@ -276,7 +275,7 @@ export default function Settings() {
       </Section>
 
       {/* ── 通用 ── */}
-      <Section title="⚙️ 通用">
+      <Section title="通用">
         <div className="flex items-center justify-between">
           <span className="text-xs text-text-secondary">开机自启动</span>
           <button
@@ -325,8 +324,8 @@ export default function Settings() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-bg-card rounded-card p-3 space-y-2">
-      <h3 className="text-xs font-medium text-text-secondary">{title}</h3>
+    <div className="card p-3 space-y-2">
+      <h3 className="text-caption text-text-secondary">{title}</h3>
       {children}
     </div>
   );

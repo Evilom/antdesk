@@ -12,10 +12,16 @@ import { KanbanBridge } from "./lib/kanbanBridge";
 import { useKanbanStore } from "./stores/kanbanStore";
 import type { KanbanData } from "./types/kanban";
 import { EmotionEngine } from "./lib/EmotionEngine";
-
-const BEHAVIOR_EMOJI: Record<BehaviorState, string> = {
-  idle: "😊", walk: "🚶", interact: "😄", sleep: "😴",
-};
+import {
+  IconEdit,
+  IconEyeOff,
+  IconLock,
+  IconPower,
+  IconReport,
+  IconTarget,
+  IconUnlock,
+  IconWindow,
+} from "./components/Icons";
 
 /**
  * Pet = FAB. Single 200×200 transparent window.
@@ -42,6 +48,7 @@ export default function Pet() {
   const [notifyMsg, setNotifyMsg] = useState<string | null>(null);
   const [physState, setPhysState] = useState<string>("idle");
   const [emotionMood, setEmotionMood] = useState<{emoji: string; text: string} | null>(null);
+  const [petHovered, setPetHovered] = useState(false);
 
   const didDrag = useRef(false);
   const spineRef = useRef<SpinePetHandle>(null);
@@ -283,6 +290,15 @@ export default function Pet() {
     return () => { clearTimeout(t); document.removeEventListener("mousedown", close); };
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
   /* ═══════════════════════════════════════════
      DRAG — manual delta (clawd-on-desk pattern)
      P0: overrides click and roaming
@@ -386,6 +402,15 @@ export default function Pet() {
   const kanbanStats = useKanbanStore((s) => s.data.stats);
   const totalBadge = pendingCount + kanbanStats.active + kanbanStats.blocked;
   const sleeping = petBehavior === "sleep";
+  const animatedStates = new Set(["run", "jump", "landing", "hitWall", "slide", "dizzy", "falling", "dragged"]);
+  const visualState = animatedStates.has(physState) ? physState : sleeping ? "sleep" : petBehavior;
+  const modeLabel: Record<PetMode, string> = {
+    leisure: "闲逛",
+    busy: "忙碌",
+    anxious: "焦虑",
+    alert: "提醒",
+    celebrate: "庆祝",
+  };
 
   /* ═══ Thought system — single bubble cycling through pet thoughts ═══ */
   const [thoughtIdx, setThoughtIdx] = useState(0);
@@ -404,24 +429,25 @@ export default function Pet() {
     if (physState === "slide") return [{ emoji: "🫨", text: "刹不住!", key: "slide", priority: true }];
     if (physState === "landing") return [{ emoji: "😮‍💨", text: "呼...", key: "landing", priority: true }];
     if (physState === "run") return [{ emoji: "🏃", text: "冲啊!", key: "run", priority: true }];
+    if (locked) pool.push({ emoji: "🔒", text: "位置已锁定", key: "locked" });
     if (petMode === "anxious") pool.push({ emoji: "😰", text: "任务有点多...", key: "anxious" });
     if (petMode === "alert") pool.push({ emoji: "⏰", text: "有逾期任务!", key: "alert" });
     if (petMode === "celebrate") pool.push({ emoji: "🎉", text: "干得漂亮!", key: "celebrate" });
     if (totalBadge > 0) pool.push({ emoji: "📋", text: `${totalBadge}个待办`, key: "badge" });
     if (moodText) pool.push({ emoji: moodEmoji, text: moodText, key: "mood" });
     if (emotionMood && emotionMood.text !== "~") pool.push({ emoji: emotionMood.emoji, text: emotionMood.text, key: "emotion" });
-    if (petBehavior === "walk" && !locked) pool.push({ emoji: "🐾", text: "散步中~", key: "walk" });
+    if (petBehavior === "walk" && !locked && petHovered) pool.push({ emoji: "🐾", text: "散步中~", key: "walk" });
     if (sleeping) pool.push({ emoji: "💤", text: "zzZ", key: "sleep" });
-    if (connected) pool.push({ emoji: "🔗", text: "已连接", key: "conn" });
-    pool.push({ emoji: "😊", text: "~", key: "idle" });
+    if (connected && petHovered) pool.push({ emoji: "🔗", text: "已连接", key: "conn" });
+    if (petHovered || menuOpen) pool.push({ emoji: "😊", text: modeLabel[petMode], key: "idle" });
     return pool;
   })();
-  const currentThought = thoughtPool[thoughtIdx % thoughtPool.length];
+  const currentThought = thoughtPool.length > 0 ? thoughtPool[thoughtIdx % thoughtPool.length] : null;
 
   return (
     <div
       className="pet-window"
-      data-state={physState === "dizzy" || physState === "falling" ? physState : sleeping ? "sleep" : petBehavior}
+      data-state={visualState}
       data-mode={petMode}
     >
       <div
@@ -429,8 +455,18 @@ export default function Pet() {
         onMouseDown={handlePetMouseDown}
         onClick={handlePetClick}
         onContextMenu={handlePetContextMenu}
+        onMouseEnter={() => setPetHovered(true)}
+        onMouseLeave={() => setPetHovered(false)}
+        title={locked ? "位置已锁定，右键打开菜单" : "拖拽移动，点击打开便签，右键打开菜单"}
       >
         <SpinePet ref={spineRef} petName={petName} width={150} height={150} />
+
+        <div className="pet-hud" data-expanded={petHovered || menuOpen}>
+          <div className={`hud-dot ${connected ? "connected" : "offline"}`} />
+          {totalBadge > 0 && <span className="hud-count">{totalBadge > 99 ? "99+" : totalBadge}</span>}
+          {locked && <IconLock size={10} className="hud-lock" />}
+          {(petHovered || menuOpen) && <span className="hud-mode">{modeLabel[petMode]}</span>}
+        </div>
 
         {/* Single thought bubble — shows current thought */}
         {currentThought && (
@@ -444,20 +480,24 @@ export default function Pet() {
       {menuOpen && (
         <div className="menu">
           <div className="menu-item" onClick={() => { setMenuOpen(false); invoke("expand_panel"); }}>
-            📋 主面板
+            <span className="menu-icon"><IconReport size={14} /></span>
+            <span className="menu-label">主面板</span>
           </div>
           <div className="menu-item" onClick={() => { setMenuOpen(false); invoke("toggle_notepad"); }}>
-            📝 便签
+            <span className="menu-icon"><IconEdit size={14} /></span>
+            <span className="menu-label">便签</span>
           </div>
           <div className="menu-sep" />
           <div className="menu-item" onClick={() => { setLocked((v) => !v); setMenuOpen(false); }}>
-            {locked ? "🔓 解锁位置" : "🔒 锁定位置"}
+            <span className="menu-icon">{locked ? <IconUnlock size={14} /> : <IconLock size={14} />}</span>
+            <span className="menu-label">{locked ? "解锁位置" : "锁定位置"}</span>
           </div>
           <div className="menu-item" onClick={() => { setMenuOpen(false); invoke("hide_pet"); }}>
-            👁️ 隐藏宠物
+            <span className="menu-icon"><IconEyeOff size={14} /></span>
+            <span className="menu-label">隐藏宠物</span>
           </div>
           <div className="menu-sep" />
-          <div className="menu-item" onClick={() => {
+          <div className={`menu-item ${windowInteraction ? "active" : ""}`} onClick={() => {
             const next = !windowInteraction;
             setWindowInteraction(next);
             if (next) {
@@ -475,11 +515,19 @@ export default function Pet() {
             }
             setMenuOpen(false);
           }}>
-            {windowInteraction ? "🪟 窗口交互 ✓" : "🪟 窗口交互"}
+            <span className="menu-icon"><IconWindow size={14} /></span>
+            <span className="menu-label">窗口交互</span>
+            <span className="menu-state">{windowInteraction ? "开" : "关"}</span>
+          </div>
+          <div className="menu-item passive">
+            <span className="menu-icon"><IconTarget size={14} /></span>
+            <span className="menu-label">状态</span>
+            <span className="menu-state">{modeLabel[petMode]}</span>
           </div>
           <div className="menu-sep" />
           <div className="menu-item quit" onClick={() => invoke("quit_app")}>
-            🚪 退出
+            <span className="menu-icon"><IconPower size={14} /></span>
+            <span className="menu-label">退出</span>
           </div>
         </div>
       )}

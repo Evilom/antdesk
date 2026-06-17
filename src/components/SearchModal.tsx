@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useAppStore } from "../stores/appStore";
+import { IconCalendar, IconFolder, IconReport, IconSearch, IconX } from "./Icons";
 import type { Page } from "../types";
 
 interface SearchResult {
@@ -18,6 +19,7 @@ const TYPE_LABELS: Record<SearchResult["type"], string> = {
 
 export default function SearchModal({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const todos = useAppStore((s) => s.todos);
   const projects = useAppStore((s) => s.projects);
@@ -78,9 +80,34 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
     return groups;
   }, [results]);
 
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [query]);
+
   const handleSelect = (result: SearchResult) => {
     setCurrentPage(result.page);
     onClose();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((i) => Math.min(i + 1, results.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter" && results[selectedIndex]) {
+      e.preventDefault();
+      handleSelect(results[selectedIndex]);
+    } else if (e.key === "Escape") {
+      onClose();
+    }
+  };
+
+  const resultIcon = (type: SearchResult["type"]) => {
+    if (type === "todo") return <IconCalendar size={14} />;
+    if (type === "project") return <IconFolder size={14} />;
+    return <IconReport size={14} />;
   };
 
   return (
@@ -106,21 +133,22 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
           className="flex items-center gap-2 px-4 py-3"
           style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
         >
-          <span className="text-text-muted text-sm">&#128269;</span>
+          <IconSearch size={15} className="text-text-muted" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="搜索任务、项目、日报..."
             className="flex-1 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-muted"
           />
-          <kbd
-            className="text-[10px] text-text-muted px-1.5 py-0.5 rounded"
-            style={{ background: "rgba(255,255,255,0.06)" }}
+          <button
+            onClick={onClose}
+            className="w-6 h-6 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-hover flex items-center justify-center transition-colors"
           >
-            Esc
-          </kbd>
+            <IconX size={13} />
+          </button>
         </div>
 
         {/* Results */}
@@ -138,19 +166,19 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
               >
                 {type}
               </div>
-              {items.map((item) => (
+              {items.map((item) => {
+                const flatIndex = results.findIndex((r) => r.id === item.id && r.type === item.type);
+                const active = flatIndex === selectedIndex;
+                return (
                 <button
                   key={item.id}
                   onClick={() => handleSelect(item)}
-                  className="w-full px-4 py-2.5 text-left flex items-center gap-3 transition-colors"
-                  style={{ background: "transparent" }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = "rgba(255,255,255,0.06)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "transparent")
-                  }
+                  onMouseEnter={() => setSelectedIndex(flatIndex)}
+                  className={`w-full px-4 py-2.5 text-left flex items-center gap-3 transition-colors ${active ? "bg-bg-hover" : "bg-transparent hover:bg-bg-hover"}`}
                 >
+                  <span className={`w-7 h-7 rounded-[9px] flex items-center justify-center ${active ? "bg-accent-blue/15 text-accent-blue" : "bg-bg-hover text-text-muted"}`}>
+                    {resultIcon(item.type)}
+                  </span>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-text-primary truncate">
                       {item.label}
@@ -162,11 +190,14 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                     )}
                   </div>
                 </button>
-              ))}
+              )})}
             </div>
           ))}
           {!query.trim() && (
-            <div className="px-4 py-6 text-center text-text-muted text-sm">
+            <div className="px-4 py-8 text-center text-text-muted text-sm">
+              <div className="mx-auto mb-2 w-9 h-9 rounded-[12px] bg-bg-hover flex items-center justify-center">
+                <IconSearch size={17} />
+              </div>
               输入关键词开始搜索
             </div>
           )}

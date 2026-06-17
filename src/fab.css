@@ -4,6 +4,14 @@
   box-sizing: border-box;
 }
 
+:root {
+  --fab-accent: #0a84ff;
+  --fab-bg: rgba(14, 16, 24, 0.78);
+  --fab-card: rgba(255, 255, 255, 0.07);
+  --fab-border: rgba(255, 255, 255, 0.10);
+  --fab-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 html, body {
   background: transparent;
   overflow: hidden;
@@ -32,16 +40,21 @@ html, body {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: rgba(0, 122, 255, 0.85);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.22), transparent 36%),
+    radial-gradient(circle at 50% 70%, rgba(10,132,255,0.65), rgba(10,132,255,0.86));
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  transition: all 150ms ease;
-  border: none;
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.34),
+    0 0 0 1px rgba(255,255,255,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.25);
+  transition: transform 160ms var(--fab-spring), filter 160ms var(--fab-spring), box-shadow 160ms var(--fab-spring);
+  border: 1px solid rgba(255,255,255,0.14);
   color: white;
   font-size: 22px;
   position: relative;
@@ -51,8 +64,13 @@ html, body {
 }
 
 .fab-button:hover {
-  transform: scale(1.08);
-  background: rgba(0, 122, 255, 1);
+  transform: translateY(-1px) scale(1.07);
+  filter: brightness(1.05);
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(255,255,255,0.12),
+    0 0 24px rgba(10,132,255,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.28);
 }
 
 .fab-button:active {
@@ -69,10 +87,12 @@ html, body {
   margin-left: -18px;
   margin-top: -18px;
   border-radius: 50%;
-  background: rgba(30, 30, 40, 0.85);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), transparent 48%),
+    var(--fab-bg);
+  backdrop-filter: blur(24px) saturate(170%);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+  border: 1px solid var(--fab-border);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -81,7 +101,7 @@ html, body {
   z-index: 1;
   opacity: 0;
   transform: translate(0, 0) scale(0.5);
-  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: all 0.3s var(--fab-spring);
   transition-delay: 0s;
   pointer-events: none;
 }
@@ -95,9 +115,11 @@ html, body {
 
 .pie-item:hover {
   transform: translate(var(--tx), var(--ty)) scale(1.15);
-  border-color: rgba(0, 122, 255, 0.5);
-  box-shadow: 0 0 12px rgba(0, 122, 255, 0.3);
-  background: rgba(40, 40, 55, 0.95);
+  border-color: rgba(10, 132, 255, 0.44);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.30), 0 0 18px rgba(10, 132, 255, 0.22);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.11), transparent 48%),
+    rgba(24, 27, 38, 0.94);
 }
 
 .pie-item:active {
@@ -125,15 +147,17 @@ html, body {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 2px solid rgba(0, 122, 255, 0.9);
+  border: 2px solid rgba(8, 25, 48, 0.95);
 }
 
 .status-dot.connected {
-  background: #34C759;
+  background: #30d158;
+  box-shadow: 0 0 8px rgba(48,209,88,0.45);
 }
 
 .status-dot.disconnected {
-  background: #FF3B30;
+  background: #ff453a;
+  box-shadow: 0 0 8px rgba(255,69,58,0.38);
 }
 
 /* ── Pending badge ── */
@@ -144,7 +168,7 @@ html, body {
   min-width: 16px;
   height: 16px;
   border-radius: 8px;
-  background: #FF3B30;
+  background: #ff453a;
   color: white;
   font-size: 10px;
   font-weight: 600;
@@ -152,7 +176,19 @@ html, body {
   align-items: center;
   justify-content: center;
   padding: 0 4px;
-  border: 2px solid rgba(0, 122, 255, 0.9);
+  border: 2px solid rgba(8, 25, 48, 0.95);
   line-height: 1;
   pointer-events: none;
+}
+
+button:focus-visible {
+  outline: 2px solid rgba(10,132,255,0.32);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fab-button,
+  .pie-item {
+    transition: none !important;
+  }
 }

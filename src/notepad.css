@@ -4,6 +4,17 @@
   box-sizing: border-box;
 }
 
+:root {
+  --note-bg: rgba(12, 13, 19, 0.76);
+  --note-card: rgba(255, 255, 255, 0.045);
+  --note-card-hover: rgba(255, 255, 255, 0.075);
+  --note-border: rgba(255, 255, 255, 0.075);
+  --note-text: rgba(255, 255, 255, 0.88);
+  --note-muted: rgba(255, 255, 255, 0.42);
+  --note-accent: #0a84ff;
+  --note-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 html, body {
   background: transparent;
   overflow: hidden;
@@ -23,13 +34,15 @@ html, body {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: rgba(20, 20, 35, 0.72);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.05), transparent 22%),
+    var(--note-bg);
+  backdrop-filter: blur(42px) saturate(180%);
+  -webkit-backdrop-filter: blur(42px) saturate(180%);
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--note-border);
   box-shadow:
-    0 8px 40px rgba(0, 0, 0, 0.45),
+    0 18px 52px rgba(0, 0, 0, 0.42),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
   overflow: hidden;
   animation: panel-in 0.2s ease-out;
@@ -54,7 +67,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--note-muted);
   font-size: 12px;
   padding: 16px;
 }
@@ -77,9 +90,10 @@ html, body {
   align-items: center;
   gap: 10px;
   padding: 9px 10px;
-  border-radius: 10px;
+  border-radius: 11px;
   cursor: default;
-  transition: background 120ms;
+  border: 1px solid transparent;
+  transition: transform 140ms var(--note-spring), background 140ms var(--note-spring), border-color 140ms var(--note-spring);
   animation: item-in 0.2s ease-out both;
 }
 
@@ -95,7 +109,9 @@ html, body {
 }
 
 .notepad-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-1px);
+  background: var(--note-card-hover);
+  border-color: var(--note-border);
 }
 
 /* Exiting: strikethrough + fade */
@@ -133,7 +149,7 @@ html, body {
   width: 17px;
   height: 17px;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
   background: transparent;
   cursor: pointer;
   flex-shrink: 0;
@@ -151,7 +167,7 @@ html, body {
 .notepad-name {
   flex: 1;
   font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--note-text);
   line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -162,29 +178,29 @@ html, body {
 /* ── Input bar ── */
 .notepad-input-bar {
   flex-shrink: 0;
-  padding: 6px 10px 10px;
+  padding: 7px 10px 10px;
 }
 
 .notepad-input {
   width: 100%;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 10px;
+  background: var(--note-card);
+  border: 1px solid var(--note-border);
+  border-radius: 11px;
   padding: 8px 12px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--note-text);
   outline: none;
   transition: border-color 150ms, box-shadow 150ms;
   font-family: inherit;
 }
 
 .notepad-input::placeholder {
-  color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.30);
 }
 
 .notepad-input:focus {
-  border-color: rgba(0, 122, 255, 0.35);
-  box-shadow: 0 0 10px rgba(0, 122, 255, 0.1);
+  border-color: rgba(10, 132, 255, 0.38);
+  box-shadow: 0 0 0 2px rgba(10,132,255,0.12), 0 8px 22px rgba(0,0,0,0.18);
 }
 
 /* ── Tag filter bar ── */
@@ -200,10 +216,10 @@ html, body {
 .notepad-tag {
   flex-shrink: 0;
   padding: 3px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(255,255,255,0.04);
-  color: rgba(255,255,255,0.5);
+  border-radius: 9px;
+  border: 1px solid var(--note-border);
+  background: var(--note-card);
+  color: var(--note-muted);
   font-size: 10.5px;
   cursor: pointer;
   font-family: inherit;
@@ -211,12 +227,12 @@ html, body {
   white-space: nowrap;
 }
 .notepad-tag:hover {
-  background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.7);
+  background: var(--note-card-hover);
+  color: rgba(255,255,255,0.74);
 }
 .notepad-tag.active {
-  background: rgba(0,122,255,0.2);
-  border-color: rgba(0,122,255,0.35);
+  background: rgba(10,132,255,0.18);
+  border-color: rgba(10,132,255,0.36);
   color: rgba(255,255,255,0.9);
 }
 
@@ -226,4 +242,19 @@ html, body {
   border-radius: 50%;
   flex-shrink: 0;
   margin-left: 2px;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid rgba(10,132,255,0.32);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notepad-panel,
+  .notepad-item,
+  .notepad-item.exiting {
+    animation: none !important;
+    transition: none !important;
+  }
 }
