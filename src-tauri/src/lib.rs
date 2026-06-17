@@ -7,8 +7,6 @@ struct AppState {
     notion_token: Mutex<Option<String>>,
 }
 
-const DEFAULT_NOTION_TOKEN: &str = "ntn_A74208512877NJgCuXKZv8qc4cy1jO8Zj2xWfIqwTA4dQY";
-
 fn http_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(reqwest::Client::new)
@@ -22,7 +20,7 @@ fn get_notion_token(state: tauri::State<AppState>) -> String {
     if let Some(ref token) = *cached {
         return token.clone();
     }
-    let token = std::env::var("NOTION_TOKEN").unwrap_or_else(|_| DEFAULT_NOTION_TOKEN.to_string());
+    let token = std::env::var("NOTION_TOKEN").unwrap_or_default();
     *cached = Some(token.clone());
     token
 }
@@ -45,9 +43,12 @@ async fn fetch_notion(
         Some(t) if !t.is_empty() => t,
         _ => {
             let cached = state.notion_token.lock().unwrap();
-            cached.clone().unwrap_or_else(|| DEFAULT_NOTION_TOKEN.to_string())
+            cached.clone().unwrap_or_default()
         }
     };
+    if token.trim().is_empty() {
+        return Err("Notion token is not configured".to_string());
+    }
 
     let url = format!("https://api.notion.com{}", path);
     let client = http_client();
@@ -202,11 +203,20 @@ async fn hide_pet(app: tauri::AppHandle) -> Result<(), String> {
 
 /// Get pending todo count for badge
 #[tauri::command]
-async fn get_pending_count(state: tauri::State<'_, AppState>) -> Result<i32, String> {
-    let token = {
-        let cached = state.notion_token.lock().unwrap();
-        cached.clone().unwrap_or_else(|| DEFAULT_NOTION_TOKEN.to_string())
+async fn get_pending_count(
+    token: Option<String>,
+    state: tauri::State<'_, AppState>,
+) -> Result<i32, String> {
+    let token = match token {
+        Some(t) if !t.is_empty() => t,
+        _ => {
+            let cached = state.notion_token.lock().unwrap();
+            cached.clone().unwrap_or_default()
+        }
     };
+    if token.trim().is_empty() {
+        return Ok(0);
+    }
 
     let body = r#"{"filter":{"property":"Status","checkbox":{"equals":false}},"page_size":100}"#;
     let raw = fetch_notion(
@@ -343,22 +353,17 @@ async fn show_settings(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Toggle notepad window
-/// Toggle quick panel (notepad) — positioned next to pet, never covering it.
-#[tauri::command]
-async fn toggle_notepad(app: tauri::AppHandle) -> Result<(), String> {
-    let np = match app.get_webview_window("notepad") {
+fn position_panel_next_to_pet(
+    app: &tauri::AppHandle,
+    label: &str,
+    panel_w: f64,
+    panel_h: f64,
+) -> Result<(), String> {
+    let panel = match app.get_webview_window(label) {
         Some(w) => w,
         None => return Ok(()),
     };
 
-    // If visible → hide
-    if np.is_visible().unwrap_or(false) {
-        np.hide().map_err(|e| e.to_string())?;
-        return Ok(());
-    }
-
-    // Position next to pet
     if let Some(pet) = app.get_webview_window("pet") {
         let pet_pos = pet.outer_position().map_err(|e| e.to_string())?;
         let pet_size = pet.outer_size().map_err(|e| e.to_string())?;
@@ -381,34 +386,90 @@ async fn toggle_notepad(app: tauri::AppHandle) -> Result<(), String> {
         };
 
         let gap = 8.0 * scale;
-        let np_w = 280.0 * scale;
-        let np_h = 360.0 * scale;
+        let pw = panel_w * scale;
+        let ph = panel_h * scale;
         let px = pet_pos.x as f64;
         let py = pet_pos.y as f64;
-        let pw = pet_size.width as f64;
+        let pet_w = pet_size.width as f64;
 
-        // Try right side, then left, then above
-        let x = if px + pw + gap + np_w <= mon_right {
-            px + pw + gap
-        } else if px - gap - np_w >= mon_left {
-            px - gap - np_w
+        let right_fits = px + pet_w + gap + pw <= mon_right;
+        let left_fits = px - gap - pw >= mon_left;
+        let x = if right_fits {
+            px + pet_w + gap
+        } else if left_fits {
+            px - gap - pw
         } else {
-            px
+            px.max(mon_left).min(mon_right - pw)
         };
 
-        let y = if px + pw + gap + np_w <= mon_right || px - gap - np_w >= mon_left {
-            py.max(mon_top as f64).min(mon_bottom - np_h)
+        let y = if right_fits || left_fits {
+            py.max(mon_top).min(mon_bottom - ph)
         } else {
-            (py - gap - np_h).max(mon_top)
+            (py - gap - ph).max(mon_top)
         };
 
         let pos = tauri::Position::Physical(tauri::PhysicalPosition::new(x as i32, y as i32));
-        let _ = np.set_position(pos);
+        panel.set_position(pos).map_err(|e| e.to_string())?;
     }
+    Ok(())
+}
+
+/// Toggle notepad window
+/// Toggle quick panel (notepad) — positioned next to pet, never covering it.
+#[tauri::command]
+async fn toggle_notepad(app: tauri::AppHandle) -> Result<(), String> {
+    let np = match app.get_webview_window("notepad") {
+        Some(w) => w,
+        None => return Ok(()),
+    };
+
+    // If visible → hide
+    if np.is_visible().unwrap_or(false) {
+        np.hide().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    position_panel_next_to_pet(&app, "notepad", 280.0, 360.0)?;
 
     np.show().map_err(|e| e.to_string())?;
     np.set_focus().map_err(|e| e.to_string())?;
+    let _ = np.emit("notepad-shown", ());
     Ok(())
+}
+
+#[tauri::command]
+async fn update_quick_panel_position(app: tauri::AppHandle) -> Result<(), String> {
+    position_panel_next_to_pet(&app, "quick", 260.0, 320.0)?;
+    position_panel_next_to_pet(&app, "notepad", 280.0, 360.0)?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn toggle_quick_panel(app: tauri::AppHandle) -> Result<(), String> {
+    if app.get_webview_window("quick").is_some() {
+        position_panel_next_to_pet(&app, "quick", 260.0, 320.0)?;
+        if let Some(q) = app.get_webview_window("quick") {
+            if q.is_visible().unwrap_or(false) {
+                q.hide().map_err(|e| e.to_string())?;
+            } else {
+                q.show().map_err(|e| e.to_string())?;
+                q.set_focus().map_err(|e| e.to_string())?;
+                let _ = q.emit("quick-panel-shown", ());
+            }
+        }
+        return Ok(());
+    }
+    toggle_notepad(app).await
+}
+
+#[tauri::command]
+async fn open_full_panel(app: tauri::AppHandle) -> Result<(), String> {
+    expand_panel(app).await
+}
+
+#[tauri::command]
+async fn fab_click(app: tauri::AppHandle) -> Result<(), String> {
+    toggle_quick_panel(app).await
 }
 
 // ── System tray ──
@@ -516,6 +577,10 @@ pub fn run() {
             get_visible_windows,
             show_settings,
             toggle_notepad,
+            update_quick_panel_position,
+            toggle_quick_panel,
+            open_full_panel,
+            fab_click,
             quit_app
         ])
         .run(tauri::generate_context!())

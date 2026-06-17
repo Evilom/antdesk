@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getLocalNotionToken } from "../lib/localSettings";
 
 interface Todo {
   id: string;
@@ -24,6 +25,7 @@ const PRIORITY_DOT: Record<string, string> = {
 export default function NotepadPanel() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [newName, setNewName] = useState("");
   const [exiting, setExiting] = useState<Set<string>>(new Set());
   const [availableTags, setAvailableTags] = useState<string[]>([]);
@@ -42,9 +44,12 @@ export default function NotepadPanel() {
   useEffect(() => {
     (async () => {
       try {
+        const token = getLocalNotionToken();
+        if (!token) return;
         const raw = await invoke<string>("fetch_notion", {
           path: `/v1/databases/${DB_ID}`,
           method: "GET",
+          token,
         });
         const db = JSON.parse(raw);
         const opts: string[] =
@@ -61,6 +66,13 @@ export default function NotepadPanel() {
   // ── Fetch todos (with optional tag filter) ──
   const fetchTodos = useCallback(async (tag?: string) => {
     try {
+      const token = getLocalNotionToken();
+      if (!token) {
+        setError("未配置 Notion Token");
+        setTodos([]);
+        return;
+      }
+      setError("");
       const filters: any[] = [
         { property: "Status", checkbox: { equals: false } },
       ];
@@ -83,6 +95,7 @@ export default function NotepadPanel() {
           ],
           page_size: MAX_VISIBLE,
         }),
+        token,
       });
       const data = JSON.parse(raw);
       const items: Todo[] = data.results.map((page: any) => ({
@@ -146,10 +159,16 @@ export default function NotepadPanel() {
       });
     }, 300);
     try {
+      const token = getLocalNotionToken();
+      if (!token) {
+        setError("未配置 Notion Token");
+        return;
+      }
       await invoke("fetch_notion", {
         path: `/v1/pages/${id}`,
         method: "PATCH",
         body: JSON.stringify({ properties: { Status: { checkbox: true } } }),
+        token,
       });
     } catch (e) {
       console.error("Toggle failed:", e);
@@ -162,6 +181,11 @@ export default function NotepadPanel() {
       e.preventDefault();
       const name = newName.trim();
       if (!name) return;
+      const token = getLocalNotionToken();
+      if (!token) {
+        setError("未配置 Notion Token");
+        return;
+      }
       setNewName("");
       const props: any = {
         Name: { title: [{ text: { content: name } }] },
@@ -179,6 +203,7 @@ export default function NotepadPanel() {
             parent: { database_id: DB_ID },
             properties: props,
           }),
+          token,
         });
         const page = JSON.parse(raw);
         const newTodo: Todo = {
@@ -220,9 +245,11 @@ export default function NotepadPanel() {
       {/* ── Todo list ── */}
       {loading ? (
         <div className="notepad-loading">...</div>
+      ) : error ? (
+        <div className="notepad-empty">{error}</div>
       ) : todos.length === 0 ? (
         <div className="notepad-empty">
-          {activeTag ? `无 ${activeTag} 待办` : "全部完成 ✓"}
+          {activeTag ? `无 ${activeTag} 待办` : "全部完成"}
         </div>
       ) : (
         <div className="notepad-list">

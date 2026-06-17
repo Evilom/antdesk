@@ -33,7 +33,7 @@ interface AppState {
 
 const DEFAULT_SETTINGS: AppSettings = {
   notionToken: "",
-  aiEndpoint: "http://evilom.top:6037/v1/chat/completions",
+  aiEndpoint: "",
   aiModel: "DeepSeek-V3.2",
   theme: "dark",
   accent: "blue",

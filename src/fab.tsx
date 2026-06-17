@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { emit } from "@tauri-apps/api/event";
 import { useEffect, useState, useCallback, useRef } from "react";
+import { getLocalNotionToken } from "./lib/localSettings";
 
 const PIE_ITEMS = [
   { tag: "all", label: "全部", emoji: "📋", color: "rgba(255,255,255,0.5)" },
@@ -23,14 +24,24 @@ export default function FAB() {
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    const localToken = getLocalNotionToken();
+    if (localToken) {
+      setConnected(true);
+      return;
+    }
     invoke<string>("get_notion_token")
-      .then(() => setConnected(true))
+      .then((token) => setConnected(Boolean(token)))
       .catch(() => setConnected(false));
   }, []);
 
   useEffect(() => {
     const fetchCount = () => {
-      invoke<number>("get_pending_count")
+      const token = getLocalNotionToken();
+      if (!token) {
+        setPendingCount(0);
+        return;
+      }
+      invoke<number>("get_pending_count", { token })
         .then(setPendingCount)
         .catch(() => {});
     };

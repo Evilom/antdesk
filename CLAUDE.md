@@ -24,7 +24,7 @@
 - Right-click: invoke `show_fab_context_menu` via Rust
 
 ## Notion Integration
-- Token: hardcoded default in `src-tauri/src/lib.rs` as `DEFAULT_NOTION_TOKEN`
+- Token: configured by the user in Settings or via `NOTION_TOKEN`; never hardcode real tokens
 - API calls go through Rust `fetch_notion` command (proxies to api.notion.com)
 - Databases:
   - Todos: 2d51ba51-3457-8125-9d4c-f28ffa2fff14 (Name, Status/checkbox, Priority/select, Tags/multi_select, Project/relation, Due Date/date)
@@ -163,7 +163,7 @@ Tasks grouped by project:
 - Save window state to localStorage on close, restore on open
 
 ## Common Pitfalls
-- Don't mix up Notion tokens — the correct one starts with `ntn_A742...`
+- Never commit Notion tokens, AI endpoints with secrets, or signing keys
 - Windows needs `transparent: true` + `decorations: false` in tauri.conf.json
 - `backdrop-filter` only works when the element's ancestors have transparent backgrounds
 - Todo sort must use `{ timestamp: "created_time" }` not `{ property: "Created time" }`

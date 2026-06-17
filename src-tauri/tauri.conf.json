@@ -1,6 +1,6 @@
 {
   "productName": "AntDesk",
-  "version": "2.18.1",
+  "version": "2.18.2",
   "identifier": "com.antdesk.app",
   "build": {
     "beforeDevCommand": "yarn dev",

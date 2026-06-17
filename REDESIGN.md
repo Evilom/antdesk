@@ -54,7 +54,7 @@
 - 快速写日报入口
 
 ### 4. AI 对话 (Chat)
-- 接入 Chat2API (http://evilom.top:6037/v1)
+- 接入用户在设置中配置的 OpenAI 兼容 API
 - 流式响应，打字机效果
 - 支持上下文（最近10条消息）
 - 快捷指令：/todo（添加任务）、/report（生成日报）、/help
@@ -75,8 +75,8 @@ DestopAnt Reports:   2d51ba51-3457-8158-84e1-c5cbc66ed8b2
 ```
 
 ### Notion Token
-- 读取顺序：环境变量 NOTION_TOKEN → Rust 缓存
-- 当前 token: `ntn_z7420851287aTgqYKcfYqocoVHHLmNadxKn2WHcZTFp8hv`
+- 读取顺序：用户设置 → 环境变量 NOTION_TOKEN → Rust 缓存
+- 不要在源码、文档或 release artifact 中提交真实 token
 - API 版本: 2022-06-28
 - 直连 api.notion.com（无需代理）
 
@@ -123,7 +123,7 @@ interface Report {
 
 ### Chat2API 端点
 - 本地: http://127.0.0.1:6033/v1/chat/completions
-- 外网: http://evilom.top:6037/v1/chat/completions
+- 外网端点由用户在设置中自行配置
 - 格式: OpenAI 兼容
 - 推荐模型: DeepSeek-V3.2（稳定）、deepseek-v4-flash-think（快速）
 

@@ -41,8 +41,12 @@ export default function App() {
 
   const loadData = useCallback(async () => {
     try {
-      const token = await getNotionToken();
-      updateSettings({ notionToken: token });
+      const token = settings.notionToken.trim() || await getNotionToken();
+      if (!token) {
+        setNotionConnected(false);
+        return;
+      }
+      if (!settings.notionToken.trim()) updateSettings({ notionToken: token });
       setNotionConnected(true);
 
       const [todos, reports, projects] = await Promise.all([
@@ -57,7 +61,7 @@ export default function App() {
       console.error("loadData error:", e);
       setNotionConnected(false);
     }
-  }, [setTodos, setReports, setProjects, setNotionConnected, updateSettings]);
+  }, [settings.notionToken, setTodos, setReports, setProjects, setNotionConnected, updateSettings]);
 
   useEffect(() => { loadData(); checkForUpdates(); }, [loadData]);
 

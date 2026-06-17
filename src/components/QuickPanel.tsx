@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { IconLock, IconUnlock, IconX } from "./Icons";
+import { getLocalNotionToken } from "../lib/localSettings";
 
 interface Todo {
   id: string;
@@ -24,6 +25,7 @@ export default function QuickPanel() {
   const [allTodos, setAllTodos] = useState<Todo[]>([]);
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [exiting, setExiting] = useState<Set<string>>(new Set());
   const [bgAlpha, setBgAlpha] = useState(0.6);
   const [filterTag, setFilterTag] = useState<string>("all");
@@ -91,10 +93,18 @@ export default function QuickPanel() {
   // ── Fetch all todos ──
   const fetchAll = useCallback(async () => {
     try {
+      const token = getLocalNotionToken();
+      if (!token) {
+        setError("未配置 Notion Token");
+        setAllTodos([]);
+        return;
+      }
+      setError("");
       const projRaw = await invoke<string>("fetch_notion", {
         path: "/v1/databases/2d51ba51-3457-8127-840e-d8b43c0e5e21/query",
         method: "POST",
         body: JSON.stringify({ page_size: 50 }),
+        token,
       });
       const projData = JSON.parse(projRaw);
       const archived = new Set<string>();
@@ -111,6 +121,7 @@ export default function QuickPanel() {
           sorts: [{ property: "Priority", direction: "ascending" }],
           page_size: 100,
         }),
+        token,
       });
       const todoData = JSON.parse(todoRaw);
       const items: Todo[] = todoData.results
@@ -128,6 +139,7 @@ export default function QuickPanel() {
       setAllTodos(items);
     } catch (e) {
       console.error("QuickPanel fetchAll error:", e);
+      setError("快捷面板加载失败");
     } finally {
       setLoading(false);
     }
@@ -207,10 +219,16 @@ export default function QuickPanel() {
       });
     }, 280);
     try {
+      const token = getLocalNotionToken();
+      if (!token) {
+        setError("未配置 Notion Token");
+        return;
+      }
       await invoke("fetch_notion", {
         path: `/v1/pages/${id}`,
         method: "PATCH",
         body: JSON.stringify({ properties: { Status: { checkbox: true } } }),
+        token,
       });
     } catch (e) {
       console.error("Toggle failed:", e);
@@ -246,6 +264,8 @@ export default function QuickPanel() {
 
       {loading ? (
         <div className="quick-loading">加载中</div>
+      ) : error ? (
+        <div className="quick-empty">{error}</div>
       ) : displayTodos.length === 0 ? (
         <div className="quick-empty">
           {filterTag === "all" ? "全部完成" : `无 ${filterTag} 待办`}

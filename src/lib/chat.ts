@@ -23,6 +23,10 @@ export async function sendChatMessage(
   onChunk: (text: string) => void,
   signal?: AbortSignal
 ): Promise<void> {
+  if (!endpoint.trim()) {
+    throw new Error("AI endpoint is not configured");
+  }
+
   const body = JSON.stringify({
     model,
     messages: buildMessages(messages),

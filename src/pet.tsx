@@ -12,6 +12,7 @@ import { KanbanBridge } from "./lib/kanbanBridge";
 import { useKanbanStore } from "./stores/kanbanStore";
 import type { KanbanData } from "./types/kanban";
 import { EmotionEngine } from "./lib/EmotionEngine";
+import { getLocalNotionToken } from "./lib/localSettings";
 import {
   IconEdit,
   IconEyeOff,
@@ -70,10 +71,20 @@ export default function Pet() {
 
   /* ═══ Init ═══ */
   useEffect(() => {
-    invoke<string>("get_notion_token").then(() => setConnected(true)).catch(() => {});
-    invoke<number>("get_pending_count").then(setPendingCount).catch(() => {});
+    const refreshCount = async () => {
+      const localToken = getLocalNotionToken();
+      const envToken = localToken ? "" : await invoke<string>("get_notion_token").catch(() => "");
+      const token = localToken || envToken;
+      setConnected(Boolean(token));
+      if (!token) {
+        setPendingCount(0);
+        return;
+      }
+      invoke<number>("get_pending_count", { token }).then(setPendingCount).catch(() => setPendingCount(0));
+    };
+    refreshCount();
     const t = setInterval(() => {
-      invoke<number>("get_pending_count").then(setPendingCount).catch(() => {});
+      refreshCount();
     }, 60_000);
     return () => clearInterval(t);
   }, []);

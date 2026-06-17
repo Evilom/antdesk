@@ -176,7 +176,10 @@ function ChatTab() {
 
     try {
       const settings = JSON.parse(localStorage.getItem("antdesk_settings") || "{}");
-      const resp = await fetch(settings.aiEndpoint || "http://evilom.top:6037/v1/chat/completions", {
+      if (!settings.aiEndpoint?.trim()) {
+        throw new Error("AI endpoint is not configured");
+      }
+      const resp = await fetch(settings.aiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -193,7 +196,7 @@ function ChatTab() {
       const reply = data.choices?.[0]?.message?.content || "(无响应)";
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
     } catch (e) {
-      setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ 请求失败" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: "请求失败，请先在设置里配置 AI 端点" }]);
     }
     setLoading(false);
   }, [input, loading, messages]);
