@@ -21,7 +21,6 @@ export default function FAB() {
   const [pieAbove, setPieAbove] = useState(true);
   const didDrag = useRef(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const localToken = getLocalNotionToken();
@@ -60,22 +59,6 @@ export default function FAB() {
     } catch {}
   }, []);
 
-  // Start polling FAB position → reposition QuickPanel while dragging
-  const startDragPolling = useCallback(() => {
-    if (pollTimerRef.current) return;
-    pollTimerRef.current = setInterval(() => {
-      invoke("update_quick_panel_position").catch(() => {});
-    }, 48); // ~20fps, smooth enough
-  }, []);
-
-  // Stop polling
-  const stopDragPolling = useCallback(() => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-  }, []);
-
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     didDrag.current = false;
     const startX = e.screenX;
@@ -86,8 +69,6 @@ export default function FAB() {
         didDrag.current = true;
         document.removeEventListener("mousemove", onMouseMove);
         document.removeEventListener("mouseup", onMouseUp);
-        // Start position polling BEFORE native drag takes over
-        startDragPolling();
         getCurrentWindow().startDragging();
       }
     };
@@ -95,19 +76,19 @@ export default function FAB() {
     const onMouseUp = () => {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
-      stopDragPolling();
+      invoke("update_quick_panel_position").catch(() => {});
     };
 
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
-  }, [startDragPolling, stopDragPolling]);
+  }, []);
 
-  // Also stop polling when window gains focus (drag ended)
+  // Also reposition companion windows after native drag returns focus.
   useEffect(() => {
-    const handleFocus = () => stopDragPolling();
+    const handleFocus = () => invoke("update_quick_panel_position").catch(() => {});
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
-  }, [stopDragPolling]);
+  }, []);
 
   const handleClick = useCallback(async () => {
     if (didDrag.current) return;

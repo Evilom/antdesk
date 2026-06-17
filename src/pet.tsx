@@ -50,6 +50,7 @@ export default function Pet() {
   const [physState, setPhysState] = useState<string>("idle");
   const [emotionMood, setEmotionMood] = useState<{emoji: string; text: string} | null>(null);
   const [petHovered, setPetHovered] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
   const didDrag = useRef(false);
   const spineRef = useRef<SpinePetHandle>(null);
@@ -92,8 +93,27 @@ export default function Pet() {
   /* ═══ Native menu events ═══ */
   useEffect(() => {
     const u1 = listen("toggle-lock", () => setLocked((v) => !v));
-    const u2 = listen("toggle-bubble", () => invoke("toggle_notepad"));
-    return () => { u1.then((f) => f()); u2.then((f) => f()); };
+    const u2 = listen("toggle-bubble", () => invoke("toggle_quick_panel"));
+    const u3 = listen("toggle-window-interaction", () => {
+      setWindowInteraction((current) => {
+        const next = !current;
+        if (next) {
+          invoke<Array<any>>("get_visible_windows").then(wins => {
+            const platforms = wins.map((w: any) => ({
+              x: w.x, y: w.y,
+              width: w.width,
+              height: w.height,
+              source: "window" as const, name: w.name,
+            }));
+            physicsRef.current?.setPlatforms(platforms);
+          }).catch(() => {});
+        } else {
+          physicsRef.current?.setPlatforms([]);
+        }
+        return next;
+      });
+    });
+    return () => { u1.then((f) => f()); u2.then((f) => f()); u3.then((f) => f()); };
   }, []);
 
   /* ═══ KanbanBridge ═══ */
@@ -321,6 +341,7 @@ export default function Pet() {
       const win = getCurrentWindow();
       const startScreenX = e.screenX;
       const startScreenY = e.screenY;
+      setDragging(true);
 
       // Pause physics
       physicsRef.current?.onDragStart();
@@ -330,25 +351,61 @@ export default function Pet() {
       const pos = await win.outerPosition();
       const startWinX = pos.x / scale;
       const startWinY = pos.y / scale;
+      const bounds = await invoke<{ x: number; y: number; width: number; height: number; scale: number }>("get_screen_bounds")
+        .then((raw) => ({
+          x: raw.x / raw.scale,
+          y: raw.y / raw.scale,
+          width: raw.width / raw.scale,
+          height: raw.height / raw.scale,
+        }))
+        .catch(() => null);
 
-      // Snapshot notepad offset (if visible)
-      let npOffset: { dx: number; dy: number } | null = null;
-      let npWin: Window | null = null;
-      try {
-        npWin = await Window.getByLabel("notepad");
-        if (npWin && await npWin.isVisible()) {
-          const npPos = await npWin.outerPosition();
-          npOffset = {
-            dx: npPos.x / scale - startWinX,
-            dy: npPos.y / scale - startWinY,
-          };
-        }
-      } catch {}
+      const companions: Array<{ win: Window; dx: number; dy: number }> = [];
+      for (const label of ["quick", "notepad"]) {
+        try {
+          const companion = await Window.getByLabel(label);
+          if (companion && await companion.isVisible()) {
+            const companionPos = await companion.outerPosition();
+            companions.push({
+              win: companion,
+              dx: companionPos.x / scale - startWinX,
+              dy: companionPos.y / scale - startWinY,
+            });
+          }
+        } catch {}
+      }
 
       didDrag.current = false;
 
       // Track drag history for release velocity calculation
       const history: Array<{ x: number; y: number; t: number }> = [];
+      let pending: { x: number; y: number } | null = null;
+      let raf = 0;
+
+      const clampDrag = (x: number, y: number) => {
+        if (!bounds) return { x, y };
+        const minX = bounds.x + 2;
+        const minY = bounds.y + 2;
+        const maxX = bounds.x + bounds.width - 200 - 2;
+        const maxY = bounds.y + bounds.height - 200 - 2;
+        return {
+          x: Math.max(minX, Math.min(maxX, x)),
+          y: Math.max(minY, Math.min(maxY, y)),
+        };
+      };
+
+      const flushMove = () => {
+        raf = 0;
+        if (!pending) return;
+        const next = pending;
+        pending = null;
+        win.setPosition(new LogicalPosition(next.x, next.y)).catch(() => {});
+        for (const companion of companions) {
+          companion.win.setPosition(
+            new LogicalPosition(next.x + companion.dx, next.y + companion.dy)
+          ).catch(() => {});
+        }
+      };
 
       const onMove = (me: MouseEvent) => {
         if (me.buttons !== 1) return;
@@ -357,14 +414,8 @@ export default function Pet() {
         if (!didDrag.current && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
           didDrag.current = true;
         }
-        const newX = startWinX + dx;
-        const newY = startWinY + dy;
-        win.setPosition(new LogicalPosition(newX, newY)).catch(() => {});
-        if (npOffset && npWin) {
-          npWin.setPosition(
-            new LogicalPosition(newX + npOffset.dx, newY + npOffset.dy)
-          ).catch(() => {});
-        }
+        pending = clampDrag(startWinX + dx, startWinY + dy);
+        if (!raf) raf = requestAnimationFrame(flushMove);
         // Record position for velocity
         history.push({ x: me.screenX, y: me.screenY, t: performance.now() });
         if (history.length > 6) history.shift();
@@ -373,6 +424,9 @@ export default function Pet() {
       const onUp = () => {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        if (raf) cancelAnimationFrame(raf);
+        flushMove();
+        setDragging(false);
         // Calculate release velocity (logical px/s)
         let releaseVx = 0, releaseVy = 0;
         if (history.length >= 2) {
@@ -386,6 +440,7 @@ export default function Pet() {
           }
         }
         physicsRef.current?.onDragEnd(releaseVx, releaseVy);
+        invoke("update_quick_panel_position").catch(() => {});
       };
 
       document.addEventListener("mousemove", onMove);
@@ -400,13 +455,14 @@ export default function Pet() {
     if (menuOpen) { setMenuOpen(false); return; }
     brainRef.current?.interact();
     emotionRef.current?.emit("user_interaction");
-    invoke("toggle_notepad");
+    invoke("toggle_quick_panel");
   }, [menuOpen]);
 
   /* ═══ RIGHT-CLICK → context menu ═══ */
   const handlePetContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    setMenuOpen(true);
+    setMenuOpen(false);
+    invoke("show_fab_context_menu").catch((err) => console.error("show_fab_context_menu failed:", err));
   }, []);
 
   /* ═══ Derived ═══ */
@@ -460,6 +516,7 @@ export default function Pet() {
       className="pet-window"
       data-state={visualState}
       data-mode={petMode}
+      data-dragging={dragging}
     >
       <div
         className="pet-view"

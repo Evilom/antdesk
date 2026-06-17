@@ -79,6 +79,7 @@ export class PhysicsEngine {
 
   private bounds: ScreenBounds | null = null;
   private groundY = 0;
+  private floorY = 0;
   private platforms: Platform[] = [];
   private behaviorWeights: BehaviorWeights = { stroll: 0.35, sprint: 0.15, explore: 0.20, rest: 0.15, chase: 0.15 };
 
@@ -229,6 +230,7 @@ export class PhysicsEngine {
   private recomputeGround(): void {
     if (!this.bounds) return;
     this.groundY = this.bounds.y + this.bounds.height - this.windowHeight - this.edgePadding;
+    this.floorY = this.groundY;
   }
 
   // ── Behavior system ──
@@ -355,7 +357,8 @@ export class PhysicsEngine {
   // ── State handlers ──
 
   private tickIdle(dt: number): void {
-    this.y = this.groundY;
+    this.floorY = this.resolveFloorY(this.x, this.y);
+    this.y = this.floorY;
     this.behaviorTimer -= dt;
     this.idleTimer -= dt;
     if (this.behaviorTimer <= 0 || this.idleTimer <= 0) {
@@ -364,7 +367,8 @@ export class PhysicsEngine {
   }
 
   private tickWalk(dt: number): void {
-    this.y = this.groundY;
+    this.floorY = this.resolveFloorY(this.x, this.y);
+    this.y = this.floorY;
     this.behaviorTimer -= dt;
     this.directionTimer -= dt;
 
@@ -428,6 +432,8 @@ export class PhysicsEngine {
       return;
     }
     this.x = clamped;
+    this.floorY = this.resolveFloorY(this.x, this.y);
+    this.y = this.floorY;
 
     // End behavior timer
     if (this.behaviorTimer <= 0) this.pickBehavior();
@@ -436,7 +442,8 @@ export class PhysicsEngine {
   }
 
   private tickRun(dt: number): void {
-    this.y = this.groundY;
+    this.floorY = this.resolveFloorY(this.x, this.y);
+    this.y = this.floorY;
     this.behaviorTimer -= dt;
 
     if (this.behavior === "chase") {
@@ -462,6 +469,8 @@ export class PhysicsEngine {
       return;
     }
     this.x = clamped;
+    this.floorY = this.resolveFloorY(this.x, this.y);
+    this.y = this.floorY;
 
     if (this.behaviorTimer <= 0) this.pickBehavior();
     this.moveWindow();
@@ -503,17 +512,19 @@ export class PhysicsEngine {
     const newBottom = newY + this.windowHeight;
 
     for (const p of this.platforms) {
-      if (p.y >= this.groundY) continue;
+      if (!this.isUsablePlatform(p)) continue;
+      if (p.y >= this.groundY + this.windowHeight) continue;
       if (prevBottom <= p.y + 4 && newBottom >= p.y - 4) {
         const cx = newX + this.windowWidth / 2;
         if (cx >= p.x - 20 && cx <= p.x + p.width + 20) {
-          if (p.y < landY) landY = p.y;
+          const platformFloor = p.y - this.windowHeight;
+          if (platformFloor < landY) landY = platformFloor;
         }
       }
     }
 
     // Ground collision
-    if (prevBottom <= landY + 4 && newBottom >= landY - 4) {
+    if (prevBottom <= landY + this.windowHeight + 4 && newBottom >= landY + this.windowHeight - 4) {
       const speed = Math.abs(this.vy);
 
       if (speed > 300) {
@@ -544,25 +555,29 @@ export class PhysicsEngine {
   }
 
   private tickLanding(dt: number): void {
-    this.y = this.groundY;
+    this.floorY = this.resolveFloorY(this.x, this.y);
+    this.y = this.floorY;
     this.landingTimer -= dt;
     if (this.landingTimer <= 0) this.pickBehavior();
   }
 
   private tickDizzy(dt: number): void {
-    this.y = this.groundY;
+    this.floorY = this.resolveFloorY(this.x, this.y);
+    this.y = this.floorY;
     this.dizzyTimer -= dt;
     if (this.dizzyTimer <= 0) this.pickBehavior();
   }
 
   private tickHitWall(dt: number): void {
-    this.y = this.groundY;
+    this.floorY = this.resolveFloorY(this.x, this.y);
+    this.y = this.floorY;
     this.hitWallTimer -= dt;
     if (this.hitWallTimer <= 0) this.pickBehavior();
   }
 
   private tickSlide(dt: number): void {
-    this.y = this.groundY;
+    this.floorY = this.resolveFloorY(this.x, this.y);
+    this.y = this.floorY;
     this.vx *= this.slideFriction;
 
     let newX = this.x + this.vx * dt;
@@ -593,6 +608,33 @@ export class PhysicsEngine {
     return Math.max(minX, Math.min(maxX, newX));
   }
 
+  private isUsablePlatform(p: Platform): boolean {
+    if (!this.bounds) return false;
+    if (p.width < 120 || p.height < 80) return false;
+    if (p.y < this.bounds.y || p.y > this.bounds.y + this.bounds.height) return false;
+    return true;
+  }
+
+  private resolveFloorY(x: number, currentY: number): number {
+    let floor = this.groundY;
+    const cx = x + this.windowWidth / 2;
+    const currentBottom = currentY + this.windowHeight;
+
+    for (const p of this.platforms) {
+      if (!this.isUsablePlatform(p)) continue;
+      if (cx < p.x - 14 || cx > p.x + p.width + 14) continue;
+      const platformFloor = p.y - this.windowHeight;
+      if (platformFloor < (this.bounds?.y ?? 0)) continue;
+      const platformTop = p.y;
+      const closeEnough = Math.abs(currentBottom - platformTop) < 24;
+      const belowOrOn = currentBottom <= platformTop + 24;
+      if ((closeEnough || belowOrOn) && platformFloor < floor) {
+        floor = platformFloor;
+      }
+    }
+    return floor;
+  }
+
   /** Safety: catch any escape and reset */
   private safetyClamp(): void {
     if (!this.bounds || this.state === "dragged") return;
@@ -612,6 +654,7 @@ export class PhysicsEngine {
       console.warn("[Physics] Pet out of bounds, resetting.", { x: this.x, y: this.y, state: this.state });
       this.x = b.x + b.width / 2 - this.windowWidth / 2;
       this.y = this.groundY;
+      this.floorY = this.groundY;
       this.vx = 0; this.vy = 0;
       this.pickBehavior();
       this.moveWindow();

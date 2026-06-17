@@ -1,6 +1,6 @@
 {
   "productName": "AntDesk",
-  "version": "2.18.2",
+  "version": "2.18.3",
   "identifier": "com.antdesk.app",
   "build": {
     "beforeDevCommand": "yarn dev",
@@ -47,6 +47,20 @@
         "url": "/notepad.html",
         "width": 280,
         "height": 360,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "shadow": false
+      },
+      {
+        "label": "quick",
+        "title": "AntDesk Quick",
+        "url": "/quick.html",
+        "width": 276,
+        "height": 340,
         "resizable": false,
         "decorations": false,
         "transparent": true,

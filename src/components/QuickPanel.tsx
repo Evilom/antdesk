@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { IconLock, IconUnlock, IconX } from "./Icons";
+import { IconArrowRight, IconCheck, IconLock, IconRefresh, IconUnlock, IconX } from "./Icons";
 import { getLocalNotionToken } from "../lib/localSettings";
 
 interface Todo {
@@ -20,6 +20,12 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 const priorityOrder: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+const FILTERS = [
+  { tag: "all", label: "全部" },
+  { tag: "工作", label: "工作" },
+  { tag: "生活", label: "生活" },
+  { tag: "项目", label: "项目" },
+];
 
 export default function QuickPanel() {
   const [allTodos, setAllTodos] = useState<Todo[]>([]);
@@ -30,6 +36,7 @@ export default function QuickPanel() {
   const [bgAlpha, setBgAlpha] = useState(0.6);
   const [filterTag, setFilterTag] = useState<string>("all");
   const [direction, setDirection] = useState<"above" | "below">("below");
+  const [side, setSide] = useState<"left" | "right" | "top" | "bottom">("right");
   const [locked, setLocked] = useState(false);
   const [hiding, setHiding] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -62,14 +69,19 @@ export default function QuickPanel() {
   // ── Direction (above/below) from Rust ──
   useEffect(() => {
     let unlisten: (() => void) | null = null;
+    let unlistenPlacement: (() => void) | null = null;
     (async () => {
       try {
         unlisten = await listen<string>("quick-panel-direction", (e) => {
           setDirection(e.payload as "above" | "below");
         });
+        unlistenPlacement = await listen<{ side: "left" | "right" | "top" | "bottom"; vertical: "above" | "below" }>("companion-placement", (e) => {
+          setSide(e.payload.side);
+          setDirection(e.payload.vertical);
+        });
       } catch {}
     })();
-    return () => { if (unlisten) unlisten(); };
+    return () => { if (unlisten) unlisten(); if (unlistenPlacement) unlistenPlacement(); };
   }, []);
 
   // ── ResizeObserver: auto-fit window height + reposition ──
@@ -81,7 +93,7 @@ export default function QuickPanel() {
       try {
         const { getCurrentWindow } = await import("@tauri-apps/api/window");
         const { LogicalSize } = await import("@tauri-apps/api/dpi");
-        await getCurrentWindow().setSize(new LogicalSize(260, Math.ceil(h + 8)));
+        await getCurrentWindow().setSize(new LogicalSize(276, Math.ceil(h + 8)));
         // Reposition after resize so panel doesn't cover FAB
         await invoke("update_quick_panel_position").catch(() => {});
       } catch {}
@@ -97,6 +109,7 @@ export default function QuickPanel() {
       if (!token) {
         setError("未配置 Notion Token");
         setAllTodos([]);
+        setLoading(false);
         return;
       }
       setError("");
@@ -168,6 +181,9 @@ export default function QuickPanel() {
       .slice(0, 10);
   }, [allTodos, filterTag]);
 
+  const visibleCount = displayTodos.length;
+  const highCount = allTodos.filter((t) => t.priority === "High").length;
+
   // ── Listen for pie menu filter ──
   useEffect(() => {
     let unlisten: (() => void) | null = null;
@@ -207,6 +223,12 @@ export default function QuickPanel() {
     }, 200);
   }, []);
 
+  const handleOpenMain = useCallback(async () => {
+    try {
+      await invoke("open_full_panel");
+    } catch {}
+  }, []);
+
   // ── Toggle todo ──
   const handleToggle = useCallback(async (id: string) => {
     setExiting((prev) => new Set(prev).add(id));
@@ -238,37 +260,64 @@ export default function QuickPanel() {
   const panelClasses = [
     "quick-panel",
     direction,
+    side,
     hiding ? "hiding" : "",
     locked ? "passthrough" : "",
   ].filter(Boolean).join(" ");
 
   return (
     <div ref={panelRef} className={panelClasses} style={{ "--bg-alpha": bgAlpha } as React.CSSProperties}>
-      {/* Top bar: lock + close */}
-      <div className="quick-lock-bar">
-        <button
-          className={`quick-lock-btn ${locked ? "locked" : ""}`}
-          onClick={() => setLocked(!locked)}
-          title={locked ? "解锁（恢复正常交互）" : "锁定（鼠标穿透）"}
-        >
-          {locked ? <IconLock size={11} /> : <IconUnlock size={11} />}
-        </button>
-        <button
-          className="quick-lock-btn"
-          onClick={handleClose}
-          title="关闭面板"
-        >
-          <IconX size={11} />
-        </button>
+      <div className="quick-head">
+        <div className="quick-title">
+          <span>快捷面板</span>
+          <small>{visibleCount} / {allTodos.length}</small>
+        </div>
+        <div className="quick-actions">
+          <button className="quick-icon-btn" onClick={fetchAll} title="刷新">
+            <IconRefresh size={12} />
+          </button>
+          <button
+            className={`quick-icon-btn ${locked ? "locked" : ""}`}
+            onClick={() => setLocked(!locked)}
+            title={locked ? "解锁（恢复正常交互）" : "锁定（鼠标穿透）"}
+          >
+            {locked ? <IconLock size={12} /> : <IconUnlock size={12} />}
+          </button>
+          <button className="quick-icon-btn" onClick={handleClose} title="关闭面板">
+            <IconX size={12} />
+          </button>
+        </div>
+      </div>
+
+      <div className="quick-meta">
+        <span className={highCount > 0 ? "urgent" : ""}>{highCount > 0 ? `${highCount} 高优先级` : "无高优先级"}</span>
+        <button onClick={handleOpenMain}>主面板 <IconArrowRight size={11} /></button>
+      </div>
+
+      <div className="quick-filters">
+        {FILTERS.map((f) => (
+          <button
+            key={f.tag}
+            className={filterTag === f.tag ? "active" : ""}
+            onClick={() => setFilterTag(f.tag)}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {loading ? (
-        <div className="quick-loading">加载中</div>
+        <div className="quick-skeleton">
+          <span />
+          <span />
+          <span />
+        </div>
       ) : error ? (
         <div className="quick-empty">{error}</div>
       ) : displayTodos.length === 0 ? (
         <div className="quick-empty">
-          {filterTag === "all" ? "全部完成" : `无 ${filterTag} 待办`}
+          <IconCheck size={16} />
+          <span>{filterTag === "all" ? "全部完成" : `无 ${filterTag} 待办`}</span>
         </div>
       ) : (
         <div className="quick-list">

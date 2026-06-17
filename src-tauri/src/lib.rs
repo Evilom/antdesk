@@ -1,10 +1,18 @@
 use std::sync::{Mutex, OnceLock};
 use tauri::Manager;
 use tauri::Emitter;
+use tauri::menu::ContextMenu;
 
 #[derive(Default)]
 struct AppState {
     notion_token: Mutex<Option<String>>,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct CompanionPlacement {
+    side: String,
+    vertical: String,
+    gap: f64,
 }
 
 fn http_client() -> &'static reqwest::Client {
@@ -183,6 +191,16 @@ async fn get_pet_position(app: tauri::AppHandle) -> Result<(f64, f64), String> {
     }
 }
 
+#[tauri::command]
+async fn get_fab_position(app: tauri::AppHandle) -> Result<(f64, f64), String> {
+    let window = app
+        .get_webview_window("fab")
+        .or_else(|| app.get_webview_window("pet"))
+        .ok_or("FAB window not found")?;
+    let pos = window.outer_position().map_err(|e| e.to_string())?;
+    Ok((pos.x as f64, pos.y as f64))
+}
+
 /// Show the pet window
 #[tauri::command]
 async fn show_pet(app: tauri::AppHandle) -> Result<(), String> {
@@ -251,12 +269,18 @@ info = Quartz.CGWindowListCopyWindowInfo(
 r = []
 for w in info:
     b = w.get('kCGWindowBounds', {})
+    owner = w.get('kCGWindowOwnerName', '') or ''
+    title = w.get('kCGWindowName', '') or ''
+    if owner in ('AntDesk', 'Dock', 'Window Server', 'SystemUIServer'):
+        continue
+    if 'AntDesk' in title:
+        continue
     if (w.get('kCGWindowLayer') == 0
         and w.get('kCGWindowAlpha', 0) > 0
         and b.get('Width', 0) > 100
         and b.get('Height', 0) > 100):
         r.append({
-            'name': w.get('kCGWindowOwnerName', ''),
+            'name': owner,
             'x': b.get('X', 0), 'y': b.get('Y', 0),
             'width': b.get('Width', 0), 'height': b.get('Height', 0)
         })
@@ -353,15 +377,19 @@ async fn show_settings(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+fn clamp(value: f64, min: f64, max: f64) -> f64 {
+    value.max(min).min(max)
+}
+
 fn position_panel_next_to_pet(
     app: &tauri::AppHandle,
     label: &str,
     panel_w: f64,
     panel_h: f64,
-) -> Result<(), String> {
+) -> Result<Option<CompanionPlacement>, String> {
     let panel = match app.get_webview_window(label) {
         Some(w) => w,
-        None => return Ok(()),
+        None => return Ok(None),
     };
 
     if let Some(pet) = app.get_webview_window("pet") {
@@ -385,31 +413,90 @@ fn position_panel_next_to_pet(
             (0.0, 1920.0 * scale, 25.0 * scale, 1015.0 * scale)
         };
 
-        let gap = 8.0 * scale;
+        let gap = 10.0 * scale;
         let pw = panel_w * scale;
         let ph = panel_h * scale;
         let px = pet_pos.x as f64;
         let py = pet_pos.y as f64;
         let pet_w = pet_size.width as f64;
+        let pet_h = pet_size.height as f64;
+        let pet_cx = px + pet_w / 2.0;
+        let pet_cy = py + pet_h / 2.0;
 
-        let right_fits = px + pet_w + gap + pw <= mon_right;
-        let left_fits = px - gap - pw >= mon_left;
-        let x = if right_fits {
-            px + pet_w + gap
-        } else if left_fits {
-            px - gap - pw
-        } else {
-            px.max(mon_left).min(mon_right - pw)
-        };
+        let candidates = [
+            (
+                "right",
+                px + pet_w + gap,
+                clamp(pet_cy - ph / 2.0, mon_top, mon_bottom - ph),
+                px + pet_w + gap + pw <= mon_right,
+            ),
+            (
+                "left",
+                px - gap - pw,
+                clamp(pet_cy - ph / 2.0, mon_top, mon_bottom - ph),
+                px - gap - pw >= mon_left,
+            ),
+            (
+                "top",
+                clamp(pet_cx - pw / 2.0, mon_left, mon_right - pw),
+                py - gap - ph,
+                py - gap - ph >= mon_top,
+            ),
+            (
+                "bottom",
+                clamp(pet_cx - pw / 2.0, mon_left, mon_right - pw),
+                py + pet_h + gap,
+                py + pet_h + gap + ph <= mon_bottom,
+            ),
+        ];
 
-        let y = if right_fits || left_fits {
-            py.max(mon_top).min(mon_bottom - ph)
+        let (side, x, y, _) = candidates
+            .iter()
+            .find(|(_, _, _, fits)| *fits)
+            .copied()
+            .unwrap_or((
+                "right",
+                clamp(px + pet_w + gap, mon_left, mon_right - pw),
+                clamp(pet_cy - ph / 2.0, mon_top, mon_bottom - ph),
+                false,
+            ));
+
+        let vertical = if side == "top" {
+            "above"
+        } else if side == "bottom" {
+            "below"
+        } else if y + ph / 2.0 < pet_cy {
+            "above"
         } else {
-            (py - gap - ph).max(mon_top)
+            "below"
         };
 
         let pos = tauri::Position::Physical(tauri::PhysicalPosition::new(x as i32, y as i32));
         panel.set_position(pos).map_err(|e| e.to_string())?;
+        let placement = CompanionPlacement {
+            side: side.to_string(),
+            vertical: vertical.to_string(),
+            gap: gap / scale,
+        };
+        let _ = panel.emit("companion-placement", &placement);
+        if label == "quick" {
+            let _ = panel.emit("quick-panel-direction", placement.vertical.clone());
+        }
+        return Ok(Some(placement));
+    }
+    Ok(None)
+}
+
+fn position_visible_companions(app: &tauri::AppHandle) -> Result<(), String> {
+    if let Some(q) = app.get_webview_window("quick") {
+        if q.is_visible().unwrap_or(false) {
+            let _ = position_panel_next_to_pet(app, "quick", 276.0, 340.0)?;
+        }
+    }
+    if let Some(n) = app.get_webview_window("notepad") {
+        if n.is_visible().unwrap_or(false) {
+            let _ = position_panel_next_to_pet(app, "notepad", 280.0, 360.0)?;
+        }
     }
     Ok(())
 }
@@ -429,7 +516,7 @@ async fn toggle_notepad(app: tauri::AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    position_panel_next_to_pet(&app, "notepad", 280.0, 360.0)?;
+    let _ = position_panel_next_to_pet(&app, "notepad", 280.0, 360.0)?;
 
     np.show().map_err(|e| e.to_string())?;
     np.set_focus().map_err(|e| e.to_string())?;
@@ -439,19 +526,18 @@ async fn toggle_notepad(app: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 async fn update_quick_panel_position(app: tauri::AppHandle) -> Result<(), String> {
-    position_panel_next_to_pet(&app, "quick", 260.0, 320.0)?;
-    position_panel_next_to_pet(&app, "notepad", 280.0, 360.0)?;
-    Ok(())
+    position_visible_companions(&app)
 }
 
 #[tauri::command]
 async fn toggle_quick_panel(app: tauri::AppHandle) -> Result<(), String> {
     if app.get_webview_window("quick").is_some() {
-        position_panel_next_to_pet(&app, "quick", 260.0, 320.0)?;
+        let _ = position_panel_next_to_pet(&app, "quick", 276.0, 340.0)?;
         if let Some(q) = app.get_webview_window("quick") {
             if q.is_visible().unwrap_or(false) {
                 q.hide().map_err(|e| e.to_string())?;
             } else {
+                let _ = position_panel_next_to_pet(&app, "quick", 276.0, 340.0)?;
                 q.show().map_err(|e| e.to_string())?;
                 q.set_focus().map_err(|e| e.to_string())?;
                 let _ = q.emit("quick-panel-shown", ());
@@ -470,6 +556,44 @@ async fn open_full_panel(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 async fn fab_click(app: tauri::AppHandle) -> Result<(), String> {
     toggle_quick_panel(app).await
+}
+
+#[tauri::command]
+async fn show_fab_context_menu(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+
+    let webview_window = app
+        .get_webview_window("pet")
+        .or_else(|| app.get_webview_window("fab"))
+        .ok_or("FAB window not found")?;
+    let window = webview_window.as_ref().window();
+
+    let quick = MenuItem::with_id(&app, "fab_quick", "快捷面板", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let notepad = MenuItem::with_id(&app, "fab_notepad", "便签", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let main = MenuItem::with_id(&app, "fab_panel", "主面板", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let settings = MenuItem::with_id(&app, "fab_settings", "设置", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let lock = MenuItem::with_id(&app, "fab_lock", "锁定/解锁宠物", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let windows = MenuItem::with_id(&app, "fab_window_interaction", "窗口交互开关", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let hide = MenuItem::with_id(&app, "fab_hide_pet", "隐藏宠物", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let quit = MenuItem::with_id(&app, "fab_quit", "退出 AntDesk", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let sep1 = PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?;
+    let sep2 = PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?;
+    let sep3 = PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?;
+
+    let menu = Menu::with_items(
+        &app,
+        &[&quick, &notepad, &main, &sep1, &settings, &sep2, &lock, &windows, &hide, &sep3, &quit],
+    )
+    .map_err(|e| e.to_string())?;
+    menu.popup(window).map_err(|e| e.to_string())
 }
 
 // ── System tray ──
@@ -520,6 +644,45 @@ fn setup_tray(app: &tauri::App) {
         .expect("failed to create tray icon");
 }
 
+fn setup_menu_events(app: &tauri::App) {
+    app.on_menu_event(|app, event| {
+        match event.id().as_ref() {
+            "fab_quit" => app.exit(0),
+            "fab_quick" => {
+                let h = app.clone();
+                tauri::async_runtime::spawn(async move { let _ = toggle_quick_panel(h).await; });
+            }
+            "fab_notepad" => {
+                let h = app.clone();
+                tauri::async_runtime::spawn(async move { let _ = toggle_notepad(h).await; });
+            }
+            "fab_panel" => {
+                let h = app.clone();
+                tauri::async_runtime::spawn(async move { let _ = expand_panel(h).await; });
+            }
+            "fab_settings" => {
+                let h = app.clone();
+                tauri::async_runtime::spawn(async move { let _ = show_settings(h).await; });
+            }
+            "fab_lock" => {
+                if let Some(pet) = app.get_webview_window("pet") {
+                    let _ = pet.emit("toggle-lock", ());
+                }
+            }
+            "fab_window_interaction" => {
+                if let Some(pet) = app.get_webview_window("pet") {
+                    let _ = pet.emit("toggle-window-interaction", ());
+                }
+            }
+            "fab_hide_pet" => {
+                let h = app.clone();
+                tauri::async_runtime::spawn(async move { let _ = hide_pet(h).await; });
+            }
+            _ => {}
+        }
+    });
+}
+
 // ── Entry point ──
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -534,6 +697,7 @@ pub fn run() {
         .manage(AppState::default())
         .setup(|app| {
             setup_tray(app);
+            setup_menu_events(app);
 
             // Position pet at bottom-right of primary monitor
             let app_handle = app.handle().clone();
@@ -570,6 +734,7 @@ pub fn run() {
             expand_panel,
             collapse_panel,
             get_pet_position,
+            get_fab_position,
             show_pet,
             hide_pet,
             get_pending_count,
@@ -579,6 +744,7 @@ pub fn run() {
             toggle_notepad,
             update_quick_panel_position,
             toggle_quick_panel,
+            show_fab_context_menu,
             open_full_panel,
             fab_click,
             quit_app
