@@ -48,12 +48,15 @@ const DEFAULT_PRIORITY: Record<string, number> = {
   idle:         1,
   walk:         1,
   run:          1,
-  jump:         1,
-  falling:      1,
-  landing:      1,
-  dizzy:        1,
-  hitWall:      1,
-  slide:        1,
+  jump:         2,
+  falling:      2,
+  landing:      2,
+  dizzy:        2,
+  hitWall:      2,
+  slide:        2,
+  perch:        2,
+  bumped:       2,
+  pushed:       2,
   dragged:      1,
   // Deepest
   sleep:        0,
@@ -84,6 +87,20 @@ export class StateArbiter {
    */
   request(req: StateRequest): void {
     const key = `${req.source}:${req.state}`;
+
+    // Continuous sources represent one current state at a time.
+    // Without this, equal-priority physics states can get stuck behind older entries.
+    if (!req.oneshot) {
+      for (const existingKey of Array.from(this.activeRequests.keys())) {
+        if (existingKey.startsWith(`${req.source}:`) && existingKey !== key) {
+          this.activeRequests.delete(existingKey);
+          if (this.oneshotTimers.has(existingKey)) {
+            clearTimeout(this.oneshotTimers.get(existingKey)!);
+            this.oneshotTimers.delete(existingKey);
+          }
+        }
+      }
+    }
 
     // Clear existing oneshot timer for this key
     if (this.oneshotTimers.has(key)) {

@@ -4,10 +4,18 @@ import { getCurrentWindow, Window } from "@tauri-apps/api/window";
 import { LogicalPosition } from "@tauri-apps/api/dpi";
 import { useEffect, useState, useCallback, useRef } from "react";
 import SpinePet, { type SpinePetHandle } from "./components/SpinePet";
-import { PhysicsEngine } from "./lib/PhysicsEngine";
+import { PhysicsEngine, type PetContactState } from "./lib/PhysicsEngine";
 import { StateArbiter } from "./lib/StateArbiter";
 import { SleepSequence } from "./lib/SleepSequence";
 import { PetBrain, MODE_PHYSICS, type PetMode, type BehaviorState } from "./lib/PetBrain";
+import {
+  DesktopWorldBridge,
+  nextWindowInteractionMode,
+  readWindowInteractionMode,
+  writeWindowInteractionMode,
+  type DesktopCapability,
+  type WindowInteractionMode,
+} from "./lib/DesktopWorldBridge";
 import { KanbanBridge } from "./lib/kanbanBridge";
 import { useKanbanStore } from "./stores/kanbanStore";
 import type { KanbanData } from "./types/kanban";
@@ -31,7 +39,7 @@ type SnapEdge = "none" | "left" | "right" | "top" | "bottom";
 export default function Pet() {
   const [connected, setConnected] = useState(false);
   const [locked, setLocked] = useState(false);
-  const [windowInteraction, setWindowInteraction] = useState(() => localStorage.getItem("antdesk_window_interaction") === "true");
+  const [windowInteractionMode, setWindowInteractionMode] = useState<WindowInteractionMode>(() => readWindowInteractionMode());
   const [petName] = useState("moshumao");
   const [petBehavior, setPetBehavior] = useState<BehaviorState>("idle");
   const [petMode, setPetMode] = useState<PetMode>("leisure");
@@ -44,13 +52,15 @@ export default function Pet() {
   const [petHovered, setPetHovered] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [snapEdge, setSnapEdge] = useState<SnapEdge>("none");
+  const [petContact, setPetContact] = useState<PetContactState>("desktop");
+  const [desktopCapability, setDesktopCapability] = useState<DesktopCapability>("none");
 
   const didDrag = useRef(false);
   const spineRef = useRef<SpinePetHandle>(null);
   const physicsRef = useRef<PhysicsEngine | null>(null);
   const brainRef = useRef<PetBrain | null>(null);
   const lockedRef = useRef(false);
-  const windowInteractionRef = useRef(windowInteraction);
+  const windowInteractionModeRef = useRef(windowInteractionMode);
   const notifyTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const arbiterRef = useRef<StateArbiter | null>(null);
   const emotionRef = useRef<EmotionEngine | null>(null);
@@ -61,7 +71,11 @@ export default function Pet() {
   const kanbanEndpoint = useKanbanStore((s) => s.endpoint);
 
   useEffect(() => { lockedRef.current = locked; }, [locked]);
-  useEffect(() => { windowInteractionRef.current = windowInteraction; localStorage.setItem("antdesk_window_interaction", String(windowInteraction)); }, [windowInteraction]);
+  useEffect(() => {
+    windowInteractionModeRef.current = windowInteractionMode;
+    writeWindowInteractionMode(windowInteractionMode);
+  }, [windowInteractionMode]);
+  const windowInteraction = windowInteractionMode !== "off";
 
   /* ═══ Init ═══ */
   useEffect(() => {
@@ -88,23 +102,7 @@ export default function Pet() {
     const u1 = listen("toggle-lock", () => setLocked((v) => !v));
     const u2 = listen("toggle-bubble", () => invoke("toggle_quick_panel"));
     const u3 = listen("toggle-window-interaction", () => {
-      setWindowInteraction((current) => {
-        const next = !current;
-        if (next) {
-          invoke<Array<any>>("get_visible_windows").then(wins => {
-            const platforms = wins.map((w: any) => ({
-              x: w.x, y: w.y,
-              width: w.width,
-              height: w.height,
-              source: "window" as const, name: w.name,
-            }));
-            physicsRef.current?.setPlatforms(platforms);
-          }).catch(() => {});
-        } else {
-          physicsRef.current?.setPlatforms([]);
-        }
-        return next;
-      });
+      setWindowInteractionMode((current) => nextWindowInteractionMode(current));
     });
     return () => { u1.then((f) => f()); u2.then((f) => f()); u3.then((f) => f()); };
   }, []);
@@ -161,6 +159,9 @@ export default function Pet() {
           dizzy:   { anim: "dizzy",  loop: false, mood: "晕了...", moodEmoji: "😵" },
           hitWall: { anim: "stand",  loop: false, mood: "好痛!",  moodEmoji: "😣" },
           slide:   { anim: "walk",   loop: true,  mood: "刹不住!", moodEmoji: "🫨" },
+          perch:   { anim: "stand",  loop: true,  mood: "这里视野不错", moodEmoji: "🪟" },
+          bumped:  { anim: "jump",   loop: false, mood: "哇!", moodEmoji: "😮" },
+          pushed:  { anim: "walk",   loop: true,  mood: "让一下~", moodEmoji: "↔" },
           dragged: { anim: "idle",   loop: true },
           sleep:   { anim: "sleep",  loop: true },
           dozing:  { anim: "stand",  loop: true,  mood: "好困...", moodEmoji: "😪" },
@@ -211,28 +212,40 @@ export default function Pet() {
     };
   }, []);
 
-  /* ═══ Window Interaction — periodic refresh of window platforms ═══ */
+  /* ═══ Desktop World — cross-platform window surfaces + velocity ═══ */
   useEffect(() => {
-    const refreshPlatforms = async () => {
-      if (!windowInteractionRef.current || !physicsRef.current) return;
-      try {
-        const wins = await invoke<Array<{name: string; x: number; y: number; width: number; height: number}>>("get_visible_windows");
-        const platforms = wins.map(w => ({
-          x: w.x, y: w.y,
-          width: w.width,
-          height: w.height,
-          source: "window" as const, name: w.name,
-        }));
-        physicsRef.current.refreshPlatforms(platforms);
-      } catch (e) {
-        console.warn("[Pet] refreshPlatforms failed:", e);
-      }
-    };
+    if (windowInteractionMode === "off") {
+      setDesktopCapability("none");
+      setPetContact("desktop");
+      physicsRef.current?.setPlatforms([]);
+      return;
+    }
 
-    refreshPlatforms();
-    const interval = setInterval(refreshPlatforms, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    const bridge = new DesktopWorldBridge({
+      mode: windowInteractionMode,
+      onSurfaces: (surfaces, meta) => {
+        setDesktopCapability(meta.capability);
+        physicsRef.current?.refreshPlatforms(surfaces.map((s) => ({
+          id: s.id,
+          x: s.x,
+          y: s.y,
+          width: s.width,
+          height: s.height,
+          source: "window" as const,
+          name: s.app,
+          title: s.title,
+          kind: s.kind,
+          focused: s.focused,
+          vx: s.vx,
+          vy: s.vy,
+          moving: s.moving,
+        })));
+      },
+      onError: (e) => console.warn("[Pet] desktop world sampling failed:", e),
+    });
+    bridge.start();
+    return () => bridge.stop();
+  }, [windowInteractionMode]);
 
   /* ═══ PetBrain ═══ */
   useEffect(() => {
@@ -286,10 +299,12 @@ export default function Pet() {
     const physics = new PhysicsEngine({
       windowWidth: 200, windowHeight: 200,
       walkSpeed: 35, runSpeed: 85, idleProbability: 0.3, edgePadding: 4, mouseAttraction: 0.12,
+      interactionMode: windowInteractionModeRef.current === "enhanced" ? "enhanced" : "standard",
       onStateChange: (state) => {
         arbiterRef.current?.request({ state, source: "physics" });
       },
       onFacingChange: (dir) => spineRef.current?.setFacingDirection(dir),
+      onContactChange: (state) => setPetContact(state),
     });
     physics.start()
       .then(() => console.log("[Pet] roaming started"))
@@ -297,6 +312,12 @@ export default function Pet() {
     physicsRef.current = physics;
     return () => { physics.stop(); physicsRef.current = null; };
   }, []);
+
+  useEffect(() => {
+    physicsRef.current?.configure({
+      interactionMode: windowInteractionMode === "enhanced" ? "enhanced" : "standard",
+    });
+  }, [windowInteractionMode]);
 
   /* ═══ Lock ═══ */
   useEffect(() => {
@@ -461,7 +482,7 @@ export default function Pet() {
   const kanbanStats = useKanbanStore((s) => s.data.stats);
   const totalBadge = pendingCount + kanbanStats.active + kanbanStats.blocked;
   const sleeping = petBehavior === "sleep";
-  const animatedStates = new Set(["run", "jump", "landing", "hitWall", "slide", "dizzy", "falling", "dragged"]);
+  const animatedStates = new Set(["run", "jump", "landing", "hitWall", "slide", "dizzy", "falling", "dragged", "perch", "bumped", "pushed"]);
   const visualState = animatedStates.has(physState) ? physState : sleeping ? "sleep" : petBehavior;
   const modeLabel: Record<PetMode, string> = {
     leisure: "闲逛",
@@ -476,6 +497,17 @@ export default function Pet() {
     right: "右侧",
     top: "顶部",
     bottom: "底部",
+  };
+  const windowModeLabel: Record<WindowInteractionMode, string> = {
+    off: "关闭",
+    standard: "标准",
+    enhanced: "增强",
+  };
+  const contactLabel: Record<PetContactState, string> = {
+    desktop: desktopCapability === "degraded" ? "降级" : "桌面",
+    window: "窗口",
+    pushed: "推动",
+    avoiding: "避让",
   };
 
   /* ═══ Thought system — single bubble cycling through pet thoughts ═══ */
@@ -493,6 +525,9 @@ export default function Pet() {
     if (physState === "jump") return [{ emoji: "😮", text: "哇!", key: "jump", priority: true }];
     if (physState === "hitWall") return [{ emoji: "😣", text: "好痛!", key: "hitwall", priority: true }];
     if (physState === "slide") return [{ emoji: "🫨", text: "刹不住!", key: "slide", priority: true }];
+    if (physState === "bumped") return [{ emoji: "😮", text: "被窗口碰到了", key: "bumped", priority: true }];
+    if (physState === "pushed") return [{ emoji: "↔", text: "让一下~", key: "pushed", priority: true }];
+    if (physState === "perch" && petHovered) pool.push({ emoji: "🪟", text: "窗口上", key: "perch" });
     if (physState === "landing") return [{ emoji: "😮‍💨", text: "呼...", key: "landing", priority: true }];
     if (physState === "run") return [{ emoji: "🏃", text: "冲啊!", key: "run", priority: true }];
     if (locked) pool.push({ emoji: "🔒", text: "位置已锁定", key: "locked" });
@@ -528,7 +563,7 @@ export default function Pet() {
         onContextMenu={handlePetContextMenu}
         onMouseEnter={() => setPetHovered(true)}
         onMouseLeave={() => setPetHovered(false)}
-        title={locked ? "位置已锁定，右键打开菜单" : "拖拽移动，点击打开快捷面板，右键打开菜单"}
+        title={locked ? "位置已锁定，右键打开菜单" : `拖拽移动，点击打开快捷面板，窗口交互: ${windowModeLabel[windowInteractionMode]}`}
       >
         <div className="pet-anchor-halo" aria-hidden="true" />
         <div className="pet-stage" aria-hidden="true">
@@ -542,7 +577,7 @@ export default function Pet() {
           {totalBadge > 0 && <span className="hud-count">{totalBadge > 99 ? "99+" : totalBadge}</span>}
           {locked && <IconLock size={10} className="hud-lock" />}
           {(petHovered || dragging || windowInteraction) && (
-            <span className="hud-mode">{dragging ? edgeLabel[snapEdge] : windowInteraction ? "边界" : modeLabel[petMode]}</span>
+            <span className="hud-mode">{dragging ? edgeLabel[snapEdge] : windowInteraction ? contactLabel[petContact] : modeLabel[petMode]}</span>
           )}
         </div>
 

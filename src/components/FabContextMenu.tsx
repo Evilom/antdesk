@@ -1,7 +1,12 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import {
+  nextWindowInteractionMode,
+  readWindowInteractionMode,
+  type WindowInteractionMode,
+} from "../lib/DesktopWorldBridge";
 import {
   IconEdit,
   IconEyeOff,
@@ -23,7 +28,13 @@ type MenuAction =
   | "hide"
   | "quit";
 
-const ITEMS: Array<
+const MODE_LABEL: Record<WindowInteractionMode, string> = {
+  off: "关闭",
+  standard: "标准",
+  enhanced: "增强",
+};
+
+const BASE_ITEMS: Array<
   | { type: "item"; id: MenuAction; label: string; hint?: string; danger?: boolean; Icon: typeof IconTarget }
   | { type: "sep" }
 > = [
@@ -34,18 +45,33 @@ const ITEMS: Array<
   { type: "item", id: "settings", label: "设置", hint: "账号与外观", Icon: IconSettings },
   { type: "sep" },
   { type: "item", id: "lock", label: "锁定/解锁宠物", hint: "位置状态", Icon: IconLock },
-  { type: "item", id: "window-interaction", label: "窗口交互开关", hint: "边界物理", Icon: IconWindow },
   { type: "item", id: "hide", label: "隐藏宠物", hint: "保留后台", Icon: IconEyeOff },
   { type: "sep" },
   { type: "item", id: "quit", label: "退出 AntDesk", danger: true, Icon: IconPower },
 ];
 
 export default function FabContextMenu() {
+  const [interactionMode, setInteractionMode] = useState<WindowInteractionMode>(() => readWindowInteractionMode());
   const hideSelf = useCallback(async () => {
     try {
       await getCurrentWindow().hide();
     } catch {}
   }, []);
+
+  const items = useMemo(() => {
+    const next = nextWindowInteractionMode(interactionMode);
+    return [
+      ...BASE_ITEMS.slice(0, 6),
+      {
+        type: "item" as const,
+        id: "window-interaction" as const,
+        label: `窗口交互: ${MODE_LABEL[interactionMode]}`,
+        hint: `切换到${MODE_LABEL[next]}`,
+        Icon: IconWindow,
+      },
+      ...BASE_ITEMS.slice(6),
+    ];
+  }, [interactionMode]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -57,7 +83,8 @@ export default function FabContextMenu() {
     (async () => {
       try {
         unlistenFocus = await getCurrentWindow().onFocusChanged(({ payload }) => {
-          if (!payload) hideSelf();
+          if (payload) setInteractionMode(readWindowInteractionMode());
+          else hideSelf();
         });
       } catch {}
     })();
@@ -88,6 +115,7 @@ export default function FabContextMenu() {
           break;
         case "window-interaction":
           await emit("toggle-window-interaction");
+          setInteractionMode((current) => nextWindowInteractionMode(current));
           break;
         case "hide":
           await invoke("hide_pet");
@@ -104,7 +132,7 @@ export default function FabContextMenu() {
   return (
     <div className="fab-menu-shell">
       <div className="fab-menu" role="menu" aria-label="AntDesk FAB menu">
-        {ITEMS.map((item, index) => {
+        {items.map((item, index) => {
           if (item.type === "sep") return <div key={`sep-${index}`} className="fab-menu-sep" />;
           const Icon = item.Icon;
           return (

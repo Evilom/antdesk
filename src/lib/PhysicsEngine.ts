@@ -24,9 +24,12 @@ export type PetState =
   | "idle" | "walk" | "run"
   | "jump" | "falling" | "landing" | "dizzy"
   | "hitWall" | "slide"
+  | "perch" | "bumped" | "pushed"
   | "dragged";
 
 type Behavior = "stroll" | "sprint" | "explore" | "rest" | "chase";
+export type PhysicsInteractionMode = "standard" | "enhanced";
+export type PetContactState = "desktop" | "window" | "pushed" | "avoiding";
 
 export interface BehaviorWeights {
   stroll: number; sprint: number; explore: number; rest: number; chase: number;
@@ -39,10 +42,17 @@ interface ScreenBounds {
 }
 
 export interface Platform {
+  id?: string;
   x: number; y: number;
   width: number; height: number;
   source: "screen" | "window";
   name?: string;
+  title?: string;
+  kind?: "external-window" | "antdesk-window";
+  focused?: boolean;
+  vx?: number;
+  vy?: number;
+  moving?: boolean;
 }
 
 export interface PhysicsEngineOptions {
@@ -63,8 +73,10 @@ export interface PhysicsEngineOptions {
   landingDuration?: number;
   hitWallDuration?: number;
   slideFriction?: number;
+  interactionMode?: PhysicsInteractionMode;
   onStateChange?: (state: PetState) => void;
   onFacingChange?: (dir: 1 | -1) => void;
+  onContactChange?: (state: PetContactState) => void;
 }
 
 export class PhysicsEngine {
@@ -81,6 +93,9 @@ export class PhysicsEngine {
   private groundY = 0;
   private floorY = 0;
   private platforms: Platform[] = [];
+  private currentSupport: Platform | null = null;
+  private contactState: PetContactState = "desktop";
+  private lastImpulseAt = 0;
   private behaviorWeights: BehaviorWeights = { stroll: 0.35, sprint: 0.15, explore: 0.20, rest: 0.15, chase: 0.15 };
 
   // Behavior
@@ -119,9 +134,11 @@ export class PhysicsEngine {
   private landingDuration: number;
   private hitWallDuration: number;
   private slideFriction: number;
+  private interactionMode: PhysicsInteractionMode;
 
   private onStateChange?: (state: PetState) => void;
   private onFacingChange?: (dir: 1 | -1) => void;
+  private onContactChange?: (state: PetContactState) => void;
   private boundMouseMove: (e: MouseEvent) => void;
 
   constructor(options: PhysicsEngineOptions) {
@@ -143,8 +160,10 @@ export class PhysicsEngine {
     this.landingDuration = options.landingDuration ?? 0.4;
     this.hitWallDuration = options.hitWallDuration ?? 0.5;
     this.slideFriction = options.slideFriction ?? 0.92;
+    this.interactionMode = options.interactionMode ?? "standard";
     this.onStateChange = options.onStateChange;
     this.onFacingChange = options.onFacingChange;
+    this.onContactChange = options.onContactChange;
     this.boundMouseMove = (e: MouseEvent) => {
       this.mouseX = e.screenX;
       this.mouseY = e.screenY;
@@ -181,10 +200,14 @@ export class PhysicsEngine {
     if (opts.gravity !== undefined) this.gravity = opts.gravity;
     if (opts.idleProbability !== undefined) this.idleProbability = opts.idleProbability;
     if (opts.mouseAttraction !== undefined) this.mouseAttraction = opts.mouseAttraction;
+    if (opts.interactionMode !== undefined) this.interactionMode = opts.interactionMode;
   }
 
-  setPlatforms(platforms: Platform[]): void { this.platforms = platforms; }
-  refreshPlatforms(p: Platform[]): void { this.platforms = p; }
+  setPlatforms(platforms: Platform[]): void {
+    this.platforms = this.normalizePlatforms(platforms);
+    if (this.platforms.length === 0) this.setContact("desktop");
+  }
+  refreshPlatforms(p: Platform[]): void { this.setPlatforms(p); }
 
   /** Set behavior weights from EmotionEngine. Normalizes internally. */
   setBehaviorWeights(w: BehaviorWeights): void {
@@ -323,6 +346,19 @@ export class PhysicsEngine {
     this.onStateChange?.(s);
   }
 
+  private setContact(s: PetContactState): void {
+    if (s === this.contactState) return;
+    this.contactState = s;
+    this.onContactChange?.(s);
+  }
+
+  private normalizePlatforms(platforms: Platform[]): Platform[] {
+    return platforms
+      .filter((p) => p.width >= 120 && p.height >= 80)
+      .sort((a, b) => (a.focused === b.focused ? 0 : a.focused ? -1 : 1))
+      .slice(0, 24);
+  }
+
   private tick(nowMs: number): void {
     if (!this.running) return;
     const now = nowMs / 1000;
@@ -347,8 +383,12 @@ export class PhysicsEngine {
       case "dizzy":   this.tickDizzy(dt); break;
       case "hitWall": this.tickHitWall(dt); break;
       case "slide":   this.tickSlide(dt); break;
+      case "perch":   this.tickPerch(dt); break;
+      case "bumped":  this.tickBumped(dt); break;
+      case "pushed":  this.tickPushed(dt); break;
     }
 
+    this.applyMovingWindowImpulses();
     this.safetyClamp();
     this.rafId = requestAnimationFrame(this.tick.bind(this));
   }
@@ -358,7 +398,12 @@ export class PhysicsEngine {
 
   private tickIdle(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
+    this.carryWithSupport(dt, 0.45);
     this.y = this.floorY;
+    if (this.currentSupport?.source === "window" && this.currentSupport.kind !== "antdesk-window") {
+      this.setState("perch");
+      return;
+    }
     this.behaviorTimer -= dt;
     this.idleTimer -= dt;
     if (this.behaviorTimer <= 0 || this.idleTimer <= 0) {
@@ -368,9 +413,11 @@ export class PhysicsEngine {
 
   private tickWalk(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
+    this.carryWithSupport(dt, 0.26);
     this.y = this.floorY;
     this.behaviorTimer -= dt;
     this.directionTimer -= dt;
+    this.applyWorkAreaAvoidance();
 
     // Spontaneous jump timer
     this.spontaneousJumpTimer -= dt;
@@ -443,8 +490,10 @@ export class PhysicsEngine {
 
   private tickRun(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
+    this.carryWithSupport(dt, 0.18);
     this.y = this.floorY;
     this.behaviorTimer -= dt;
+    this.applyWorkAreaAvoidance();
 
     if (this.behavior === "chase") {
       const pcx = this.x + this.windowWidth / 2;
@@ -556,6 +605,7 @@ export class PhysicsEngine {
 
   private tickLanding(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
+    this.carryWithSupport(dt, 0.3);
     this.y = this.floorY;
     this.landingTimer -= dt;
     if (this.landingTimer <= 0) this.pickBehavior();
@@ -563,6 +613,7 @@ export class PhysicsEngine {
 
   private tickDizzy(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
+    this.carryWithSupport(dt, 0.2);
     this.y = this.floorY;
     this.dizzyTimer -= dt;
     if (this.dizzyTimer <= 0) this.pickBehavior();
@@ -570,6 +621,7 @@ export class PhysicsEngine {
 
   private tickHitWall(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
+    this.carryWithSupport(dt, 0.2);
     this.y = this.floorY;
     this.hitWallTimer -= dt;
     if (this.hitWallTimer <= 0) this.pickBehavior();
@@ -577,6 +629,7 @@ export class PhysicsEngine {
 
   private tickSlide(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
+    this.carryWithSupport(dt, 0.12);
     this.y = this.floorY;
     this.vx *= this.slideFriction;
 
@@ -595,6 +648,47 @@ export class PhysicsEngine {
       this.vx = 0;
       this.pickBehavior();
     }
+    this.moveWindow();
+  }
+
+  private tickPerch(dt: number): void {
+    this.floorY = this.resolveFloorY(this.x, this.y);
+    if (!this.currentSupport || this.currentSupport.source !== "window") {
+      this.vy = 80;
+      this.setState("falling");
+      return;
+    }
+    this.carryWithSupport(dt, this.interactionMode === "enhanced" ? 0.75 : 0.5);
+    this.y = this.floorY;
+    this.vx *= 0.94;
+    this.behaviorTimer -= dt;
+    this.idleTimer -= dt;
+    this.setContact("window");
+    if (this.behaviorTimer <= 0 || this.idleTimer <= 0) this.pickBehavior();
+    this.moveWindow();
+  }
+
+  private tickBumped(dt: number): void {
+    this.vy += this.gravity * dt * 0.45;
+    this.x = this.clampX(this.x + this.vx * dt);
+    this.y += this.vy * dt;
+    this.floorY = this.resolveFloorY(this.x, this.y);
+    if (this.y >= this.floorY) {
+      this.y = this.floorY;
+      this.vy = 0;
+      this.setState(Math.abs(this.vx) > 45 ? "slide" : "landing");
+      return;
+    }
+    this.moveWindow();
+  }
+
+  private tickPushed(dt: number): void {
+    this.floorY = this.resolveFloorY(this.x, this.y);
+    this.y = this.floorY;
+    this.vx *= this.interactionMode === "enhanced" ? 0.95 : 0.88;
+    this.x = this.clampX(this.x + this.vx * dt);
+    this.setContact("pushed");
+    if (Math.abs(this.vx) < 12) this.pickBehavior();
     this.moveWindow();
   }
 
@@ -617,6 +711,7 @@ export class PhysicsEngine {
 
   private resolveFloorY(x: number, currentY: number): number {
     let floor = this.groundY;
+    let support: Platform | null = null;
     const cx = x + this.windowWidth / 2;
     const currentBottom = currentY + this.windowHeight;
 
@@ -630,9 +725,83 @@ export class PhysicsEngine {
       const belowOrOn = currentBottom <= platformTop + 24;
       if ((closeEnough || belowOrOn) && platformFloor < floor) {
         floor = platformFloor;
+        support = p;
       }
     }
+    this.currentSupport = support;
+    this.setContact(support?.source === "window" ? "window" : "desktop");
     return floor;
+  }
+
+  private carryWithSupport(dt: number, factor: number): void {
+    if (!this.currentSupport || this.currentSupport.source !== "window") return;
+    const vx = this.clampImpulse(this.currentSupport.vx ?? 0, this.interactionMode === "enhanced" ? 280 : 150);
+    const vy = this.clampImpulse(this.currentSupport.vy ?? 0, this.interactionMode === "enhanced" ? 160 : 80);
+    this.x = this.clampX(this.x + vx * factor * dt);
+    if (Math.abs(vy) > 8) this.y += vy * factor * 0.25 * dt;
+  }
+
+  private applyWorkAreaAvoidance(): void {
+    const petCx = this.x + this.windowWidth / 2;
+    const petCy = this.y + this.windowHeight / 2;
+    const focused = this.platforms.find((p) => p.focused && p.kind !== "antdesk-window");
+    const antDesk = this.platforms.find((p) => p.kind === "antdesk-window" && this.intersects(p, 24));
+    const target = antDesk ?? focused;
+    if (!target) return;
+
+    const inset = antDesk ? 18 : 70;
+    const insideX = petCx > target.x + inset && petCx < target.x + target.width - inset;
+    const insideY = petCy > target.y + inset && petCy < target.y + target.height - inset;
+    if (!insideX || !insideY) return;
+
+    const toLeft = Math.abs(petCx - target.x);
+    const toRight = Math.abs(target.x + target.width - petCx);
+    const dir = toLeft < toRight ? -1 : 1;
+    const speed = antDesk ? this.runSpeed : this.walkSpeed;
+    this.vx = dir * Math.max(Math.abs(this.vx), speed * (antDesk ? 1.15 : 0.75));
+    this.onFacingChange?.(dir as 1 | -1);
+    this.setContact("avoiding");
+  }
+
+  private applyMovingWindowImpulses(): void {
+    if (this.state === "dragged" || this.state === "dizzy") return;
+    const now = performance.now();
+    if (now - this.lastImpulseAt < 160) return;
+
+    for (const p of this.platforms) {
+      if (p.source !== "window" || !p.moving) continue;
+      if (this.currentSupport?.id === p.id) continue;
+      if (!this.intersects(p, 18)) continue;
+
+      const sx = p.vx ?? 0;
+      const sy = p.vy ?? 0;
+      const speed = Math.hypot(sx, sy);
+      if (speed < 40) continue;
+
+      const limit = this.interactionMode === "enhanced" ? 360 : 190;
+      const dir = this.x + this.windowWidth / 2 < p.x + p.width / 2 ? -1 : 1;
+      this.vx = this.clampImpulse(sx * 0.36 + dir * Math.min(speed * 0.22, limit), limit);
+      this.vy = this.interactionMode === "enhanced" ? -120 : -60;
+      this.lastImpulseAt = now;
+      this.setContact("pushed");
+      this.setState(speed > (this.interactionMode === "enhanced" ? 300 : 220) ? "bumped" : "pushed");
+      this.onFacingChange?.(dir as 1 | -1);
+      return;
+    }
+  }
+
+  private intersects(p: Platform, pad: number): boolean {
+    return !(
+      this.x + this.windowWidth < p.x - pad ||
+      this.x > p.x + p.width + pad ||
+      this.y + this.windowHeight < p.y - pad ||
+      this.y > p.y + p.height + pad
+    );
+  }
+
+  private clampImpulse(value: number, max: number): number {
+    if (Math.abs(value) <= max) return value;
+    return Math.sign(value) * max;
   }
 
   /** Safety: catch any escape and reset */
@@ -645,9 +814,10 @@ export class PhysicsEngine {
     if (this.x < b.x - safe || this.x > b.x + b.width + safe) needsReset = true;
     if (this.y < b.y - safe || this.y > b.y + b.height + safe) needsReset = true;
 
-    // Also: if on ground but Y drifted
-    if (["idle", "walk", "run", "hitWall", "slide", "landing", "dizzy"].includes(this.state)) {
-      if (Math.abs(this.y - this.groundY) > 5) needsReset = true;
+    // Also: if on a support surface but Y drifted
+    if (["idle", "walk", "run", "hitWall", "slide", "landing", "dizzy", "perch", "pushed"].includes(this.state)) {
+      const floor = this.resolveFloorY(this.x, this.y);
+      if (Math.abs(this.y - floor) > 18) needsReset = true;
     }
 
     if (needsReset) {
