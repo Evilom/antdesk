@@ -5,10 +5,10 @@
 }
 
 :root {
-  --quick-bg: rgba(10, 11, 16, var(--bg-alpha, 0.72));
-  --quick-card: rgba(255, 255, 255, 0.055);
-  --quick-card-hover: rgba(255, 255, 255, 0.09);
-  --quick-border: rgba(255, 255, 255, 0.10);
+  --quick-bg: rgba(10, 10, 15, var(--bg-alpha, 0.72));
+  --quick-card: rgba(255, 255, 255, 0.045);
+  --quick-card-hover: rgba(255, 255, 255, 0.078);
+  --quick-border: rgba(255, 255, 255, 0.085);
   --quick-border-hover: rgba(255, 255, 255, 0.16);
   --quick-text: rgba(255, 255, 255, 0.88);
   --quick-muted: rgba(255, 255, 255, 0.48);
@@ -29,6 +29,8 @@ html, body {
   background: transparent;
   width: 100%;
   height: 100%;
+  padding: 12px;
+  box-sizing: border-box;
 }
 
 /* ── Panel container ── */
@@ -36,25 +38,73 @@ html, body {
   position: relative;
   display: flex;
   flex-direction: column;
-  padding: 9px;
-  max-height: 100vh;
+  padding: 10px;
+  width: 276px;
+  max-height: calc(100vh - 24px);
   overflow-y: auto;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.06), transparent 28%),
-    radial-gradient(circle at 12% 0%, rgba(10,132,255,0.16), transparent 28%),
+    linear-gradient(180deg, rgba(255,255,255,0.065), transparent 30%),
+    radial-gradient(circle at 14% 0%, rgba(10,132,255,0.13), transparent 34%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 8px),
     var(--quick-bg);
   backdrop-filter: blur(32px) saturate(170%);
   -webkit-backdrop-filter: blur(32px) saturate(170%);
-  border: 1px solid var(--quick-border);
+  border: 0.5px solid var(--quick-border);
   border-radius: 16px;
   overflow-x: hidden;
   overscroll-behavior: contain;
   box-shadow:
-    0 18px 48px rgba(0,0,0,0.40),
+    0 20px 54px rgba(0,0,0,0.42),
     0 0 0 1px rgba(255,255,255,0.025),
     inset 0 1px 0 rgba(255,255,255,0.07);
   animation: quick-panel-slide-in 0.24s var(--quick-spring) both;
   animation-delay: 0.02s;
+}
+
+.quick-panel::before {
+  content: "";
+  position: absolute;
+  inset: 8px 8px auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent);
+  pointer-events: none;
+}
+
+.quick-panel::after {
+  content: "";
+  position: absolute;
+  width: 34px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(10,132,255,0.55);
+  box-shadow: 0 0 14px rgba(10,132,255,0.30);
+  pointer-events: none;
+}
+
+.quick-panel[data-side="left"]::after {
+  right: -1px;
+  top: 48px;
+  width: 2px;
+  height: 34px;
+}
+
+.quick-panel[data-side="right"]::after {
+  left: -1px;
+  top: 48px;
+  width: 2px;
+  height: 34px;
+}
+
+.quick-panel[data-side="top"]::after {
+  left: 50%;
+  bottom: -1px;
+  transform: translateX(-50%);
+}
+
+.quick-panel[data-side="bottom"]::after {
+  left: 50%;
+  top: -1px;
+  transform: translateX(-50%);
 }
 
 /* Direction-based entry animation — grow outward from FAB center */
@@ -160,7 +210,7 @@ html, body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 0 1px 7px;
+  padding: 0 1px 8px;
   flex-shrink: 0;
 }
 
@@ -171,10 +221,20 @@ html, body {
   min-width: 0;
 }
 
+.quick-title em {
+  color: rgba(142,199,255,0.76);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+}
+
 .quick-title span {
   color: var(--quick-text);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 13.5px;
+  font-weight: 750;
 }
 
 .quick-title small {
@@ -191,9 +251,9 @@ html, body {
 }
 
 .quick-icon-btn {
-  width: 22px;
-  height: 22px;
-  border-radius: 8px;
+  width: 23px;
+  height: 23px;
+  border-radius: 9px;
   border: none;
   background: var(--quick-card);
   color: var(--quick-muted);
@@ -226,18 +286,26 @@ html, body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 25px;
-  margin-bottom: 7px;
+  min-height: 27px;
+  margin-bottom: 8px;
   padding: 6px 7px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 11px;
+  background: rgba(255,255,255,0.035);
+  border: 0.5px solid rgba(255,255,255,0.06);
 }
 
 .quick-meta span {
   color: var(--quick-muted);
   font-size: 10px;
   font-weight: 600;
+}
+
+.quick-meta i {
+  color: rgba(255,255,255,0.30);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 .quick-meta span.urgent {
@@ -267,8 +335,8 @@ html, body {
 .quick-filters button {
   height: 24px;
   border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.07);
-  background: rgba(255,255,255,0.035);
+  border: 0.5px solid rgba(255,255,255,0.065);
+  background: rgba(255,255,255,0.032);
   color: var(--quick-muted);
   font-size: 10px;
   font-weight: 650;
@@ -291,7 +359,7 @@ html, body {
 .quick-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .quick-panel.above .quick-list {
@@ -314,7 +382,7 @@ html, body {
   gap: 7px;
   border-radius: 12px;
   background: rgba(255,255,255,0.035);
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 0.5px solid rgba(255,255,255,0.06);
 }
 
 .quick-skeleton {
@@ -342,10 +410,10 @@ html, body {
   align-items: center;
   gap: 8px;
   min-height: 34px;
-  padding: 7px 9px;
+  padding: 7px 8px;
   border-radius: 10px;
   background: var(--quick-card);
-  border: 1px solid var(--quick-border);
+  border: 0.5px solid var(--quick-border);
   transition: transform 0.16s var(--quick-spring), border-color 0.18s var(--quick-spring), background 0.18s var(--quick-spring), box-shadow 0.18s var(--quick-spring);
   cursor: pointer;
   /* Entry animation — smooth pop, no bounce */
@@ -353,7 +421,7 @@ html, body {
 }
 
 .quick-bubble:hover {
-  transform: translateX(2px);
+  transform: translateX(1px);
   border-color: rgba(10, 132, 255, 0.34);
   background: var(--quick-card-hover);
   box-shadow: 0 8px 22px rgba(0,0,0,0.20);
@@ -409,7 +477,7 @@ html, body {
 .quick-bubble .check {
   width: 15px;
   height: 15px;
-  border-radius: 6px;
+  border-radius: 999px;
   border: 1.5px solid rgba(255, 255, 255, 0.22);
   background: transparent;
   cursor: pointer;
@@ -448,7 +516,7 @@ html, body {
 }
 
 .quick-bubble-info .name {
-  font-size: 11.5px;
+  font-size: 11.8px;
   line-height: 1.2;
   color: var(--quick-text);
   overflow: hidden;
@@ -459,8 +527,8 @@ html, body {
 
 /* ── Priority dot ── */
 .quick-bubble .dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 16px;
   border-radius: 50%;
   flex-shrink: 0;
 }

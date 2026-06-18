@@ -12,6 +12,7 @@ export default defineConfig({
         quick: resolve(__dirname, "quick.html"),
         pet: resolve(__dirname, "pet.html"),
         notepad: resolve(__dirname, "notepad.html"),
+        menu: resolve(__dirname, "menu.html"),
       },
     },
   },

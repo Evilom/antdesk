@@ -127,16 +127,17 @@ export default function Agenda({ onRefresh }: Props) {
   const doneCount = activeTodos.length - pendingCount;
 
   return (
-    <div className="space-y-3 fade-in">
+    <div className="agenda-console space-y-3 fade-in">
       {/* Date Header */}
-      <div className="flex items-baseline justify-between px-1 pt-1 pb-1">
-        <div className="flex items-baseline gap-2.5">
-          <h1 className="text-display text-text-primary">{formatChineseDate(todayDate)}</h1>
-          <span className="text-caption">{pendingCount} 项待办</span>
+      <div className="agenda-hero anim-card" style={{ animationDelay: delay() }}>
+        <div className="agenda-hero-main">
+          <span className="agenda-kicker">今日控制台</span>
+          <h1 className="agenda-date">{formatChineseDate(todayDate)}</h1>
+          <p>{pendingCount > 0 ? `${pendingCount} 项待办需要排序推进` : "今天的待办已经清空"}</p>
         </div>
         <button
           onClick={onRefresh}
-          className="btn-ghost text-[10px] px-2 py-1 inline-flex items-center gap-1.5"
+          className="agenda-refresh btn-ghost text-[10px] px-2 py-1 inline-flex items-center gap-1.5"
           title="刷新数据"
         >
           <IconRefresh size={12} />
@@ -144,7 +145,7 @@ export default function Agenda({ onRefresh }: Props) {
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 anim-card" style={{ animationDelay: delay() }}>
+      <div className="metrics-strip grid grid-cols-3 gap-2 anim-card" style={{ animationDelay: delay() }}>
         <Metric label="逾期" value={overdue.length} tone="red" />
         <Metric label="今日" value={dueToday.length} tone="yellow" />
         <Metric label="已完成" value={doneCount} tone="green" />
@@ -193,8 +194,11 @@ export default function Agenda({ onRefresh }: Props) {
 
       {/* Project Overview */}
       {projectOverview.length > 0 && (
-        <div className="card p-3.5 anim-card" style={{ animationDelay: delay() }}>
-          <h3 className="text-caption mb-3 px-0.5">项目快览</h3>
+        <div className="card project-overview p-3.5 anim-card" style={{ animationDelay: delay() }}>
+          <div className="section-title-row">
+            <h3 className="text-caption">项目快览</h3>
+            <span>{projectOverview.length} 个项目</span>
+          </div>
           <div className="space-y-2.5">
             {projectOverview.map((p) => (
               <ProjectRow key={p.id} project={p} />
@@ -255,8 +259,10 @@ export default function Agenda({ onRefresh }: Props) {
 
 function Section({ title, accent, delay, children }: { title: string; accent: string; delay: string; children: React.ReactNode }) {
   return (
-    <div className={`card p-3.5 border-l-2 ${accent} anim-card`} style={{ animationDelay: delay }}>
-      <h3 className="text-caption mb-2.5">{title}</h3>
+    <div className={`card focus-section p-3.5 border-l-2 ${accent} anim-card`} style={{ animationDelay: delay }}>
+      <div className="section-title-row">
+        <h3 className="text-caption">{title}</h3>
+      </div>
       {children}
     </div>
   );
@@ -265,7 +271,7 @@ function Section({ title, accent, delay, children }: { title: string; accent: st
 function Metric({ label, value, tone }: { label: string; value: number; tone: "red" | "yellow" | "green" }) {
   const color = tone === "red" ? "text-accent-red" : tone === "yellow" ? "text-accent-yellow" : "text-accent-green";
   return (
-    <div className="card p-2.5">
+    <div className={`metric-card card p-2.5 metric-${tone}`}>
       <div className={`text-[17px] leading-none font-semibold tabular-nums ${color}`}>{value}</div>
       <div className="text-[9px] text-text-muted mt-1">{label}</div>
     </div>
@@ -286,7 +292,7 @@ function EmptyPanel({ title, body, delay }: { title: string; body: string; delay
 
 function TaskItem({ todo, dotColor }: { todo: Todo; dotColor: string }) {
   return (
-    <div className="flex items-center gap-2 text-xs task-row">
+    <div className="flex items-center gap-2 text-xs task-row agenda-task-row">
       <span className={`w-[5px] h-[5px] rounded-full flex-shrink-0 ${dotColor}`} />
       <span className="text-text-primary truncate flex-1 font-medium">{todo.name}</span>
       <PriorityBadge priority={todo.priority} />
@@ -303,7 +309,7 @@ function PriorityBadge({ priority }: { priority: Todo["priority"] }) {
 function ProjectRow({ project }: { project: { id: string; name: string; done: number; total: number } }) {
   const pct = project.total > 0 ? (project.done / project.total) * 100 : 0;
   return (
-    <div className="flex items-center gap-2.5 text-xs">
+    <div className="project-row flex items-center gap-2.5 text-xs">
       <span className="text-text-primary truncate flex-1 font-medium">{project.name}</span>
       <div className="w-16 h-[3px] bg-bg-hover rounded-full overflow-hidden flex-shrink-0">
         <div className="h-full bg-accent-green rounded-full progress-fill" style={{ width: `${pct}%` }} />

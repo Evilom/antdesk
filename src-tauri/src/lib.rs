@@ -1,7 +1,6 @@
 use std::sync::{Mutex, OnceLock};
 use tauri::Manager;
 use tauri::Emitter;
-use tauri::menu::ContextMenu;
 
 #[derive(Default)]
 struct AppState {
@@ -414,8 +413,17 @@ fn position_panel_next_to_pet(
         };
 
         let gap = 10.0 * scale;
-        let pw = panel_w * scale;
-        let ph = panel_h * scale;
+        let panel_size = panel.outer_size().ok();
+        let pw = panel_size
+            .as_ref()
+            .map(|s| s.width as f64)
+            .filter(|w| *w > 10.0)
+            .unwrap_or(panel_w * scale);
+        let ph = panel_size
+            .as_ref()
+            .map(|s| s.height as f64)
+            .filter(|h| *h > 10.0)
+            .unwrap_or(panel_h * scale);
         let px = pet_pos.x as f64;
         let py = pet_pos.y as f64;
         let pet_w = pet_size.width as f64;
@@ -490,7 +498,7 @@ fn position_panel_next_to_pet(
 fn position_visible_companions(app: &tauri::AppHandle) -> Result<(), String> {
     if let Some(q) = app.get_webview_window("quick") {
         if q.is_visible().unwrap_or(false) {
-            let _ = position_panel_next_to_pet(app, "quick", 276.0, 340.0)?;
+            let _ = position_panel_next_to_pet(app, "quick", 300.0, 380.0)?;
         }
     }
     if let Some(n) = app.get_webview_window("notepad") {
@@ -532,12 +540,12 @@ async fn update_quick_panel_position(app: tauri::AppHandle) -> Result<(), String
 #[tauri::command]
 async fn toggle_quick_panel(app: tauri::AppHandle) -> Result<(), String> {
     if app.get_webview_window("quick").is_some() {
-        let _ = position_panel_next_to_pet(&app, "quick", 276.0, 340.0)?;
+        let _ = position_panel_next_to_pet(&app, "quick", 300.0, 380.0)?;
         if let Some(q) = app.get_webview_window("quick") {
             if q.is_visible().unwrap_or(false) {
                 q.hide().map_err(|e| e.to_string())?;
             } else {
-                let _ = position_panel_next_to_pet(&app, "quick", 276.0, 340.0)?;
+                let _ = position_panel_next_to_pet(&app, "quick", 300.0, 380.0)?;
                 q.show().map_err(|e| e.to_string())?;
                 q.set_focus().map_err(|e| e.to_string())?;
                 let _ = q.emit("quick-panel-shown", ());
@@ -560,40 +568,65 @@ async fn fab_click(app: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 async fn show_fab_context_menu(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-
-    let webview_window = app
+    let anchor = app
         .get_webview_window("pet")
         .or_else(|| app.get_webview_window("fab"))
         .ok_or("FAB window not found")?;
-    let window = webview_window.as_ref().window();
+    let menu = app
+        .get_webview_window("fab-menu")
+        .ok_or("FAB menu window not found")?;
 
-    let quick = MenuItem::with_id(&app, "fab_quick", "快捷面板", true, None::<&str>)
-        .map_err(|e| e.to_string())?;
-    let notepad = MenuItem::with_id(&app, "fab_notepad", "便签", true, None::<&str>)
-        .map_err(|e| e.to_string())?;
-    let main = MenuItem::with_id(&app, "fab_panel", "主面板", true, None::<&str>)
-        .map_err(|e| e.to_string())?;
-    let settings = MenuItem::with_id(&app, "fab_settings", "设置", true, None::<&str>)
-        .map_err(|e| e.to_string())?;
-    let lock = MenuItem::with_id(&app, "fab_lock", "锁定/解锁宠物", true, None::<&str>)
-        .map_err(|e| e.to_string())?;
-    let windows = MenuItem::with_id(&app, "fab_window_interaction", "窗口交互开关", true, None::<&str>)
-        .map_err(|e| e.to_string())?;
-    let hide = MenuItem::with_id(&app, "fab_hide_pet", "隐藏宠物", true, None::<&str>)
-        .map_err(|e| e.to_string())?;
-    let quit = MenuItem::with_id(&app, "fab_quit", "退出 AntDesk", true, None::<&str>)
-        .map_err(|e| e.to_string())?;
-    let sep1 = PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?;
-    let sep2 = PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?;
-    let sep3 = PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?;
+    let pos = anchor.outer_position().map_err(|e| e.to_string())?;
+    let size = anchor.outer_size().map_err(|e| e.to_string())?;
+    let monitor = anchor.current_monitor().ok().flatten();
+    let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
 
-    let menu = Menu::with_items(
-        &app,
-        &[&quick, &notepad, &main, &sep1, &settings, &sep2, &lock, &windows, &hide, &sep3, &quit],
-    )
+    let (mon_left, mon_right, mon_top, mon_bottom) = if let Some(ref m) = monitor {
+        let p = m.position();
+        let s = m.size();
+        let safe = 8.0 * scale;
+        (
+            p.x as f64 + safe,
+            p.x as f64 + s.width as f64 - safe,
+            p.y as f64 + safe,
+            p.y as f64 + s.height as f64 - safe,
+        )
+    } else {
+        (0.0, 1920.0 * scale, 0.0, 1080.0 * scale)
+    };
+
+    let gap = 8.0 * scale;
+    let menu_w = 220.0 * scale;
+    let menu_h = 340.0 * scale;
+    let px = pos.x as f64;
+    let py = pos.y as f64;
+    let aw = size.width as f64;
+    let ah = size.height as f64;
+    let right_x = px + aw + gap;
+    let left_x = px - gap - menu_w;
+    let x = if right_x + menu_w <= mon_right {
+        right_x
+    } else if left_x >= mon_left {
+        left_x
+    } else {
+        clamp(px + aw / 2.0 - menu_w / 2.0, mon_left, mon_right - menu_w)
+    };
+    let y = clamp(py + ah * 0.18, mon_top, mon_bottom - menu_h);
+
+    let _ = menu.hide();
+    menu.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
+        menu_w as u32,
+        menu_h as u32,
+    )))
     .map_err(|e| e.to_string())?;
-    menu.popup(window).map_err(|e| e.to_string())
+    menu.set_position(tauri::Position::Physical(tauri::PhysicalPosition::new(
+        x as i32,
+        y as i32,
+    )))
+    .map_err(|e| e.to_string())?;
+    menu.show().map_err(|e| e.to_string())?;
+    menu.set_focus().map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 // ── System tray ──

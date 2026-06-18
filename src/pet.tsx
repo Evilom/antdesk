@@ -13,16 +13,7 @@ import { useKanbanStore } from "./stores/kanbanStore";
 import type { KanbanData } from "./types/kanban";
 import { EmotionEngine } from "./lib/EmotionEngine";
 import { getLocalNotionToken } from "./lib/localSettings";
-import {
-  IconEdit,
-  IconEyeOff,
-  IconLock,
-  IconPower,
-  IconReport,
-  IconTarget,
-  IconUnlock,
-  IconWindow,
-} from "./components/Icons";
+import { IconLock } from "./components/Icons";
 
 /**
  * Pet = FAB. Single 200×200 transparent window.
@@ -37,7 +28,6 @@ import {
 
 export default function Pet() {
   const [connected, setConnected] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [locked, setLocked] = useState(false);
   const [windowInteraction, setWindowInteraction] = useState(() => localStorage.getItem("antdesk_window_interaction") === "true");
   const [petName] = useState("moshumao");
@@ -311,32 +301,13 @@ export default function Pet() {
     else if (petBehavior !== "sleep") physicsRef.current?.start().catch(() => {});
   }, [locked, petBehavior]);
 
-  /* ═══ Close menu on outside click ═══ */
-  useEffect(() => {
-    if (!menuOpen) return;
-    const close = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest(".menu")) setMenuOpen(false);
-    };
-    const t = setTimeout(() => document.addEventListener("mousedown", close), 50);
-    return () => { clearTimeout(t); document.removeEventListener("mousedown", close); };
-  }, [menuOpen]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [menuOpen]);
-
   /* ═══════════════════════════════════════════
      DRAG — manual delta (clawd-on-desk pattern)
      P0: overrides click and roaming
      ═══════════════════════════════════════════ */
   const handlePetMouseDown = useCallback(
     async (e: React.MouseEvent) => {
-      if (e.button !== 0 || locked || menuOpen) return;
+      if (e.button !== 0 || locked) return;
 
       const win = getCurrentWindow();
       const startScreenX = e.screenX;
@@ -446,22 +417,20 @@ export default function Pet() {
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     },
-    [locked, menuOpen]
+    [locked]
   );
 
   /* ═══ CLICK → toggle quick panel ═══ */
   const handlePetClick = useCallback(() => {
     if (didDrag.current) return;
-    if (menuOpen) { setMenuOpen(false); return; }
     brainRef.current?.interact();
     emotionRef.current?.emit("user_interaction");
     invoke("toggle_quick_panel");
-  }, [menuOpen]);
+  }, []);
 
   /* ═══ RIGHT-CLICK → context menu ═══ */
   const handlePetContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    setMenuOpen(false);
     invoke("show_fab_context_menu").catch((err) => console.error("show_fab_context_menu failed:", err));
   }, []);
 
@@ -506,7 +475,7 @@ export default function Pet() {
     if (petBehavior === "walk" && !locked && petHovered) pool.push({ emoji: "🐾", text: "散步中~", key: "walk" });
     if (sleeping) pool.push({ emoji: "💤", text: "zzZ", key: "sleep" });
     if (connected && petHovered) pool.push({ emoji: "🔗", text: "已连接", key: "conn" });
-    if (petHovered || menuOpen) pool.push({ emoji: "😊", text: modeLabel[petMode], key: "idle" });
+    if (petHovered) pool.push({ emoji: "😊", text: modeLabel[petMode], key: "idle" });
     return pool;
   })();
   const currentThought = thoughtPool.length > 0 ? thoughtPool[thoughtIdx % thoughtPool.length] : null;
@@ -517,7 +486,10 @@ export default function Pet() {
       data-state={visualState}
       data-mode={petMode}
       data-dragging={dragging}
+      data-window-interaction={windowInteraction}
+      data-locked={locked}
     >
+      <div className="pet-snap-rails" aria-hidden="true" />
       <div
         className="pet-view"
         onMouseDown={handlePetMouseDown}
@@ -525,80 +497,27 @@ export default function Pet() {
         onContextMenu={handlePetContextMenu}
         onMouseEnter={() => setPetHovered(true)}
         onMouseLeave={() => setPetHovered(false)}
-        title={locked ? "位置已锁定，右键打开菜单" : "拖拽移动，点击打开便签，右键打开菜单"}
+        title={locked ? "位置已锁定，右键打开菜单" : "拖拽移动，点击打开快捷面板，右键打开菜单"}
       >
+        <div className="pet-anchor-halo" aria-hidden="true" />
         <SpinePet ref={spineRef} petName={petName} width={150} height={150} />
 
-        <div className="pet-hud" data-expanded={petHovered || menuOpen}>
+        <div className="pet-hud" data-expanded={petHovered || dragging || windowInteraction}>
           <div className={`hud-dot ${connected ? "connected" : "offline"}`} />
           {totalBadge > 0 && <span className="hud-count">{totalBadge > 99 ? "99+" : totalBadge}</span>}
           {locked && <IconLock size={10} className="hud-lock" />}
-          {(petHovered || menuOpen) && <span className="hud-mode">{modeLabel[petMode]}</span>}
+          {(petHovered || dragging || windowInteraction) && (
+            <span className="hud-mode">{dragging ? "吸附" : windowInteraction ? "边界" : modeLabel[petMode]}</span>
+          )}
         </div>
 
         {/* Single thought bubble — shows current thought */}
         {currentThought && (
           <div className="thought-bubble" data-priority={currentThought.priority}>
-            <span className="thought-e">{currentThought.emoji}</span>
             {currentThought.text}
           </div>
         )}
       </div>
-
-      {menuOpen && (
-        <div className="menu">
-          <div className="menu-item" onClick={() => { setMenuOpen(false); invoke("expand_panel"); }}>
-            <span className="menu-icon"><IconReport size={14} /></span>
-            <span className="menu-label">主面板</span>
-          </div>
-          <div className="menu-item" onClick={() => { setMenuOpen(false); invoke("toggle_notepad"); }}>
-            <span className="menu-icon"><IconEdit size={14} /></span>
-            <span className="menu-label">便签</span>
-          </div>
-          <div className="menu-sep" />
-          <div className="menu-item" onClick={() => { setLocked((v) => !v); setMenuOpen(false); }}>
-            <span className="menu-icon">{locked ? <IconUnlock size={14} /> : <IconLock size={14} />}</span>
-            <span className="menu-label">{locked ? "解锁位置" : "锁定位置"}</span>
-          </div>
-          <div className="menu-item" onClick={() => { setMenuOpen(false); invoke("hide_pet"); }}>
-            <span className="menu-icon"><IconEyeOff size={14} /></span>
-            <span className="menu-label">隐藏宠物</span>
-          </div>
-          <div className="menu-sep" />
-          <div className={`menu-item ${windowInteraction ? "active" : ""}`} onClick={() => {
-            const next = !windowInteraction;
-            setWindowInteraction(next);
-            if (next) {
-              invoke<Array<any>>("get_visible_windows").then(wins => {
-                const platforms = wins.map((w: any) => ({
-                  x: w.x, y: w.y,
-                  width: w.width,
-                  height: w.height,
-                  source: "window" as const, name: w.name,
-                }));
-                physicsRef.current?.setPlatforms(platforms);
-              }).catch(() => {});
-            } else {
-              physicsRef.current?.setPlatforms([]);
-            }
-            setMenuOpen(false);
-          }}>
-            <span className="menu-icon"><IconWindow size={14} /></span>
-            <span className="menu-label">窗口交互</span>
-            <span className="menu-state">{windowInteraction ? "开" : "关"}</span>
-          </div>
-          <div className="menu-item passive">
-            <span className="menu-icon"><IconTarget size={14} /></span>
-            <span className="menu-label">状态</span>
-            <span className="menu-state">{modeLabel[petMode]}</span>
-          </div>
-          <div className="menu-sep" />
-          <div className="menu-item quit" onClick={() => invoke("quit_app")}>
-            <span className="menu-icon"><IconPower size={14} /></span>
-            <span className="menu-label">退出</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

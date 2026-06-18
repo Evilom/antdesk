@@ -22,6 +22,27 @@ html, body {
   background: transparent;
 }
 
+.pet-snap-rails {
+  position: absolute;
+  inset: 10px;
+  border-radius: 32px;
+  pointer-events: none;
+  opacity: 0;
+  border: 1px solid rgba(10,132,255,0.16);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.025),
+    0 0 30px rgba(10,132,255,0.08);
+  transition: opacity 180ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform: scale(0.96);
+  z-index: 0;
+}
+
+.pet-window[data-dragging="true"] .pet-snap-rails,
+.pet-window[data-window-interaction="true"] .pet-snap-rails {
+  opacity: 1;
+  transform: scale(1);
+}
+
 /* ── Pet View ── */
 .pet-view {
   position: absolute; inset: 0;
@@ -35,11 +56,36 @@ html, body {
 .pet-view:active { cursor: grabbing; }
 .pet-view canvas { pointer-events: none; }
 
+.pet-anchor-halo {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  width: 92px;
+  height: 22px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  opacity: 0.56;
+  background: radial-gradient(ellipse, rgba(10,132,255,0.18), rgba(10,132,255,0.04) 52%, transparent 72%);
+  filter: blur(1px);
+  transition: opacity 180ms ease, transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  z-index: 0;
+}
+
+.pet-window[data-dragging="true"] .pet-anchor-halo {
+  opacity: 0.9;
+  transform: translateX(-50%) scale(1.18);
+}
+
+.pet-window[data-locked="true"] .pet-anchor-halo {
+  background: radial-gradient(ellipse, rgba(255,214,10,0.16), rgba(255,214,10,0.04) 52%, transparent 72%);
+}
+
 /* ── Compact status HUD ── */
 .pet-hud {
   position: absolute;
   right: 18px;
-  bottom: 18px;
+  bottom: 16px;
   min-width: 18px;
   height: 18px;
   display: flex;
@@ -49,9 +95,9 @@ html, body {
   padding: 0 5px;
   border-radius: 999px;
   color: rgba(255,255,255,0.78);
-  background: rgba(18,20,28,0.64);
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 8px 22px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05);
+  background: rgba(12,14,20,0.68);
+  border: 0.5px solid rgba(255,255,255,0.10);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
   backdrop-filter: blur(18px) saturate(160%);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
   pointer-events: none;
@@ -95,7 +141,7 @@ html, body {
 .hud-lock { color: #ffd60a; }
 
 .hud-mode {
-  max-width: 34px;
+  max-width: 38px;
   overflow: hidden;
   white-space: nowrap;
   font-size: 9px;
@@ -113,13 +159,13 @@ html, body {
   max-width: 172px;
   overflow: hidden;
   text-overflow: ellipsis;
-  background: rgba(18,20,30,0.82);
+  background: rgba(12,14,20,0.82);
   backdrop-filter: blur(18px) saturate(170%);
   -webkit-backdrop-filter: blur(18px) saturate(170%);
   color: rgba(255,255,255,0.86); font-size: 10px;
-  padding: 4px 9px; border-radius: 11px;
+  padding: 5px 9px; border-radius: 11px;
   white-space: nowrap; pointer-events: none; z-index: 20;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 0.5px solid rgba(255,255,255,0.09);
   box-shadow: 0 8px 24px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.05);
   animation: thought-in 0.22s ease-out;
 }
@@ -136,75 +182,10 @@ html, body {
   border-right: 1px solid rgba(255,255,255,0.06);
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
-.thought-e { margin-right: 2px; }
 @keyframes thought-in {
   from { opacity: 0; transform: translateX(-50%) translateY(3px) scale(0.92); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
-
-/* ═══════════════════════════════════════════════
-   Context Menu
-   ═══════════════════════════════════════════════ */
-.menu {
-  position: absolute;
-  top: 50%; left: 50%; transform: translate(-50%, -50%);
-  background: rgba(18,20,30,0.94);
-  backdrop-filter: blur(30px) saturate(170%);
-  -webkit-backdrop-filter: blur(30px) saturate(170%);
-  border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 14px; padding: 5px;
-  min-width: 154px;
-  box-shadow: 0 14px 44px rgba(0,0,0,0.48), inset 0 1px 0 rgba(255,255,255,0.05);
-  z-index: 50;
-  animation: menu-in 0.12s ease-out;
-}
-@keyframes menu-in {
-  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
-  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-}
-.menu-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 9px; border-radius: 9px;
-  cursor: pointer; font-size: 12px;
-  color: rgba(255,255,255,0.8);
-  transition: background 120ms, color 120ms, transform 120ms;
-}
-.menu-item:hover {
-  background: rgba(10,132,255,0.17);
-  color: rgba(255,255,255,0.94);
-}
-.menu-item:active { transform: scale(0.98); }
-.menu-item.active {
-  background: rgba(10,132,255,0.13);
-  color: #8ec7ff;
-}
-.menu-item.passive {
-  cursor: default;
-  color: rgba(255,255,255,0.56);
-}
-.menu-item.passive:hover {
-  background: transparent;
-  color: rgba(255,255,255,0.56);
-}
-.menu-icon {
-  width: 16px;
-  height: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  color: currentColor;
-  opacity: 0.9;
-}
-.menu-label { flex: 1; }
-.menu-state {
-  flex: 0 0 auto;
-  font-size: 10px;
-  color: rgba(255,255,255,0.38);
-}
-.menu-item.quit  { color: #FF453A; }
-.menu-item.quit:hover { background: rgba(255,69,58,0.15); }
-.menu-sep { height: 1px; background: rgba(255,255,255,0.06); margin: 3px 8px; }
 
 /* ═══════════════════════════════════════════════
    Behavior state effects
@@ -304,7 +285,6 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .pet-window canvas,
   .thought-bubble,
-  .menu,
   .pet-hud {
     animation: none !important;
     transition: none !important;

@@ -42,6 +42,20 @@
         "shadow": false
       },
       {
+        "label": "fab-menu",
+        "title": "AntDesk Menu",
+        "url": "/menu.html",
+        "width": 220,
+        "height": 340,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "shadow": false
+      },
+      {
         "label": "notepad",
         "title": "AntDesk Notepad",
         "url": "/notepad.html",
@@ -59,8 +73,8 @@
         "label": "quick",
         "title": "AntDesk Quick",
         "url": "/quick.html",
-        "width": 276,
-        "height": 340,
+        "width": 300,
+        "height": 380,
         "resizable": false,
         "decorations": false,
         "transparent": true,

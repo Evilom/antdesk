@@ -125,12 +125,12 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen relative overflow-hidden">
+    <div className="app-shell flex flex-col h-screen relative overflow-hidden">
       {/* Titlebar */}
       <div className="titlebar">
         {/* Left: Brand */}
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-[9px] bg-accent-blue/10 flex items-center justify-center shadow-sm">
+        <div className="titlebar-brand flex items-center gap-2.5">
+          <div className="brand-mark w-7 h-7 rounded-[9px] bg-accent-blue/10 flex items-center justify-center shadow-sm">
             <IconTarget size={15} className="text-accent-blue" />
           </div>
           <div className="flex flex-col">
@@ -143,10 +143,10 @@ export default function App() {
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-1.5">
+        <div className="titlebar-actions flex items-center gap-1.5">
           <button
             onClick={() => { setShowSearch(true); setShowSettings(false); }}
-            className="h-7 px-2.5 flex items-center gap-1.5 rounded-full bg-bg-card border border-border-card text-text-muted hover:text-text-primary hover:border-border-hover transition-all"
+            className="titlebar-search h-7 px-2.5 flex items-center gap-1.5 rounded-full bg-bg-card border border-border-card text-text-muted hover:text-text-primary hover:border-border-hover transition-all"
           >
             <IconSearch size={13} />
             <span className="text-[10px] hidden">搜索</span>
@@ -172,7 +172,7 @@ export default function App() {
       </div>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-hidden relative">
+      <main className="main-surface flex-1 overflow-hidden relative">
         <div className="h-full overflow-y-auto px-4 pb-24 pt-2 custom-scrollbar">
           {!notionConnected && todos.length === 0 ? (
             <div className="space-y-3 pt-4">

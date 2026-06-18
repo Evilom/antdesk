@@ -88,12 +88,13 @@ export default function QuickPanel() {
   useEffect(() => {
     if (!panelRef.current) return;
     const observer = new ResizeObserver(async (entries) => {
-      const h = entries[0]?.contentRect?.height;
+      const rect = entries[0]?.target.getBoundingClientRect();
+      const h = rect?.height;
       if (!h || h < 10) return;
       try {
         const { getCurrentWindow } = await import("@tauri-apps/api/window");
         const { LogicalSize } = await import("@tauri-apps/api/dpi");
-        await getCurrentWindow().setSize(new LogicalSize(276, Math.ceil(h + 8)));
+        await getCurrentWindow().setSize(new LogicalSize(300, Math.ceil(h + 26)));
         // Reposition after resize so panel doesn't cover FAB
         await invoke("update_quick_panel_position").catch(() => {});
       } catch {}
@@ -266,11 +267,17 @@ export default function QuickPanel() {
   ].filter(Boolean).join(" ");
 
   return (
-    <div ref={panelRef} className={panelClasses} style={{ "--bg-alpha": bgAlpha } as React.CSSProperties}>
+    <div
+      ref={panelRef}
+      className={panelClasses}
+      data-side={side}
+      style={{ "--bg-alpha": bgAlpha } as React.CSSProperties}
+    >
       <div className="quick-head">
         <div className="quick-title">
+          <em>Focus Queue</em>
           <span>快捷面板</span>
-          <small>{visibleCount} / {allTodos.length}</small>
+          <small>{visibleCount} / {allTodos.length} 个任务</small>
         </div>
         <div className="quick-actions">
           <button className="quick-icon-btn" onClick={fetchAll} title="刷新">
@@ -290,7 +297,8 @@ export default function QuickPanel() {
       </div>
 
       <div className="quick-meta">
-        <span className={highCount > 0 ? "urgent" : ""}>{highCount > 0 ? `${highCount} 高优先级` : "无高优先级"}</span>
+        <span className={highCount > 0 ? "urgent" : ""}>{highCount > 0 ? `${highCount} 个高优先级` : "无高优先级"}</span>
+        <i>{side === "left" ? "左侧吸附" : side === "right" ? "右侧吸附" : side === "top" ? "上方吸附" : "下方吸附"}</i>
         <button onClick={handleOpenMain}>主面板 <IconArrowRight size={11} /></button>
       </div>
 
