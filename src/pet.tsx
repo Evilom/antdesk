@@ -15,6 +15,8 @@ import { EmotionEngine } from "./lib/EmotionEngine";
 import { getLocalNotionToken } from "./lib/localSettings";
 import { IconLock } from "./components/Icons";
 
+type SnapEdge = "none" | "left" | "right" | "top" | "bottom";
+
 /**
  * Pet = FAB. Single 200×200 transparent window.
  *
@@ -41,6 +43,7 @@ export default function Pet() {
   const [emotionMood, setEmotionMood] = useState<{emoji: string; text: string} | null>(null);
   const [petHovered, setPetHovered] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [snapEdge, setSnapEdge] = useState<SnapEdge>("none");
 
   const didDrag = useRef(false);
   const spineRef = useRef<SpinePetHandle>(null);
@@ -316,6 +319,7 @@ export default function Pet() {
 
       // Pause physics
       physicsRef.current?.onDragStart();
+      Window.getByLabel("fab-menu").then((menu) => menu?.hide().catch(() => {})).catch(() => {});
 
       // Snapshot window position (logical pixels)
       const scale = window.devicePixelRatio || 1;
@@ -365,6 +369,23 @@ export default function Pet() {
         };
       };
 
+      const detectSnapEdge = (next: { x: number; y: number }): SnapEdge => {
+        if (!bounds) return "none";
+        const threshold = 18;
+        const distLeft = Math.abs(next.x - (bounds.x + 2));
+        const distRight = Math.abs(next.x - (bounds.x + bounds.width - 200 - 2));
+        const distTop = Math.abs(next.y - (bounds.y + 2));
+        const distBottom = Math.abs(next.y - (bounds.y + bounds.height - 200 - 2));
+        const distances: Array<[SnapEdge, number]> = [
+          ["left", distLeft],
+          ["right", distRight],
+          ["top", distTop],
+          ["bottom", distBottom],
+        ];
+        const [edge, dist] = distances.sort((a, b) => a[1] - b[1])[0];
+        return dist <= threshold ? edge : "none";
+      };
+
       const flushMove = () => {
         raf = 0;
         if (!pending) return;
@@ -386,6 +407,7 @@ export default function Pet() {
           didDrag.current = true;
         }
         pending = clampDrag(startWinX + dx, startWinY + dy);
+        setSnapEdge(detectSnapEdge(pending));
         if (!raf) raf = requestAnimationFrame(flushMove);
         // Record position for velocity
         history.push({ x: me.screenX, y: me.screenY, t: performance.now() });
@@ -398,6 +420,7 @@ export default function Pet() {
         if (raf) cancelAnimationFrame(raf);
         flushMove();
         setDragging(false);
+        setSnapEdge("none");
         // Calculate release velocity (logical px/s)
         let releaseVx = 0, releaseVy = 0;
         if (history.length >= 2) {
@@ -447,6 +470,13 @@ export default function Pet() {
     alert: "提醒",
     celebrate: "庆祝",
   };
+  const edgeLabel: Record<SnapEdge, string> = {
+    none: "吸附",
+    left: "左侧",
+    right: "右侧",
+    top: "顶部",
+    bottom: "底部",
+  };
 
   /* ═══ Thought system — single bubble cycling through pet thoughts ═══ */
   const [thoughtIdx, setThoughtIdx] = useState(0);
@@ -488,6 +518,7 @@ export default function Pet() {
       data-dragging={dragging}
       data-window-interaction={windowInteraction}
       data-locked={locked}
+      data-snap-edge={snapEdge}
     >
       <div className="pet-snap-rails" aria-hidden="true" />
       <div
@@ -500,16 +531,24 @@ export default function Pet() {
         title={locked ? "位置已锁定，右键打开菜单" : "拖拽移动，点击打开快捷面板，右键打开菜单"}
       >
         <div className="pet-anchor-halo" aria-hidden="true" />
-        <SpinePet ref={spineRef} petName={petName} width={150} height={150} />
+        <div className="pet-stage" aria-hidden="true">
+          <div className="pet-control-ring" />
+          <div className="pet-mode-beacon" />
+          <SpinePet ref={spineRef} petName={petName} width={150} height={150} />
+        </div>
 
         <div className="pet-hud" data-expanded={petHovered || dragging || windowInteraction}>
           <div className={`hud-dot ${connected ? "connected" : "offline"}`} />
           {totalBadge > 0 && <span className="hud-count">{totalBadge > 99 ? "99+" : totalBadge}</span>}
           {locked && <IconLock size={10} className="hud-lock" />}
           {(petHovered || dragging || windowInteraction) && (
-            <span className="hud-mode">{dragging ? "吸附" : windowInteraction ? "边界" : modeLabel[petMode]}</span>
+            <span className="hud-mode">{dragging ? edgeLabel[snapEdge] : windowInteraction ? "边界" : modeLabel[petMode]}</span>
           )}
         </div>
+
+        {dragging && snapEdge !== "none" && (
+          <div className="pet-edge-chip">{edgeLabel[snapEdge]}吸附</div>
+        )}
 
         {/* Single thought bubble — shows current thought */}
         {currentThought && (
