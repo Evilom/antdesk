@@ -108,12 +108,18 @@ export default function App() {
   // Window state persistence
   useEffect(() => {
     const win = getCurrentWindow();
-    const KEY = "antdesk_window";
+    const KEY = "antdesk_window_compact_v1";
+    localStorage.removeItem("antdesk_window");
     const saved = localStorage.getItem(KEY);
     if (saved) {
       try {
         const { width, height, x, y } = JSON.parse(saved);
-        if (width && height) win.setSize(new LogicalSize(width, height));
+        if (width && height) {
+          win.setSize(new LogicalSize(
+            Math.min(Math.max(width, 300), 360),
+            Math.min(Math.max(height, 420), 540)
+          ));
+        }
         if (x != null && y != null) win.setPosition(new LogicalPosition(x, y));
       } catch {}
     }

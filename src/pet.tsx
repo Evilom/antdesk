@@ -476,12 +476,14 @@ export default function Pet() {
     if (didDrag.current) return;
     brainRef.current?.interact();
     emotionRef.current?.emit("user_interaction");
+    invoke("hide_fab_context_menu").catch(() => {});
     invoke("toggle_quick_panel");
   }, []);
 
   /* ═══ RIGHT-CLICK → context menu ═══ */
   const handlePetContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    invoke("hide_fab_context_menu").catch(() => {});
     invoke("show_fab_context_menu").catch((err) => console.error("show_fab_context_menu failed:", err));
   }, []);
 

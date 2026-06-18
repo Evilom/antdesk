@@ -60,6 +60,7 @@ export default function FAB() {
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    invoke("hide_fab_context_menu").catch(() => {});
     didDrag.current = false;
     const startX = e.screenX;
     const startY = e.screenY;
@@ -93,6 +94,7 @@ export default function FAB() {
   const handleClick = useCallback(async () => {
     if (didDrag.current) return;
     try {
+      await invoke("hide_fab_context_menu");
       await invoke("fab_click");
     } catch (e) {
       console.error("fab_click failed:", e);
@@ -101,6 +103,7 @@ export default function FAB() {
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    invoke("hide_fab_context_menu").catch(() => {});
     invoke("show_fab_context_menu").catch((err) =>
       console.error("show_fab_context_menu failed:", err)
     );
