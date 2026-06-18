@@ -75,7 +75,9 @@ export default function App() {
         try {
           await update.downloadAndInstall();
           const { relaunch } = await import("@tauri-apps/plugin-process");
-          await relaunch();
+          try {
+            await relaunch();
+          } catch (e) { console.log("Auto-update installed; relaunch failed:", e); }
         } catch (e) { console.log("Auto-update install failed:", e); }
       }
     } catch (e) { console.log("Update check skipped:", e); }

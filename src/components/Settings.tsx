@@ -117,7 +117,7 @@ export default function Settings() {
     setUpdateStatus("检查中...");
     try {
       const { check } = await import("@tauri-apps/plugin-updater");
-      const update = await check();
+      const update = await check({ timeout: 30_000 });
       if (update?.available) {
         setUpdateStatus(`发现 v${update.version}，下载中...`);
         try {
@@ -125,11 +125,20 @@ export default function Settings() {
             if (progress.event === "Started" && progress.data.contentLength) {
               const mb = (progress.data.contentLength / 1024 / 1024).toFixed(1);
               setUpdateStatus(`发现 v${update.version}，下载 ${mb} MB...`);
+            } else if (progress.event === "Progress") {
+              setUpdateStatus(`发现 v${update.version}，下载中...`);
+            } else if (progress.event === "Finished") {
+              setUpdateStatus("下载完成，安装中...");
             }
-          });
+          }, { timeout: 120_000 });
           setUpdateStatus("安装完成，即将重启...");
           const { relaunch } = await import("@tauri-apps/plugin-process");
-          await relaunch();
+          try {
+            await relaunch();
+          } catch (e: any) {
+            console.error("Relaunch after update failed:", e);
+            setUpdateStatus("安装完成，请手动重启 AntDesk");
+          }
         } catch (e: any) {
           console.error("Update download failed:", e);
           setUpdateStatus(`下载失败: ${e?.message || e}`);
@@ -137,11 +146,12 @@ export default function Settings() {
       } else {
         setUpdateStatus("已是最新版本");
       }
-    } catch (e) {
-      setUpdateStatus("检查失败，请检查网络");
+    } catch (e: any) {
+      console.error("Update check failed:", e);
+      setUpdateStatus(`检查失败: ${e?.message || e}`);
     } finally {
       setChecking(false);
-      setTimeout(() => setUpdateStatus(""), 5000);
+      setTimeout(() => setUpdateStatus(""), 8000);
     }
   };
 

@@ -115,6 +115,7 @@ jobs:
 
           python3 - "$VERSION" "$TAG" "$BASE_URL" << 'PYEOF'
           import json, os, sys, subprocess
+          from datetime import datetime, timezone
 
           version, tag, base_url = sys.argv[1], sys.argv[2], sys.argv[3]
 
@@ -176,7 +177,7 @@ jobs:
           latest = {
               "version": version,
               "notes": f"AntDesk v{version}",
-              "pub_date": "2026-01-01T00:00:00Z",
+              "pub_date": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
               "platforms": platforms,
           }
           with open("latest.json", "w") as f:

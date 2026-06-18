@@ -22,6 +22,7 @@
     "core:menu:default",
     "shell:allow-open",
     "updater:default",
+    "process:default",
     "autostart:default"
   ]
 }
