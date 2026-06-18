@@ -530,6 +530,7 @@ export default function Pet() {
     if (physState === "bumped") return [{ emoji: "😮", text: "被窗口碰到了", key: "bumped", priority: true }];
     if (physState === "pushed") return [{ emoji: "↔", text: "让一下~", key: "pushed", priority: true }];
     if (physState === "perch" && petHovered) pool.push({ emoji: "🪟", text: "窗口上", key: "perch" });
+    if (petContact === "avoiding" && petHovered) pool.push({ emoji: "↔", text: "避开工作区", key: "avoiding" });
     if (physState === "landing") return [{ emoji: "😮‍💨", text: "呼...", key: "landing", priority: true }];
     if (physState === "run") return [{ emoji: "🏃", text: "冲啊!", key: "run", priority: true }];
     if (locked) pool.push({ emoji: "🔒", text: "位置已锁定", key: "locked" });
@@ -556,6 +557,7 @@ export default function Pet() {
       data-window-interaction={windowInteraction}
       data-locked={locked}
       data-snap-edge={snapEdge}
+      data-contact={petContact}
     >
       <div className="pet-snap-rails" aria-hidden="true" />
       <div

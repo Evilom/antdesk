@@ -96,6 +96,9 @@ export class PhysicsEngine {
   private currentSupport: Platform | null = null;
   private contactState: PetContactState = "desktop";
   private lastImpulseAt = 0;
+  private lastSupportVx = 0;
+  private lastSupportVy = 0;
+  private pushTimer = 0;
   private behaviorWeights: BehaviorWeights = { stroll: 0.35, sprint: 0.15, explore: 0.20, rest: 0.15, chase: 0.15 };
 
   // Behavior
@@ -398,10 +401,15 @@ export class PhysicsEngine {
 
   private tickIdle(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
-    this.carryWithSupport(dt, 0.45);
+    this.carryWithSupport(dt, this.interactionMode === "enhanced" ? 0.72 : 0.56);
     this.y = this.floorY;
     if (this.currentSupport?.source === "window" && this.currentSupport.kind !== "antdesk-window") {
       this.setState("perch");
+      return;
+    }
+    this.applyWorkAreaAvoidance();
+    if (this.contactState === "avoiding" && Math.abs(this.vx) > 8) {
+      this.setState("walk");
       return;
     }
     this.behaviorTimer -= dt;
@@ -413,7 +421,7 @@ export class PhysicsEngine {
 
   private tickWalk(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
-    this.carryWithSupport(dt, 0.26);
+    this.carryWithSupport(dt, this.interactionMode === "enhanced" ? 0.58 : 0.36);
     this.y = this.floorY;
     this.behaviorTimer -= dt;
     this.directionTimer -= dt;
@@ -490,7 +498,7 @@ export class PhysicsEngine {
 
   private tickRun(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
-    this.carryWithSupport(dt, 0.18);
+    this.carryWithSupport(dt, this.interactionMode === "enhanced" ? 0.42 : 0.24);
     this.y = this.floorY;
     this.behaviorTimer -= dt;
     this.applyWorkAreaAvoidance();
@@ -605,7 +613,7 @@ export class PhysicsEngine {
 
   private tickLanding(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
-    this.carryWithSupport(dt, 0.3);
+    this.carryWithSupport(dt, this.interactionMode === "enhanced" ? 0.58 : 0.4);
     this.y = this.floorY;
     this.landingTimer -= dt;
     if (this.landingTimer <= 0) this.pickBehavior();
@@ -613,7 +621,7 @@ export class PhysicsEngine {
 
   private tickDizzy(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
-    this.carryWithSupport(dt, 0.2);
+    this.carryWithSupport(dt, 0.24);
     this.y = this.floorY;
     this.dizzyTimer -= dt;
     if (this.dizzyTimer <= 0) this.pickBehavior();
@@ -621,7 +629,7 @@ export class PhysicsEngine {
 
   private tickHitWall(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
-    this.carryWithSupport(dt, 0.2);
+    this.carryWithSupport(dt, 0.26);
     this.y = this.floorY;
     this.hitWallTimer -= dt;
     if (this.hitWallTimer <= 0) this.pickBehavior();
@@ -629,7 +637,7 @@ export class PhysicsEngine {
 
   private tickSlide(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
-    this.carryWithSupport(dt, 0.12);
+    this.carryWithSupport(dt, this.interactionMode === "enhanced" ? 0.32 : 0.18);
     this.y = this.floorY;
     this.vx *= this.slideFriction;
 
@@ -654,13 +662,14 @@ export class PhysicsEngine {
   private tickPerch(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
     if (!this.currentSupport || this.currentSupport.source !== "window") {
-      this.vy = 80;
+      this.vx += this.clampImpulse(this.lastSupportVx * (this.interactionMode === "enhanced" ? 0.62 : 0.42), this.interactionMode === "enhanced" ? 260 : 150);
+      this.vy = Math.max(80, Math.abs(this.lastSupportVy) * 0.35);
       this.setState("falling");
       return;
     }
-    this.carryWithSupport(dt, this.interactionMode === "enhanced" ? 0.75 : 0.5);
+    this.carryWithSupport(dt, this.interactionMode === "enhanced" ? 0.92 : 0.72);
     this.y = this.floorY;
-    this.vx *= 0.94;
+    this.vx *= this.interactionMode === "enhanced" ? 0.96 : 0.93;
     this.behaviorTimer -= dt;
     this.idleTimer -= dt;
     this.setContact("window");
@@ -685,10 +694,11 @@ export class PhysicsEngine {
   private tickPushed(dt: number): void {
     this.floorY = this.resolveFloorY(this.x, this.y);
     this.y = this.floorY;
-    this.vx *= this.interactionMode === "enhanced" ? 0.95 : 0.88;
+    this.pushTimer -= dt;
+    this.vx *= this.interactionMode === "enhanced" ? 0.96 : 0.91;
     this.x = this.clampX(this.x + this.vx * dt);
     this.setContact("pushed");
-    if (Math.abs(this.vx) < 12) this.pickBehavior();
+    if (Math.abs(this.vx) < 12 || this.pushTimer <= 0) this.pickBehavior();
     this.moveWindow();
   }
 
@@ -717,12 +727,14 @@ export class PhysicsEngine {
 
     for (const p of this.platforms) {
       if (!this.isUsablePlatform(p)) continue;
-      if (cx < p.x - 14 || cx > p.x + p.width + 14) continue;
+      const movingPad = p.moving ? (this.interactionMode === "enhanced" ? 34 : 24) : 14;
+      if (cx < p.x - movingPad || cx > p.x + p.width + movingPad) continue;
       const platformFloor = p.y - this.windowHeight;
       if (platformFloor < (this.bounds?.y ?? 0)) continue;
       const platformTop = p.y;
-      const closeEnough = Math.abs(currentBottom - platformTop) < 24;
-      const belowOrOn = currentBottom <= platformTop + 24;
+      const verticalPad = p.moving ? (this.interactionMode === "enhanced" ? 42 : 32) : 24;
+      const closeEnough = Math.abs(currentBottom - platformTop) < verticalPad;
+      const belowOrOn = currentBottom <= platformTop + verticalPad;
       if ((closeEnough || belowOrOn) && platformFloor < floor) {
         floor = platformFloor;
         support = p;
@@ -735,8 +747,10 @@ export class PhysicsEngine {
 
   private carryWithSupport(dt: number, factor: number): void {
     if (!this.currentSupport || this.currentSupport.source !== "window") return;
-    const vx = this.clampImpulse(this.currentSupport.vx ?? 0, this.interactionMode === "enhanced" ? 280 : 150);
-    const vy = this.clampImpulse(this.currentSupport.vy ?? 0, this.interactionMode === "enhanced" ? 160 : 80);
+    const vx = this.clampImpulse(this.currentSupport.vx ?? 0, this.interactionMode === "enhanced" ? 340 : 210);
+    const vy = this.clampImpulse(this.currentSupport.vy ?? 0, this.interactionMode === "enhanced" ? 180 : 96);
+    this.lastSupportVx = vx;
+    this.lastSupportVy = vy;
     this.x = this.clampX(this.x + vx * factor * dt);
     if (Math.abs(vy) > 8) this.y += vy * factor * 0.25 * dt;
   }
@@ -766,28 +780,113 @@ export class PhysicsEngine {
   private applyMovingWindowImpulses(): void {
     if (this.state === "dragged" || this.state === "dizzy") return;
     const now = performance.now();
-    if (now - this.lastImpulseAt < 160) return;
+    const cooldown = this.interactionMode === "enhanced" ? 58 : 76;
+    if (now - this.lastImpulseAt < cooldown) return;
 
     for (const p of this.platforms) {
       if (p.source !== "window" || !p.moving) continue;
-      if (this.currentSupport?.id === p.id) continue;
-      if (!this.intersects(p, 18)) continue;
+      if (this.currentSupport?.id === p.id) {
+        this.lastSupportVx = this.clampImpulse(p.vx ?? 0, this.interactionMode === "enhanced" ? 340 : 210);
+        this.lastSupportVy = this.clampImpulse(p.vy ?? 0, this.interactionMode === "enhanced" ? 180 : 96);
+        continue;
+      }
+
+      if (this.tryCatchPlatform(p)) return;
+
+      const pressure = this.getWindowEdgePressure(p);
+      if (!pressure) continue;
 
       const sx = p.vx ?? 0;
       const sy = p.vy ?? 0;
       const speed = Math.hypot(sx, sy);
-      if (speed < 40) continue;
+      if (speed < 18) continue;
 
-      const limit = this.interactionMode === "enhanced" ? 360 : 190;
-      const dir = this.x + this.windowWidth / 2 < p.x + p.width / 2 ? -1 : 1;
-      this.vx = this.clampImpulse(sx * 0.36 + dir * Math.min(speed * 0.22, limit), limit);
-      this.vy = this.interactionMode === "enhanced" ? -120 : -60;
+      const limit = this.interactionMode === "enhanced" ? 420 : 240;
+      const shove = pressure.dir * Math.min(pressure.strength, limit);
+      this.vx = this.clampImpulse(this.vx * 0.35 + shove, limit);
+      if (pressure.bump) this.vy = this.interactionMode === "enhanced" ? -150 : -82;
       this.lastImpulseAt = now;
+      this.pushTimer = pressure.bump ? 0.52 : 0.38;
       this.setContact("pushed");
-      this.setState(speed > (this.interactionMode === "enhanced" ? 300 : 220) ? "bumped" : "pushed");
-      this.onFacingChange?.(dir as 1 | -1);
+      this.setState(pressure.bump || speed > (this.interactionMode === "enhanced" ? 300 : 220) ? "bumped" : "pushed");
+      this.onFacingChange?.(pressure.dir as 1 | -1);
       return;
     }
+  }
+
+  private tryCatchPlatform(p: Platform): boolean {
+    if (!this.bounds || p.kind === "antdesk-window") return false;
+    if (this.state === "pushed" || this.state === "bumped") return false;
+
+    const petBottom = this.y + this.windowHeight;
+    const footGap = p.y - petBottom;
+    const catchBand = this.interactionMode === "enhanced" ? 42 : 30;
+    if (footGap < -8 || footGap > catchBand) return false;
+
+    const cx = this.x + this.windowWidth / 2;
+    const horizontalPad = this.interactionMode === "enhanced" ? 34 : 24;
+    if (cx < p.x - horizontalPad || cx > p.x + p.width + horizontalPad) return false;
+    if (this.vy < -30) return false;
+
+    this.currentSupport = p;
+    this.floorY = p.y - this.windowHeight;
+    this.y = this.floorY;
+    this.vy = 0;
+    this.vx = this.clampImpulse(this.vx + (p.vx ?? 0) * 0.18, this.interactionMode === "enhanced" ? 260 : 150);
+    this.lastSupportVx = p.vx ?? 0;
+    this.lastSupportVy = p.vy ?? 0;
+    this.setContact("window");
+    this.setState("perch");
+    this.moveWindow();
+    return true;
+  }
+
+  private getWindowEdgePressure(p: Platform): { dir: 1 | -1; strength: number; bump: boolean } | null {
+    const vx = p.vx ?? 0;
+    const vy = p.vy ?? 0;
+    const speed = Math.hypot(vx, vy);
+    if (speed < 18) return null;
+
+    const petLeft = this.x;
+    const petRight = this.x + this.windowWidth;
+    const petTop = this.y;
+    const petBottom = this.y + this.windowHeight;
+    const surfaceLeft = p.x;
+    const surfaceRight = p.x + p.width;
+    const surfaceTop = p.y;
+    const surfaceBottom = p.y + p.height;
+
+    const verticalOverlap = Math.min(petBottom, surfaceBottom) - Math.max(petTop, surfaceTop);
+    if (verticalOverlap < 32) return null;
+
+    const influence = this.interactionMode === "enhanced" ? 72 : 52;
+    const overlapAllowance = this.interactionMode === "enhanced" ? -34 : -22;
+    const leftGap = petLeft - surfaceRight;
+    const rightGap = surfaceLeft - petRight;
+
+    let dir: 1 | -1 | null = null;
+    let gap = Number.POSITIVE_INFINITY;
+    if (vx > 12 && leftGap >= overlapAllowance && leftGap <= influence) {
+      dir = 1;
+      gap = leftGap;
+    } else if (vx < -12 && rightGap >= overlapAllowance && rightGap <= influence) {
+      dir = -1;
+      gap = rightGap;
+    } else if (this.intersects(p, 10)) {
+      dir = this.x + this.windowWidth / 2 < p.x + p.width / 2 ? -1 : 1;
+      gap = overlapAllowance;
+    }
+    if (!dir) return null;
+
+    const closeness = Math.max(0.18, 1 - Math.max(0, gap) / influence);
+    const base = this.interactionMode === "enhanced" ? 86 : 54;
+    const velocityPush = Math.min(speed * (this.interactionMode === "enhanced" ? 0.52 : 0.38), this.interactionMode === "enhanced" ? 360 : 210);
+    const verticalKick = Math.min(Math.abs(vy) * 0.12, this.interactionMode === "enhanced" ? 40 : 22);
+    return {
+      dir,
+      strength: (base + velocityPush + verticalKick) * closeness,
+      bump: closeness > 0.62 || speed > (this.interactionMode === "enhanced" ? 280 : 210),
+    };
   }
 
   private intersects(p: Platform, pad: number): boolean {

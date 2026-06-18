@@ -116,7 +116,8 @@ export class DesktopWorldBridge {
   private schedule(delayMs?: number) {
     if (this.timer) clearTimeout(this.timer);
     if (this.disposed || this.mode === "off") return;
-    const interval = delayMs ?? (performance.now() < this.hotUntil ? 62 : 125);
+    const hotInterval = this.mode === "enhanced" ? 50 : 62;
+    const interval = delayMs ?? (performance.now() < this.hotUntil ? hotInterval : 125);
     this.timer = setTimeout(() => void this.tick(), interval);
   }
 
@@ -131,7 +132,8 @@ export class DesktopWorldBridge {
         .map((surface) => this.withVelocity(surface, response.sampledAtMs));
 
       const active = surfaces.some((s) => s.moving || this.isNearPet(s, petRect));
-      if (active) this.hotUntil = performance.now() + 900;
+      if (active) this.hotUntil = performance.now() + 1600;
+      this.prunePreviousSurfaces(surfaces);
       this.onSurfaces(surfaces, { capability: response.capability, reason: response.reason });
     } catch (error) {
       this.onError?.(error);
@@ -146,10 +148,19 @@ export class DesktopWorldBridge {
     this.prev.set(surface.id, { x: surface.x, y: surface.y, sampledAtMs });
     if (!prev) return { ...surface, vx: 0, vy: 0, moving: false };
     const dt = Math.max(0.016, Math.min(0.5, (sampledAtMs - prev.sampledAtMs) / 1000));
-    const vx = (surface.x - prev.x) / dt;
-    const vy = (surface.y - prev.y) / dt;
-    const moving = Math.hypot(vx, vy) > 24;
+    const rawVx = (surface.x - prev.x) / dt;
+    const rawVy = (surface.y - prev.y) / dt;
+    const vx = Math.abs(rawVx) < 8 ? 0 : rawVx;
+    const vy = Math.abs(rawVy) < 8 ? 0 : rawVy;
+    const moving = Math.hypot(vx, vy) > 18;
     return { ...surface, vx, vy, moving };
+  }
+
+  private prunePreviousSurfaces(surfaces: WorldSurface[]) {
+    const currentIds = new Set(surfaces.map((surface) => surface.id));
+    for (const id of this.prev.keys()) {
+      if (!currentIds.has(id)) this.prev.delete(id);
+    }
   }
 
   private async readPetRect() {
@@ -175,6 +186,7 @@ export class DesktopWorldBridge {
     const petCy = petRect.y + petRect.height / 2;
     const sx = Math.max(surface.x, Math.min(surface.x + surface.width, petCx));
     const sy = Math.max(surface.y, Math.min(surface.y + surface.height, petCy));
-    return Math.hypot(petCx - sx, petCy - sy) < 160;
+    const radius = this.mode === "enhanced" ? 280 : 220;
+    return Math.hypot(petCx - sx, petCy - sy) < radius;
   }
 }
