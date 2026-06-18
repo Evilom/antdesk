@@ -1,7 +1,15 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { emit } from "@tauri-apps/api/event";
 import { useAppStore } from "../stores/appStore";
 import { IconCheck } from "./Icons";
+import {
+  WINDOW_INTERACTION_HINT,
+  WINDOW_INTERACTION_LABEL,
+  readWindowInteractionMode,
+  writeWindowInteractionMode,
+  type WindowInteractionMode,
+} from "../lib/DesktopWorldBridge";
 import type { ThemeMode, AccentColor, FontSize, GlassIntensity } from "../types";
 
 const ACCENT_OPTIONS: { id: AccentColor; label: string; color: string }[] = [
@@ -25,6 +33,8 @@ const GLASS_OPTIONS: { id: GlassIntensity; label: string; desc: string }[] = [
   { id: "high",   label: "透", desc: "更透" },
 ];
 
+const PET_MODE_OPTIONS: WindowInteractionMode[] = ["off", "standard", "enhanced"];
+
 export default function Settings() {
   const settings = useAppStore((s) => s.settings);
   const updateSettings = useAppStore((s) => s.updateSettings);
@@ -33,6 +43,7 @@ export default function Settings() {
   const [tokenInput, setTokenInput] = useState(settings.notionToken);
   const [endpointInput, setEndpointInput] = useState(settings.aiEndpoint);
   const [modelInput, setModelInput] = useState(settings.aiModel);
+  const [petMode, setPetMode] = useState<WindowInteractionMode>(() => readWindowInteractionMode());
 
   // Autostart
   const [autostartEnabled, setAutostartEnabled] = useState(false);
@@ -60,6 +71,12 @@ export default function Settings() {
       aiEndpoint: endpointInput,
       aiModel: modelInput,
     });
+  };
+
+  const handlePetModeChange = (mode: WindowInteractionMode) => {
+    setPetMode(mode);
+    writeWindowInteractionMode(mode);
+    emit("set-window-interaction-mode", mode).catch(() => {});
   };
 
   const handleClearCache = async () => {
@@ -212,6 +229,36 @@ export default function Settings() {
           <span className="text-[9px] text-text-muted w-6 text-right">
             {settings.transparency ?? 100}
           </span>
+        </div>
+      </Section>
+
+      {/* ── 桌宠 ── */}
+      <Section title="桌宠">
+        <Label>行为模式</Label>
+        <div className="flex gap-1.5">
+          {PET_MODE_OPTIONS.map((mode) => (
+            <button
+              key={mode}
+              onClick={() => handlePetModeChange(mode)}
+              className={`flex-1 py-1.5 rounded-lg text-[10px] transition-all ${
+                petMode === mode
+                  ? "text-white"
+                  : "text-text-muted hover:text-text-secondary"
+              }`}
+              style={{
+                background: petMode === mode ? "var(--accent-primary)" : "var(--bg-input)",
+                border: `1px solid ${petMode === mode ? "var(--accent-primary)" : "var(--border-card)"}`,
+              }}
+            >
+              {WINDOW_INTERACTION_LABEL[mode]}
+            </button>
+          ))}
+        </div>
+        <div className="text-[10px] text-text-secondary leading-relaxed">
+          {WINDOW_INTERACTION_HINT[petMode]}
+        </div>
+        <div className="text-[9px] text-text-muted leading-relaxed">
+          标准/增强仅用窗口位置做避让和物理反馈；密码、银行、隐私浏览等敏感窗口会在本机过滤。
         </div>
       </Section>
 

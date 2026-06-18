@@ -10,6 +10,8 @@ import { SleepSequence } from "./lib/SleepSequence";
 import { PetBrain, MODE_PHYSICS, type PetMode, type BehaviorState } from "./lib/PetBrain";
 import {
   DesktopWorldBridge,
+  WINDOW_INTERACTION_LABEL,
+  isWindowInteractionMode,
   nextWindowInteractionMode,
   readWindowInteractionMode,
   writeWindowInteractionMode,
@@ -104,7 +106,12 @@ export default function Pet() {
     const u3 = listen("toggle-window-interaction", () => {
       setWindowInteractionMode((current) => nextWindowInteractionMode(current));
     });
-    return () => { u1.then((f) => f()); u2.then((f) => f()); u3.then((f) => f()); };
+    const u4 = listen<WindowInteractionMode>("set-window-interaction-mode", (event) => {
+      if (isWindowInteractionMode(event.payload)) {
+        setWindowInteractionMode(event.payload);
+      }
+    });
+    return () => { u1.then((f) => f()); u2.then((f) => f()); u3.then((f) => f()); u4.then((f) => f()); };
   }, []);
 
   /* ═══ KanbanBridge ═══ */
@@ -498,11 +505,6 @@ export default function Pet() {
     top: "顶部",
     bottom: "底部",
   };
-  const windowModeLabel: Record<WindowInteractionMode, string> = {
-    off: "关闭",
-    standard: "标准",
-    enhanced: "增强",
-  };
   const contactLabel: Record<PetContactState, string> = {
     desktop: desktopCapability === "degraded" ? "降级" : "桌面",
     window: "窗口",
@@ -563,7 +565,7 @@ export default function Pet() {
         onContextMenu={handlePetContextMenu}
         onMouseEnter={() => setPetHovered(true)}
         onMouseLeave={() => setPetHovered(false)}
-        title={locked ? "位置已锁定，右键打开菜单" : `拖拽移动，点击打开快捷面板，窗口交互: ${windowModeLabel[windowInteractionMode]}`}
+        title={locked ? "位置已锁定，右键打开菜单" : `拖拽移动，点击打开快捷面板，宠物模式: ${WINDOW_INTERACTION_LABEL[windowInteractionMode]}`}
       >
         <div className="pet-anchor-halo" aria-hidden="true" />
         <div className="pet-stage" aria-hidden="true">

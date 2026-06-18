@@ -189,6 +189,46 @@ fn is_antdesk_or_system_window(app: &str, title: Option<&str>) -> bool {
     )
 }
 
+fn is_sensitive_window(app: &str, title: Option<&str>) -> bool {
+    let app_l = app.to_lowercase();
+    let title_l = title.unwrap_or("").to_lowercase();
+    let combined = format!("{app_l} {title_l}");
+    let sensitive_patterns = [
+        "1password",
+        "bitwarden",
+        "lastpass",
+        "dashlane",
+        "keeper",
+        "keepass",
+        "keychain access",
+        "password manager",
+        "authenticator",
+        "authy",
+        "microsoft authenticator",
+        "google authenticator",
+        "bank",
+        "银行",
+        "网银",
+        "支付宝",
+        "alipay",
+        "wechat pay",
+        "微信支付",
+        "private browsing",
+        "inprivate",
+        "incognito",
+        "隐身",
+        "无痕",
+        "password",
+        "passkey",
+        "security code",
+        "验证码",
+        "一次性密码",
+    ];
+    sensitive_patterns
+        .iter()
+        .any(|pattern| combined.contains(pattern))
+}
+
 fn make_surface(
     id: String,
     app: String,
@@ -198,7 +238,9 @@ fn make_surface(
     focused: bool,
     z_index: i32,
 ) -> Option<DesktopSurface> {
-    if is_antdesk_or_system_window(&app, title.as_deref()) {
+    if is_antdesk_or_system_window(&app, title.as_deref())
+        || is_sensitive_window(&app, title.as_deref())
+    {
         return None;
     }
     let rect = rect.scaled(scale);
@@ -245,24 +287,35 @@ mod macos {
 
         let mut surfaces = Vec::new();
         for (z, item) in array.iter().enumerate() {
-            let dict: CFDictionary = unsafe {
-                CFDictionary::wrap_under_get_rule(*item as CFDictionaryRef)
-            };
-            let layer = number(&dict, unsafe { CFString::wrap_under_get_rule(kCGWindowLayer) })
-                .unwrap_or(0.0);
-            let alpha = number(&dict, unsafe { CFString::wrap_under_get_rule(kCGWindowAlpha) })
-                .unwrap_or(1.0);
+            let dict: CFDictionary =
+                unsafe { CFDictionary::wrap_under_get_rule(*item as CFDictionaryRef) };
+            let layer = number(&dict, unsafe {
+                CFString::wrap_under_get_rule(kCGWindowLayer)
+            })
+            .unwrap_or(0.0);
+            let alpha = number(&dict, unsafe {
+                CFString::wrap_under_get_rule(kCGWindowAlpha)
+            })
+            .unwrap_or(1.0);
             if layer.round() as i32 != 0 || alpha <= 0.0 {
                 continue;
             }
 
-            let app = string(&dict, unsafe { CFString::wrap_under_get_rule(kCGWindowOwnerName) })
-                .unwrap_or_default();
-            let title = string(&dict, unsafe { CFString::wrap_under_get_rule(kCGWindowName) });
-            let id = number(&dict, unsafe { CFString::wrap_under_get_rule(kCGWindowNumber) })
-                .map(|n| format!("macos:{:.0}", n))
-                .unwrap_or_else(|| format!("macos:{}", z));
-            let rect = rect(&dict, unsafe { CFString::wrap_under_get_rule(kCGWindowBounds) });
+            let app = string(&dict, unsafe {
+                CFString::wrap_under_get_rule(kCGWindowOwnerName)
+            })
+            .unwrap_or_default();
+            let title = string(&dict, unsafe {
+                CFString::wrap_under_get_rule(kCGWindowName)
+            });
+            let id = number(&dict, unsafe {
+                CFString::wrap_under_get_rule(kCGWindowNumber)
+            })
+            .map(|n| format!("macos:{:.0}", n))
+            .unwrap_or_else(|| format!("macos:{}", z));
+            let rect = rect(&dict, unsafe {
+                CFString::wrap_under_get_rule(kCGWindowBounds)
+            });
             let Some(rect) = rect else { continue };
             if let Some(surface) = make_surface(id, app, title, rect, scale, z == 0, z as i32) {
                 surfaces.push(surface);
@@ -364,15 +417,9 @@ mod windows_backend {
         let mut pid = 0u32;
         GetWindowThreadProcessId(hwnd, &mut pid);
         let id = format!("windows:{}:{}", pid, hwnd);
-        if let Some(surface) = make_surface(
-            id,
-            app,
-            title,
-            rect,
-            ctx.scale,
-            hwnd == ctx.focused,
-            ctx.z,
-        ) {
+        if let Some(surface) =
+            make_surface(id, app, title, rect, ctx.scale, hwnd == ctx.focused, ctx.z)
+        {
             ctx.surfaces.push(surface);
         }
         TRUE
@@ -552,6 +599,35 @@ mod tests {
         assert!(is_antdesk_or_system_window("Dock", None));
         assert!(is_antdesk_or_system_window("Chrome", Some("AntDesk")));
         assert!(!is_antdesk_or_system_window("Chrome", Some("Inbox")));
+    }
+
+    #[test]
+    fn filters_sensitive_windows() {
+        assert!(is_sensitive_window("1Password", None));
+        assert!(is_sensitive_window("Chrome", Some("Bank of Example")));
+        assert!(is_sensitive_window("Safari", Some("Private Browsing")));
+        assert!(is_sensitive_window("Chrome", Some("支付宝 - 付款")));
+        assert!(is_sensitive_window("Edge", Some("Passkey prompt")));
+        assert!(!is_sensitive_window("Chrome", Some("AntDesk docs")));
+    }
+
+    #[test]
+    fn make_surface_rejects_sensitive_windows() {
+        let surface = make_surface(
+            "x".to_string(),
+            "Chrome".to_string(),
+            Some("Password manager".to_string()),
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                width: 400.0,
+                height: 240.0,
+            },
+            1.0,
+            false,
+            0,
+        );
+        assert!(surface.is_none());
     }
 
     #[test]

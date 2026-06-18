@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
+  WINDOW_INTERACTION_LABEL,
   nextWindowInteractionMode,
   readWindowInteractionMode,
   type WindowInteractionMode,
@@ -27,12 +28,6 @@ type MenuAction =
   | "window-interaction"
   | "hide"
   | "quit";
-
-const MODE_LABEL: Record<WindowInteractionMode, string> = {
-  off: "关闭",
-  standard: "标准",
-  enhanced: "增强",
-};
 
 const BASE_ITEMS: Array<
   | { type: "item"; id: MenuAction; label: string; hint?: string; danger?: boolean; Icon: typeof IconTarget }
@@ -65,8 +60,8 @@ export default function FabContextMenu() {
       {
         type: "item" as const,
         id: "window-interaction" as const,
-        label: `窗口交互: ${MODE_LABEL[interactionMode]}`,
-        hint: `切换到${MODE_LABEL[next]}`,
+        label: `宠物模式: ${WINDOW_INTERACTION_LABEL[interactionMode]}`,
+        hint: `切换到${WINDOW_INTERACTION_LABEL[next]}`,
         Icon: IconWindow,
       },
       ...BASE_ITEMS.slice(6),

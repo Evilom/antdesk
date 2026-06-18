@@ -4,6 +4,18 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 export type WindowInteractionMode = "off" | "standard" | "enhanced";
 export type DesktopCapability = "full" | "degraded" | "none";
 
+export const WINDOW_INTERACTION_LABEL: Record<WindowInteractionMode, string> = {
+  off: "安静工作",
+  standard: "标准陪伴",
+  enhanced: "玩耍增强",
+};
+
+export const WINDOW_INTERACTION_HINT: Record<WindowInteractionMode, string> = {
+  off: "只保留基础移动，不读取外部窗口位置",
+  standard: "感知窗口位置，轻量站立、避让和推动反馈",
+  enhanced: "更明显的跳跃、滑动和窗口物理反馈",
+};
+
 export interface DesktopSurface {
   id: string;
   app: string;
@@ -48,6 +60,10 @@ export function readWindowInteractionMode(): WindowInteractionMode {
 export function writeWindowInteractionMode(mode: WindowInteractionMode) {
   localStorage.setItem(MODE_KEY, mode);
   localStorage.setItem(LEGACY_KEY, String(mode !== "off"));
+}
+
+export function isWindowInteractionMode(value: unknown): value is WindowInteractionMode {
+  return value === "off" || value === "standard" || value === "enhanced";
 }
 
 export function nextWindowInteractionMode(mode: WindowInteractionMode): WindowInteractionMode {
