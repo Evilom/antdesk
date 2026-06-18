@@ -59,7 +59,7 @@ jobs:
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
-        timeout-minutes: 8
+        timeout-minutes: 20
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
