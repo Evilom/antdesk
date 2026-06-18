@@ -416,7 +416,7 @@ mod windows_backend {
         };
         let mut pid = 0u32;
         GetWindowThreadProcessId(hwnd, &mut pid);
-        let id = format!("windows:{}:{}", pid, hwnd);
+        let id = format!("windows:{}:{:p}", pid, hwnd);
         if let Some(surface) =
             make_surface(id, app, title, rect, ctx.scale, hwnd == ctx.focused, ctx.z)
         {
@@ -448,7 +448,7 @@ mod windows_backend {
         let mut rect = MaybeUninit::<RECT>::uninit();
         let hr = DwmGetWindowAttribute(
             hwnd,
-            DWMWA_EXTENDED_FRAME_BOUNDS,
+            DWMWA_EXTENDED_FRAME_BOUNDS as u32,
             rect.as_mut_ptr() as *mut _,
             std::mem::size_of::<RECT>() as u32,
         );
