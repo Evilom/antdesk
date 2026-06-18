@@ -365,6 +365,11 @@ fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 
+#[tauri::command]
+fn get_platform() -> &'static str {
+    std::env::consts::OS
+}
+
 /// Show settings on main panel
 #[tauri::command]
 async fn show_settings(app: tauri::AppHandle) -> Result<(), String> {
@@ -780,7 +785,8 @@ pub fn run() {
             show_fab_context_menu,
             open_full_panel,
             fab_click,
-            quit_app
+            quit_app,
+            get_platform
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

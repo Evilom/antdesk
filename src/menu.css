@@ -129,3 +129,25 @@ body,
     transition: none !important;
   }
 }
+
+html[data-platform="windows"] body {
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+
+html[data-platform="windows"] .fab-menu {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), transparent 34%),
+    rgba(16,18,26,0.97);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-color: rgba(255,255,255,0.15);
+  box-shadow: 0 18px 46px rgba(0,0,0,0.48), inset 0 1px 0 rgba(255,255,255,0.07);
+}
+
+html[data-platform="windows"] .fab-menu-hint {
+  color: rgba(255,255,255,0.46);
+}
+
+html[data-platform="windows"] .fab-menu-item:hover {
+  background: rgba(255,255,255,0.10);
+}
