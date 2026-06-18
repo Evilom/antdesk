@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { emit } from "@tauri-apps/api/event";
+import { emitTo } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   WINDOW_INTERACTION_LABEL,
@@ -47,6 +47,8 @@ const BASE_ITEMS: Array<
 
 export default function FabContextMenu() {
   const [interactionMode, setInteractionMode] = useState<WindowInteractionMode>(() => readWindowInteractionMode());
+  const [pendingAction, setPendingAction] = useState<MenuAction | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const hideSelf = useCallback(async () => {
     try {
       await getCurrentWindow().hide();
@@ -78,7 +80,10 @@ export default function FabContextMenu() {
     (async () => {
       try {
         unlistenFocus = await getCurrentWindow().onFocusChanged(({ payload }) => {
-          if (payload) setInteractionMode(readWindowInteractionMode());
+          if (payload) {
+            setInteractionMode(readWindowInteractionMode());
+            setError(null);
+          }
           else hideSelf();
         });
       } catch {}
@@ -91,6 +96,9 @@ export default function FabContextMenu() {
   }, [hideSelf]);
 
   const runAction = useCallback(async (action: MenuAction) => {
+    if (pendingAction) return;
+    setPendingAction(action);
+    setError(null);
     try {
       switch (action) {
         case "quick":
@@ -106,10 +114,10 @@ export default function FabContextMenu() {
           await invoke("show_settings");
           break;
         case "lock":
-          await emit("toggle-lock");
+          await emitTo("pet", "toggle-lock");
           break;
         case "window-interaction":
-          await emit("toggle-window-interaction");
+          await emitTo("pet", "toggle-window-interaction");
           setInteractionMode((current) => nextWindowInteractionMode(current));
           break;
         case "hide":
@@ -119,10 +127,18 @@ export default function FabContextMenu() {
           await invoke("quit_app");
           return;
       }
-    } finally {
       await hideSelf();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e || "操作失败");
+      console.error(`fab menu action failed: ${action}`, e);
+      setError(message);
+      setPendingAction(null);
+      return;
+    } finally {
+      if (action === "quit") setPendingAction(null);
     }
-  }, [hideSelf]);
+    setPendingAction(null);
+  }, [hideSelf, pendingAction]);
 
   return (
     <div className="fab-menu-shell">
@@ -135,6 +151,8 @@ export default function FabContextMenu() {
               key={item.id}
               className={`fab-menu-item ${item.danger ? "danger" : ""}`}
               onClick={() => runAction(item.id)}
+              disabled={pendingAction !== null}
+              data-loading={pendingAction === item.id}
               role="menuitem"
             >
               <span className="fab-menu-icon"><Icon size={14} /></span>
@@ -143,6 +161,7 @@ export default function FabContextMenu() {
             </button>
           );
         })}
+        {error && <div className="fab-menu-error">操作失败：{error}</div>}
       </div>
     </div>
   );

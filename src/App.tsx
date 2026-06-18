@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize, LogicalPosition } from "@tauri-apps/api/window";
 import { useAppStore, applyTheme } from "./stores/appStore";
 import { getNotionToken, fetchTodos, fetchReports, fetchProjects } from "./lib/notion";
@@ -88,6 +89,19 @@ export default function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showSearch, showSettings]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    listen("open-settings", () => {
+      setShowSearch(false);
+      setShowSettings(true);
+    }).then((fn) => {
+      unlisten = fn;
+    }).catch((e) => console.error("listen open-settings failed:", e));
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
 
   // Window state persistence
   useEffect(() => {
