@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getLocalNotionToken } from "../lib/localSettings";
+import { IconEdit, IconPlus, IconRefresh } from "./Icons";
 
 interface Todo {
   id: string;
@@ -22,6 +23,12 @@ const PRIORITY_DOT: Record<string, string> = {
   Low: "#30d158",
 };
 
+const PRIORITY_LABEL: Record<string, string> = {
+  High: "高",
+  Medium: "中",
+  Low: "低",
+};
+
 export default function NotepadPanel() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +46,9 @@ export default function NotepadPanel() {
     if (activeTag) localStorage.setItem(STORAGE_KEY, activeTag);
     else localStorage.removeItem(STORAGE_KEY);
   }, [activeTag]);
+
+  const activeLabel = activeTag || "全部";
+  const highCount = todos.filter((todo) => todo.priority === "High").length;
 
   // ── Fetch available tags from DB schema ──
   useEffect(() => {
@@ -129,6 +139,7 @@ export default function NotepadPanel() {
         unlisten = await listen("notepad-shown", () => {
           fetchTodos();
           setNewName("");
+          setTimeout(() => inputRef.current?.focus(), 80);
         });
       } catch {}
     })();
@@ -219,8 +230,32 @@ export default function NotepadPanel() {
     [newName, activeTag]
   );
 
+  const handleRefresh = useCallback(() => {
+    setLoading(true);
+    fetchTodos(activeTag);
+    inputRef.current?.focus();
+  }, [activeTag, fetchTodos]);
+
   return (
     <div className="notepad-panel">
+      <header className="notepad-header">
+        <div className="notepad-title-mark" aria-hidden="true">
+          <IconEdit size={15} />
+        </div>
+        <div className="notepad-title-copy">
+          <div className="notepad-title-row">
+            <span className="notepad-title">便签</span>
+            <span className="notepad-count">{todos.length}</span>
+          </div>
+          <div className="notepad-subtitle">
+            {highCount > 0 ? `${highCount} 个高优先级` : `${activeLabel}待办`}
+          </div>
+        </div>
+        <button className="notepad-icon-button" onClick={handleRefresh} title="刷新">
+          <IconRefresh size={14} />
+        </button>
+      </header>
+
       {/* ── Tag filter bar ── */}
       {availableTags.length > 0 && (
         <div className="notepad-filters">
@@ -244,12 +279,20 @@ export default function NotepadPanel() {
 
       {/* ── Todo list ── */}
       {loading ? (
-        <div className="notepad-loading">...</div>
+        <div className="notepad-loading" aria-label="加载中">
+          <span />
+          <span />
+          <span />
+        </div>
       ) : error ? (
-        <div className="notepad-empty">{error}</div>
+        <div className="notepad-empty">
+          <div className="notepad-empty-title">{error}</div>
+          <div className="notepad-empty-hint">在设置里连接 Notion 后同步任务</div>
+        </div>
       ) : todos.length === 0 ? (
         <div className="notepad-empty">
-          {activeTag ? `无 ${activeTag} 待办` : "全部完成"}
+          <div className="notepad-empty-title">{activeTag ? `${activeTag} 已清空` : "全部完成"}</div>
+          <div className="notepad-empty-hint">下面可以继续捕获新任务</div>
         </div>
       ) : (
         <div className="notepad-list">
@@ -258,7 +301,7 @@ export default function NotepadPanel() {
             return (
               <div
                 key={todo.id}
-                className={`notepad-item ${isExiting ? "exiting" : ""}`}
+                className={`notepad-item priority-${todo.priority.toLowerCase()} ${isExiting ? "exiting" : ""}`}
                 style={{ animationDelay: `${0.03 + index * 0.03}s` }}
               >
                 <button
@@ -266,11 +309,21 @@ export default function NotepadPanel() {
                   onClick={() => handleToggle(todo.id)}
                   title="完成"
                 />
-                <span className="notepad-name">{todo.name}</span>
-                <span
-                  className="notepad-priority-dot"
-                  style={{ background: PRIORITY_DOT[todo.priority] || PRIORITY_DOT.Medium }}
-                />
+                <span className="notepad-content">
+                  <span className="notepad-name">{todo.name}</span>
+                  {todo.tags.length > 0 && (
+                    <span className="notepad-meta">
+                      {todo.tags.slice(0, 2).join(" / ")}
+                    </span>
+                  )}
+                </span>
+                <span className="notepad-priority">
+                  <span
+                    className="notepad-priority-dot"
+                    style={{ background: PRIORITY_DOT[todo.priority] || PRIORITY_DOT.Medium }}
+                  />
+                  {PRIORITY_LABEL[todo.priority] || PRIORITY_LABEL.Medium}
+                </span>
               </div>
             );
           })}
@@ -284,9 +337,12 @@ export default function NotepadPanel() {
           type="text"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder={activeTag ? `+ ${activeTag}...` : "+ 添加..."}
+          placeholder={activeTag ? `添加到 ${activeTag}` : "快速记录任务"}
           className="notepad-input"
         />
+        <button className="notepad-submit" type="submit" title="添加">
+          <IconPlus size={14} />
+        </button>
       </form>
     </div>
   );

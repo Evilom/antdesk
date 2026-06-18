@@ -1,106 +1,300 @@
 * {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
 }
 
 :root {
-  --note-bg: rgba(12, 13, 19, 0.76);
-  --note-card: rgba(255, 255, 255, 0.045);
-  --note-card-hover: rgba(255, 255, 255, 0.075);
-  --note-border: rgba(255, 255, 255, 0.075);
-  --note-text: rgba(255, 255, 255, 0.88);
-  --note-muted: rgba(255, 255, 255, 0.42);
+  --note-bg: rgba(10, 11, 16, 0.78);
+  --note-panel: rgba(255, 255, 255, 0.055);
+  --note-panel-strong: rgba(255, 255, 255, 0.092);
+  --note-border: rgba(255, 255, 255, 0.11);
+  --note-border-strong: rgba(255, 255, 255, 0.18);
+  --note-text: rgba(255, 255, 255, 0.92);
+  --note-secondary: rgba(255, 255, 255, 0.62);
+  --note-muted: rgba(255, 255, 255, 0.38);
   --note-accent: #0a84ff;
+  --note-green: #30d158;
+  --note-red: #ff453a;
+  --note-yellow: #ffd60a;
+  --note-radius: 16px;
   --note-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-html, body {
-  background: transparent;
-  overflow: hidden;
-  width: 100%;
-  height: 100%;
-}
-
+html,
+body,
 #root {
-  background: transparent;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  background: transparent;
 }
 
-/* ── Panel container — sticky-note style ── */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  color: var(--note-text);
+}
+
+button,
+input {
+  font: inherit;
+}
+
 .notepad-panel {
-  width: 100%;
-  height: 100%;
+  position: relative;
   display: flex;
   flex-direction: column;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.05), transparent 22%),
-    var(--note-bg);
-  backdrop-filter: blur(42px) saturate(180%);
-  -webkit-backdrop-filter: blur(42px) saturate(180%);
-  border-radius: 14px;
-  border: 1px solid var(--note-border);
-  box-shadow:
-    0 18px 52px rgba(0, 0, 0, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  width: 100%;
+  height: 100%;
+  padding: 10px;
   overflow: hidden;
-  animation: panel-in 0.2s ease-out;
-  padding: 0;
+  border: 1px solid var(--note-border);
+  border-radius: var(--note-radius);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.13), transparent 26%),
+    radial-gradient(circle at 12% -6%, rgba(10, 132, 255, 0.22), transparent 36%),
+    linear-gradient(180deg, rgba(12, 13, 19, 0.74), rgba(7, 8, 12, 0.82)),
+    var(--note-bg);
+  backdrop-filter: blur(38px) saturate(180%);
+  -webkit-backdrop-filter: blur(38px) saturate(180%);
+  box-shadow:
+    0 18px 54px rgba(0, 0, 0, 0.44),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  animation: notepad-in 180ms var(--note-spring);
 }
 
-@keyframes panel-in {
+.notepad-panel::after {
+  position: absolute;
+  inset: 1px;
+  pointer-events: none;
+  content: "";
+  border-radius: calc(var(--note-radius) - 1px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+}
+
+@keyframes notepad-in {
   from {
     opacity: 0;
-    transform: scale(0.92) translateY(6px);
+    transform: translateY(8px) scale(0.96);
   }
   to {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
-/* ── Loading / Empty ── */
-.notepad-loading,
-.notepad-empty {
-  flex: 1;
-  display: flex;
+.notepad-header {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 32px 1fr 30px;
+  gap: 9px;
   align-items: center;
-  justify-content: center;
-  color: var(--note-muted);
-  font-size: 12px;
-  padding: 16px;
+  min-height: 38px;
 }
 
-/* ── Todo list ── */
-.notepad-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px 10px 4px;
+.notepad-title-mark,
+.notepad-icon-button,
+.notepad-submit {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--note-border);
+  color: var(--note-text);
+}
+
+.notepad-title-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.045)),
+    rgba(10, 132, 255, 0.16);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.notepad-title-copy {
+  min-width: 0;
+}
+
+.notepad-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.notepad-title {
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.notepad-count {
+  min-width: 19px;
+  height: 16px;
+  padding: 0 5px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--note-secondary);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 14px;
+  text-align: center;
+}
+
+.notepad-subtitle {
+  max-width: 100%;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--note-muted);
+  font-size: 10px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notepad-icon-button,
+.notepad-submit {
+  border-radius: 10px;
+  background: var(--note-panel);
+  cursor: pointer;
+  transition: transform 130ms var(--note-spring), background 130ms, border-color 130ms, color 130ms;
+}
+
+.notepad-icon-button {
+  width: 30px;
+  height: 30px;
+  color: var(--note-secondary);
+}
+
+.notepad-icon-button:hover,
+.notepad-submit:hover {
+  border-color: var(--note-border-strong);
+  background: var(--note-panel-strong);
+  color: var(--note-text);
+}
+
+.notepad-icon-button:active,
+.notepad-submit:active,
+.notepad-tag:active,
+.notepad-check:active {
+  transform: scale(0.96);
+}
+
+.notepad-filters {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 5px;
+  min-height: 31px;
+  padding: 8px 0 5px;
+  overflow-x: auto;
   scrollbar-width: none;
 }
 
+.notepad-filters::-webkit-scrollbar,
 .notepad-list::-webkit-scrollbar {
   display: none;
 }
 
-/* ── Todo item ── */
-.notepad-item {
+.notepad-tag {
+  flex: 0 0 auto;
+  max-width: 92px;
+  height: 22px;
+  padding: 0 9px;
+  overflow: hidden;
+  border: 1px solid var(--note-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--note-muted);
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background 130ms, border-color 130ms, color 130ms, transform 130ms var(--note-spring);
+}
+
+.notepad-tag:hover {
+  border-color: var(--note-border-strong);
+  background: rgba(255, 255, 255, 0.075);
+  color: var(--note-secondary);
+}
+
+.notepad-tag.active {
+  border-color: rgba(10, 132, 255, 0.44);
+  background: rgba(10, 132, 255, 0.18);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.notepad-list {
+  position: relative;
+  z-index: 1;
   display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 6px;
+  min-height: 0;
+  padding: 2px 0 8px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.notepad-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
-  gap: 10px;
-  padding: 9px 10px;
-  border-radius: 11px;
-  cursor: default;
-  border: 1px solid transparent;
-  transition: transform 140ms var(--note-spring), background 140ms var(--note-spring), border-color 140ms var(--note-spring);
-  animation: item-in 0.2s ease-out both;
+  min-height: 43px;
+  padding: 8px 9px 8px 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.035)),
+    rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  animation: item-in 190ms var(--note-spring) both;
+  transition: transform 140ms var(--note-spring), border-color 140ms, background 140ms;
+}
+
+.notepad-item::before {
+  position: absolute;
+  inset: 8px auto 8px 0;
+  width: 2px;
+  content: "";
+  border-radius: 999px;
+  background: var(--priority-color, var(--note-yellow));
+  opacity: 0.9;
+}
+
+.notepad-item.priority-high {
+  --priority-color: var(--note-red);
+}
+
+.notepad-item.priority-medium {
+  --priority-color: var(--note-yellow);
+}
+
+.notepad-item.priority-low {
+  --priority-color: var(--note-green);
+}
+
+.notepad-item:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05)),
+    rgba(255, 255, 255, 0.045);
+  transform: translateY(-1px);
 }
 
 @keyframes item-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(5px);
   }
   to {
     opacity: 1;
@@ -108,152 +302,235 @@ html, body {
   }
 }
 
-.notepad-item:hover {
-  transform: translateY(-1px);
-  background: var(--note-card-hover);
-  border-color: var(--note-border);
-}
-
-/* Exiting: strikethrough + fade */
 .notepad-item.exiting {
-  animation: item-out 0.3s ease-in forwards;
   pointer-events: none;
+  animation: item-out 260ms ease-in forwards;
 }
 
 .notepad-item.exiting .notepad-name {
+  opacity: 0.42;
   text-decoration: line-through;
-  opacity: 0.4;
 }
 
 @keyframes item-out {
   0% {
+    max-height: 54px;
     opacity: 1;
     transform: translateX(0);
-    max-height: 40px;
   }
-  50% {
-    opacity: 0.5;
-    transform: translateX(8px);
+  55% {
+    opacity: 0.48;
+    transform: translateX(12px);
   }
   100% {
-    opacity: 0;
-    transform: translateX(20px);
     max-height: 0;
-    padding: 0 10px;
-    margin: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
+    transform: translateX(24px);
   }
 }
 
-/* ── Checkbox — minimal circle ── */
 .notepad-check {
-  width: 17px;
-  height: 17px;
+  position: relative;
+  z-index: 1;
+  width: 19px;
+  height: 19px;
+  border: 1.5px solid rgba(255, 255, 255, 0.24);
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
-  background: transparent;
+  background: rgba(255, 255, 255, 0.035);
   cursor: pointer;
-  flex-shrink: 0;
-  transition: all 150ms;
-  padding: 0;
+  transition: transform 130ms var(--note-spring), border-color 130ms, background 130ms, box-shadow 130ms;
+}
+
+.notepad-check::after {
+  position: absolute;
+  inset: 4px 3px 5px 4px;
+  content: "";
+  border-right: 1.8px solid transparent;
+  border-bottom: 1.8px solid transparent;
+  transform: rotate(42deg);
 }
 
 .notepad-check:hover {
-  border-color: #30d158;
-  background: rgba(48, 209, 88, 0.15);
-  box-shadow: 0 0 8px rgba(48, 209, 88, 0.2);
+  border-color: rgba(48, 209, 88, 0.82);
+  background: rgba(48, 209, 88, 0.14);
+  box-shadow: 0 0 0 3px rgba(48, 209, 88, 0.08);
 }
 
-/* ── Name ── */
+.notepad-check:hover::after {
+  border-color: var(--note-green);
+}
+
+.notepad-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .notepad-name {
-  flex: 1;
-  font-size: 12.5px;
-  color: var(--note-text);
-  line-height: 1.35;
   overflow: hidden;
+  color: var(--note-text);
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 1.28;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: opacity 200ms, text-decoration 200ms;
+  transition: opacity 180ms, text-decoration 180ms;
 }
 
-/* ── Input bar ── */
+.notepad-meta {
+  max-width: 100%;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--note-muted);
+  font-size: 9.5px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notepad-priority {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.13);
+  color: var(--note-muted);
+  font-size: 9.5px;
+  line-height: 18px;
+}
+
+.notepad-priority-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
 .notepad-input-bar {
-  flex-shrink: 0;
-  padding: 7px 10px 10px;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 32px;
+  gap: 7px;
+  align-items: center;
+  min-height: 42px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.075);
 }
 
 .notepad-input {
   width: 100%;
-  background: var(--note-card);
-  border: 1px solid var(--note-border);
+  min-width: 0;
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
   border-radius: 11px;
-  padding: 8px 12px;
-  font-size: 12px;
-  color: var(--note-text);
   outline: none;
-  transition: border-color 150ms, box-shadow 150ms;
-  font-family: inherit;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--note-text);
+  font-size: 12px;
+  transition: border-color 140ms, background 140ms, box-shadow 140ms;
 }
 
 .notepad-input::placeholder {
-  color: rgba(255, 255, 255, 0.30);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .notepad-input:focus {
-  border-color: rgba(10, 132, 255, 0.38);
-  box-shadow: 0 0 0 2px rgba(10,132,255,0.12), 0 8px 22px rgba(0,0,0,0.18);
+  border-color: rgba(10, 132, 255, 0.48);
+  background: rgba(255, 255, 255, 0.082);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.12);
 }
 
-/* ── Tag filter bar ── */
-.notepad-filters {
-  display: flex; gap: 4px;
-  padding: 8px 10px 4px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  flex-shrink: 0;
+.notepad-submit {
+  width: 32px;
+  height: 32px;
+  background: rgba(10, 132, 255, 0.22);
+  color: rgba(255, 255, 255, 0.92);
 }
-.notepad-filters::-webkit-scrollbar { display: none; }
 
-.notepad-tag {
-  flex-shrink: 0;
-  padding: 3px 10px;
-  border-radius: 9px;
-  border: 1px solid var(--note-border);
-  background: var(--note-card);
-  color: var(--note-muted);
-  font-size: 10.5px;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 120ms;
+.notepad-loading,
+.notepad-empty {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  flex: 1 1 auto;
+  align-content: center;
+  justify-items: center;
+  min-height: 0;
+  padding: 16px 10px 20px;
+  text-align: center;
+}
+
+.notepad-loading {
+  gap: 8px;
+}
+
+.notepad-loading span {
+  display: block;
+  width: 100%;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035));
+  background-size: 220% 100%;
+  animation: note-skeleton 1.15s ease-in-out infinite;
+}
+
+.notepad-loading span:nth-child(2) {
+  width: 92%;
+  animation-delay: 80ms;
+}
+
+.notepad-loading span:nth-child(3) {
+  width: 76%;
+  animation-delay: 160ms;
+}
+
+@keyframes note-skeleton {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+.notepad-empty-title {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--note-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.3;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.notepad-tag:hover {
-  background: var(--note-card-hover);
-  color: rgba(255,255,255,0.74);
-}
-.notepad-tag.active {
-  background: rgba(10,132,255,0.18);
-  border-color: rgba(10,132,255,0.36);
-  color: rgba(255,255,255,0.9);
-}
 
-/* ── Priority dot (inline) ── */
-.notepad-priority-dot {
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-left: 2px;
+.notepad-empty-hint {
+  max-width: 190px;
+  margin-top: 5px;
+  color: var(--note-muted);
+  font-size: 10.5px;
+  line-height: 1.35;
 }
 
 button:focus-visible,
 input:focus-visible {
-  outline: 2px solid rgba(10,132,255,0.32);
+  outline: 2px solid rgba(10, 132, 255, 0.38);
   outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .notepad-panel,
   .notepad-item,
-  .notepad-item.exiting {
+  .notepad-item.exiting,
+  .notepad-loading span {
     animation: none !important;
     transition: none !important;
   }
@@ -264,15 +541,18 @@ html[data-platform="windows"] body {
 }
 
 html[data-platform="windows"] .notepad-panel {
-  --note-bg: rgba(16,18,26,0.96);
-  --note-card: rgba(255,255,255,0.065);
-  --note-card-hover: rgba(255,255,255,0.10);
-  --note-border: rgba(255,255,255,0.13);
-  --note-muted: rgba(255,255,255,0.52);
+  --note-bg: rgba(12, 14, 20, 0.97);
+  --note-panel: rgba(255, 255, 255, 0.07);
+  --note-panel-strong: rgba(255, 255, 255, 0.115);
+  --note-border: rgba(255, 255, 255, 0.15);
+  --note-border-strong: rgba(255, 255, 255, 0.22);
+  --note-muted: rgba(255, 255, 255, 0.5);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.07), transparent 26%),
-    var(--note-bg);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.11), transparent 28%),
+    linear-gradient(180deg, rgba(17, 19, 28, 0.98), rgba(9, 10, 15, 0.98));
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  box-shadow: 0 18px 46px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.065);
+  box-shadow:
+    0 18px 46px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
