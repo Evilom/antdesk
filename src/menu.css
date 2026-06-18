@@ -19,10 +19,14 @@ body,
 .fab-menu-shell {
   width: 100%;
   height: 100%;
-  padding: 10px;
+  position: relative;
+  padding: 0;
 }
 
 .fab-menu {
+  position: absolute;
+  left: var(--menu-x, 10px);
+  top: var(--menu-y, 10px);
   width: 200px;
   padding: 6px;
   border-radius: 15px;

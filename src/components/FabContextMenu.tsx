@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { emitTo } from "@tauri-apps/api/event";
+import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   WINDOW_INTERACTION_LABEL,
@@ -33,8 +33,8 @@ const BASE_ITEMS: Array<
   | { type: "item"; id: MenuAction; label: string; hint?: string; danger?: boolean; Icon: typeof IconTarget }
   | { type: "sep" }
 > = [
-  { type: "item", id: "quick", label: "快捷面板", hint: "任务队列", Icon: IconTarget },
-  { type: "item", id: "notepad", label: "便签", hint: "快速记录", Icon: IconEdit },
+  { type: "item", id: "quick", label: "焦点行动", hint: "快捷入口", Icon: IconTarget },
+  { type: "item", id: "notepad", label: "便签记录", hint: "新增待办", Icon: IconEdit },
   { type: "item", id: "panel", label: "主面板", hint: "打开 AntDesk", Icon: IconReport },
   { type: "sep" },
   { type: "item", id: "settings", label: "设置", hint: "账号与外观", Icon: IconSettings },
@@ -49,6 +49,7 @@ export default function FabContextMenu() {
   const [interactionMode, setInteractionMode] = useState<WindowInteractionMode>(() => readWindowInteractionMode());
   const [pendingAction, setPendingAction] = useState<MenuAction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [placement, setPlacement] = useState({ x: 10, y: 10 });
   const hideSelf = useCallback(async () => {
     try {
       await getCurrentWindow().hide();
@@ -77,6 +78,7 @@ export default function FabContextMenu() {
     window.addEventListener("keydown", onKey);
 
     let unlistenFocus: (() => void) | null = null;
+    let unlistenPlacement: (() => void) | null = null;
     (async () => {
       try {
         unlistenFocus = await getCurrentWindow().onFocusChanged(({ payload }) => {
@@ -87,11 +89,20 @@ export default function FabContextMenu() {
           else hideSelf();
         });
       } catch {}
+      try {
+        unlistenPlacement = await listen<{ x: number; y: number }>("fab-menu-placement", (event) => {
+          setPlacement({
+            x: Math.max(6, event.payload.x),
+            y: Math.max(6, event.payload.y),
+          });
+        });
+      } catch {}
     })();
 
     return () => {
       window.removeEventListener("keydown", onKey);
       if (unlistenFocus) unlistenFocus();
+      if (unlistenPlacement) unlistenPlacement();
     };
   }, [hideSelf]);
 
@@ -141,8 +152,14 @@ export default function FabContextMenu() {
   }, [hideSelf, pendingAction]);
 
   return (
-    <div className="fab-menu-shell">
-      <div className="fab-menu" role="menu" aria-label="AntDesk FAB menu">
+    <div className="fab-menu-shell" onMouseDown={hideSelf}>
+      <div
+        className="fab-menu"
+        role="menu"
+        aria-label="AntDesk FAB menu"
+        onMouseDown={(e) => e.stopPropagation()}
+        style={{ "--menu-x": `${placement.x}px`, "--menu-y": `${placement.y}px` } as CSSProperties}
+      >
         {items.map((item, index) => {
           if (item.type === "sep") return <div key={`sep-${index}`} className="fab-menu-sep" />;
           const Icon = item.Icon;

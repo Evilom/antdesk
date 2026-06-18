@@ -16,6 +16,12 @@ struct CompanionPlacement {
     gap: f64,
 }
 
+#[derive(Clone, serde::Serialize)]
+struct FabMenuPlacement {
+    x: f64,
+    y: f64,
+}
+
 fn http_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(reqwest::Client::new)
@@ -545,19 +551,33 @@ async fn show_fab_context_menu(app: tauri::AppHandle) -> Result<(), String> {
     let monitor = anchor.current_monitor().ok().flatten();
     let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
 
-    let (mon_left, mon_right, mon_top, mon_bottom) = if let Some(ref m) = monitor {
-        let p = m.position();
-        let s = m.size();
-        let safe = 8.0 * scale;
-        (
-            p.x as f64 + safe,
-            p.x as f64 + s.width as f64 - safe,
-            p.y as f64 + safe,
-            p.y as f64 + s.height as f64 - safe,
-        )
-    } else {
-        (0.0, 1920.0 * scale, 0.0, 1080.0 * scale)
-    };
+    let (win_left, win_top, win_width, win_height, mon_left, mon_right, mon_top, mon_bottom) =
+        if let Some(ref m) = monitor {
+            let p = m.position();
+            let s = m.size();
+            let safe = 8.0 * scale;
+            (
+                p.x as f64,
+                p.y as f64,
+                s.width as f64,
+                s.height as f64,
+                p.x as f64 + safe,
+                p.x as f64 + s.width as f64 - safe,
+                p.y as f64 + safe,
+                p.y as f64 + s.height as f64 - safe,
+            )
+        } else {
+            (
+                0.0,
+                0.0,
+                1920.0 * scale,
+                1080.0 * scale,
+                8.0 * scale,
+                1912.0 * scale,
+                8.0 * scale,
+                1072.0 * scale,
+            )
+        };
 
     let gap = 8.0 * scale;
     let menu_w = 220.0 * scale;
@@ -579,17 +599,22 @@ async fn show_fab_context_menu(app: tauri::AppHandle) -> Result<(), String> {
 
     let _ = menu.hide();
     menu.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
-        menu_w as u32,
-        menu_h as u32,
+        win_width as u32,
+        win_height as u32,
     )))
     .map_err(|e| e.to_string())?;
     menu.set_position(tauri::Position::Physical(tauri::PhysicalPosition::new(
-        x as i32,
-        y as i32,
+        win_left as i32,
+        win_top as i32,
     )))
     .map_err(|e| e.to_string())?;
     menu.show().map_err(|e| e.to_string())?;
     menu.set_focus().map_err(|e| e.to_string())?;
+    let placement = FabMenuPlacement {
+        x: ((x - win_left) / scale) + 10.0,
+        y: ((y - win_top) / scale) + 10.0,
+    };
+    let _ = menu.emit("fab-menu-placement", placement);
     Ok(())
 }
 

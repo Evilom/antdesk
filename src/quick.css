@@ -41,7 +41,7 @@ html, body {
   padding: 10px;
   width: 276px;
   max-height: calc(100vh - 24px);
-  overflow-y: auto;
+  overflow: hidden;
   background:
     linear-gradient(180deg, rgba(255,255,255,0.065), transparent 30%),
     radial-gradient(circle at 14% 0%, rgba(10,132,255,0.13), transparent 34%),
@@ -51,7 +51,6 @@ html, body {
   -webkit-backdrop-filter: blur(32px) saturate(170%);
   border: 0.5px solid var(--quick-border);
   border-radius: 16px;
-  overflow-x: hidden;
   overscroll-behavior: contain;
   box-shadow:
     0 20px 54px rgba(0,0,0,0.42),
@@ -233,7 +232,7 @@ html, body {
 
 .quick-title span {
   color: var(--quick-text);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 750;
 }
 
@@ -325,41 +324,60 @@ html, body {
   padding: 0;
 }
 
-.quick-filters {
+.quick-shortcuts {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
+  grid-template-columns: minmax(0, 1.28fr) minmax(0, 1fr);
+  gap: 6px;
   margin-bottom: 8px;
 }
 
-.quick-filters button {
-  height: 24px;
-  border-radius: 8px;
-  border: 0.5px solid rgba(255,255,255,0.065);
-  background: rgba(255,255,255,0.032);
-  color: var(--quick-muted);
-  font-size: 10px;
-  font-weight: 650;
+.quick-shortcut {
+  height: 32px;
+  min-width: 0;
+  border-radius: 10px;
+  border: 0.5px solid rgba(255,255,255,0.075);
+  background: rgba(255,255,255,0.045);
+  color: rgba(255,255,255,0.76);
   cursor: pointer;
-  transition: background 150ms, color 150ms, border-color 150ms, transform 150ms var(--quick-spring);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 8px;
+  font-size: 10.5px;
+  font-weight: 720;
+  transition: transform 150ms var(--quick-spring), background 150ms, color 150ms, border-color 150ms;
 }
 
-.quick-filters button:hover {
+.quick-shortcut span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-shortcut:hover {
   color: var(--quick-text);
-  background: rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.075);
+  border-color: rgba(255,255,255,0.14);
+  transform: translateY(-1px);
 }
 
-.quick-filters button.active {
-  color: white;
-  border-color: rgba(10,132,255,0.36);
-  background: rgba(10,132,255,0.22);
+.quick-shortcut.primary {
+  color: rgba(235,247,255,0.96);
+  border-color: rgba(10,132,255,0.30);
+  background: rgba(10,132,255,0.20);
+}
+
+.quick-shortcut:active {
+  transform: scale(0.985);
 }
 
 /* ── List ── */
 .quick-list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .quick-panel.above .quick-list {
@@ -374,7 +392,7 @@ html, body {
 }
 
 .quick-empty {
-  min-height: 86px;
+  min-height: 74px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -388,11 +406,11 @@ html, body {
 .quick-skeleton {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .quick-skeleton span {
-  height: 32px;
+  height: 31px;
   border-radius: 11px;
   background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.085), rgba(255,255,255,0.04));
   background-size: 220% 100%;
@@ -409,8 +427,8 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 34px;
-  padding: 7px 8px;
+  min-height: 32px;
+  padding: 6px 8px;
   border-radius: 10px;
   background: var(--quick-card);
   border: 0.5px solid var(--quick-border);
@@ -516,7 +534,7 @@ html, body {
 }
 
 .quick-bubble-info .name {
-  font-size: 11.8px;
+  font-size: 11.5px;
   line-height: 1.2;
   color: var(--quick-text);
   overflow: hidden;
@@ -528,9 +546,30 @@ html, body {
 /* ── Priority dot ── */
 .quick-bubble .dot {
   width: 6px;
-  height: 16px;
+  height: 14px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.quick-foot {
+  height: 28px;
+  margin-top: 8px;
+  border: 0;
+  border-top: 0.5px solid rgba(255,255,255,0.07);
+  background: transparent;
+  color: rgba(142,199,255,0.84);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px 0;
+  font-size: 10px;
+  font-weight: 680;
+}
+
+.quick-foot:hover {
+  color: rgba(220,240,255,0.96);
 }
 
 button:focus-visible {
@@ -541,6 +580,7 @@ button:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .quick-panel,
   .quick-bubble,
+  .quick-shortcut,
   .quick-skeleton span {
     animation: none !important;
     transition: none !important;
@@ -564,7 +604,7 @@ html[data-platform="windows"] .quick-panel {
 html[data-platform="windows"] .quick-meta,
 html[data-platform="windows"] .quick-bubble,
 html[data-platform="windows"] .quick-empty,
-html[data-platform="windows"] .quick-filters button,
+html[data-platform="windows"] .quick-shortcut,
 html[data-platform="windows"] .quick-icon-btn {
   background: rgba(255,255,255,0.07);
   border-color: rgba(255,255,255,0.12);

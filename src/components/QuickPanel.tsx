@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { IconArrowRight, IconCheck, IconLock, IconRefresh, IconUnlock, IconX } from "./Icons";
+import { IconArrowRight, IconCheck, IconEdit, IconLock, IconRefresh, IconUnlock, IconX } from "./Icons";
 import { getLocalNotionToken } from "../lib/localSettings";
 
 interface Todo {
@@ -20,12 +20,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 const priorityOrder: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
-const FILTERS = [
-  { tag: "all", label: "全部" },
-  { tag: "工作", label: "工作" },
-  { tag: "生活", label: "生活" },
-  { tag: "项目", label: "项目" },
-];
+const MAX_FOCUS_ITEMS = 4;
 
 export default function QuickPanel() {
   const [allTodos, setAllTodos] = useState<Todo[]>([]);
@@ -179,7 +174,7 @@ export default function QuickPanel() {
     return allTodos
       .filter((t) => filterTag === "all" || t.tags.includes(filterTag))
       .sort((a, b) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1))
-      .slice(0, 10);
+      .slice(0, MAX_FOCUS_ITEMS);
   }, [allTodos, filterTag]);
 
   const visibleCount = displayTodos.length;
@@ -198,20 +193,6 @@ export default function QuickPanel() {
     return () => { if (unlisten) unlisten(); };
   }, []);
 
-  // ── NO auto-close on blur — DesktopAnt behavior: stay open until explicitly closed ──
-  // Only close on explicit "close-panel" event from Rust
-  useEffect(() => {
-    let unlisten: (() => void) | null = null;
-    (async () => {
-      try {
-        unlisten = await listen("close-quick-panel", () => {
-          handleClose();
-        });
-      } catch {}
-    })();
-    return () => { if (unlisten) unlisten(); };
-  }, []);
-
   // ── Close with animation ──
   const handleClose = useCallback(async () => {
     setHiding(true);
@@ -224,11 +205,33 @@ export default function QuickPanel() {
     }, 200);
   }, []);
 
+  // ── NO auto-close on blur — DesktopAnt behavior: stay open until explicitly closed ──
+  // Only close on explicit "close-panel" event from Rust
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    (async () => {
+      try {
+        unlisten = await listen("close-quick-panel", () => {
+          handleClose();
+        });
+      } catch {}
+    })();
+    return () => { if (unlisten) unlisten(); };
+  }, [handleClose]);
+
   const handleOpenMain = useCallback(async () => {
     try {
       await invoke("open_full_panel");
+      await handleClose();
     } catch {}
-  }, []);
+  }, [handleClose]);
+
+  const handleOpenNotepad = useCallback(async () => {
+    try {
+      await handleClose();
+      await invoke("toggle_notepad");
+    } catch {}
+  }, [handleClose]);
 
   // ── Toggle todo ──
   const handleToggle = useCallback(async (id: string) => {
@@ -276,8 +279,8 @@ export default function QuickPanel() {
       <div className="quick-head">
         <div className="quick-title">
           <em>Focus Queue</em>
-          <span>快捷面板</span>
-          <small>{visibleCount} / {allTodos.length} 个任务</small>
+          <span>焦点行动</span>
+          <small>{filterTag === "all" ? "即时入口" : `${filterTag} 焦点`}</small>
         </div>
         <div className="quick-actions">
           <button className="quick-icon-btn" onClick={fetchAll} title="刷新">
@@ -297,21 +300,19 @@ export default function QuickPanel() {
       </div>
 
       <div className="quick-meta">
-        <span className={highCount > 0 ? "urgent" : ""}>{highCount > 0 ? `${highCount} 个高优先级` : "无高优先级"}</span>
+        <span className={highCount > 0 ? "urgent" : ""}>{highCount > 0 ? `${highCount} 个高优先级` : "当前无高优先级"}</span>
         <i>{side === "left" ? "左侧吸附" : side === "right" ? "右侧吸附" : side === "top" ? "上方吸附" : "下方吸附"}</i>
-        <button onClick={handleOpenMain}>主面板 <IconArrowRight size={11} /></button>
       </div>
 
-      <div className="quick-filters">
-        {FILTERS.map((f) => (
-          <button
-            key={f.tag}
-            className={filterTag === f.tag ? "active" : ""}
-            onClick={() => setFilterTag(f.tag)}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div className="quick-shortcuts">
+        <button className="quick-shortcut primary" onClick={handleOpenMain}>
+          <span>打开主面板</span>
+          <IconArrowRight size={12} />
+        </button>
+        <button className="quick-shortcut" onClick={handleOpenNotepad}>
+          <IconEdit size={12} />
+          <span>写便签</span>
+        </button>
       </div>
 
       {loading ? (
@@ -352,6 +353,13 @@ export default function QuickPanel() {
             );
           })}
         </div>
+      )}
+
+      {allTodos.length > visibleCount && !loading && !error && (
+        <button className="quick-foot" onClick={handleOpenMain}>
+          还有 {allTodos.length - visibleCount} 个任务在主面板处理
+          <IconArrowRight size={11} />
+        </button>
       )}
     </div>
   );
