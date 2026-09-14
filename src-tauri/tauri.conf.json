@@ -13,6 +13,7 @@
     "windows": [
       {
         "label": "main",
+        "backgroundThrottling": "disabled",
         "title": "AntDesk",
         "url": "/index.html",
         "width": 420,

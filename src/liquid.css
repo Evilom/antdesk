@@ -211,3 +211,8 @@ button:not(:disabled):active { transform: scale(.97); }
 .assistant-layer { backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
 .assistant-orb { mask-image: radial-gradient(ellipse, #000 48%, transparent 74%); -webkit-mask-image: radial-gradient(ellipse, #000 48%, transparent 74%); }
 [data-theme="light"] .assistant-orb { mask-image: none; -webkit-mask-image: none; }
+.pm-work-view { flex:0 1 auto; max-height:260px; overflow:auto; padding:12px 20px; border-bottom:1px solid var(--border-color,rgba(128,128,128,.15)); }
+.pm-work-heading { display:flex; align-items:center; justify-content:space-between; }
+.pm-task { display:flex; flex-direction:column; gap:4px; padding:10px 0; border-bottom:1px solid rgba(128,128,128,.12); }
+.pm-task strong { font-size:12px; font-weight:500; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.pm-task span { font-size:10px; color:var(--text-secondary); }

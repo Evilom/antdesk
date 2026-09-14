@@ -73,7 +73,7 @@ export function requestMicrophone(timeoutMs = 20000) {
 }
 
 export class RealtimeAssistant extends EventTarget {
-  constructor({ baseUrl = location.origin, apiKey, audioElement, iceServers = [], maxReconnects = 3, context = '', transport }) {
+  constructor({ baseUrl = location.origin, apiKey, audioElement, iceServers = [], maxReconnects = 3, context = '', transport, getContext }) {
     super();
     if (typeof apiKey !== 'string' || !apiKey.trim() || apiKey.length > 128) throw new Error('请输入已配置的设备密钥。');
     this.baseUrl = baseUrl.replace(/\/$/, '');
@@ -84,6 +84,7 @@ export class RealtimeAssistant extends EventTarget {
     this.iceServers = iceServers;
     this.maxReconnects = maxReconnects;
     this.context = context;
+    this.getContext = getContext;
     this.transport = transport;
     this.muted = false;
     this.wanted = false;
@@ -127,7 +128,11 @@ export class RealtimeAssistant extends EventTarget {
     this.wanted = true;
     this.options = { voice, language, ttlSeconds };
     this.retries = 0;
-    await this.connect();
+    try { await this.connect(); }
+    catch (error) {
+      if (retryableFailure(error) && this.maxReconnects > 0) { this.wanted = true; await this.reconnect(); }
+      else throw error;
+    }
   }
 
   async connect() {
@@ -196,6 +201,8 @@ export class RealtimeAssistant extends EventTarget {
         pc.addEventListener('connectionstatechange', check); dc.addEventListener('open', check); check();
       });
       if (!this.wanted || epoch !== this.epoch) return;
+      if (this.getContext) this.context = await this.getContext();
+      if (!this.wanted || epoch !== this.epoch) return;
       this.caption = {};
       this.state('connected');
       this.emit('session', { id: session.id, expiresAt: session.expires_at });
@@ -221,7 +228,7 @@ export class RealtimeAssistant extends EventTarget {
       await this.cleanup();
       if (!this.wanted || epoch !== this.epoch) return;
       if (!this.reconnecting) this.wanted = false;
-      this.state('disconnected');
+      this.state(this.reconnecting ? 'reconnecting' : 'disconnected');
       this.emit('error', error);
       throw error;
     }
@@ -235,13 +242,14 @@ export class RealtimeAssistant extends EventTarget {
         this.retries++;
         ++this.epoch;
         await this.cleanup();
+        if (!this.wanted) return;
         this.state('reconnecting');
-        await new Promise(resolve => { this.retryResolve = resolve; this.retryTimer = setTimeout(resolve, 1000 * 2 ** (this.retries - 1)); });
+        await new Promise(resolve => { this.retryResolve = resolve; this.retryTimer = setTimeout(resolve, Math.min(30000, 1000 * 2 ** Math.min(5, this.retries - 1))); });
         this.retryResolve = null;
         if (!this.wanted) return;
         try { await this.connect(); return; }
         catch (error) {
-          if (error instanceof GatewayAPIError && !error.retryable) { await this.stop(); return; }
+          if (!retryableFailure(error)) { await this.stop(); return; }
         }
       }
       await this.stop();
@@ -297,4 +305,9 @@ export class RealtimeAssistant extends EventTarget {
     clearTimeout(this.retryTimer); this.retryResolve?.();
     await this.cleanup(); this.state('disconnected');
   }
+}
+
+// Retry network loss indefinitely only when the caller opts in; never retry auth or microphone denial.
+export function retryableFailure(error) {
+  return error instanceof GatewayAPIError ? error.retryable && ![401, 403].includes(error.status) : /服务器超时|无法连接服务器|WebRTC 连接|无法连接语音服务|网络/.test(error?.message || '');
 }

@@ -4,6 +4,7 @@ use tauri::Emitter;
 
 mod desktop_surfaces;
 mod assistant;
+mod pm;
 mod pet_input;
 
 #[derive(Default)]
@@ -722,6 +723,14 @@ pub fn run() {
         ))
         .manage(AppState::default())
         .manage(assistant::AssistantState::default())
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .setup(|app| {
             setup_tray(app);
             setup_menu_events(app);
@@ -751,8 +760,17 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             pet_input::pet_primary_button_down,
+            pm::pm_save_messages,
+            pm::pm_history,
+            pm::pm_remember,
+            pm::pm_directories,
+            pm::pm_add_directory,
+            pm::pm_remove_directory,
+            pm::pm_context,
+            pm::pm_codex_status,
             assistant::set_voice_device_key,
             assistant::voice_key_ready,
+            assistant::connect_local_voice,
             assistant::is_development_build,
             assistant::voice_gateway_request,
             assistant::knowledge_status,

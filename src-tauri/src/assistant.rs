@@ -44,13 +44,24 @@ pub fn set_voice_device_key(key: String, state: tauri::State<AssistantState>) ->
     if key.len() > 128 || key.chars().any(char::is_whitespace) {
         return Err("设备密钥格式不正确".into());
     }
+    #[cfg(target_os = "macos")]
+    if !key.is_empty() {
+        security_framework::passwords::set_generic_password("com.antdesk.app.voice", "device-key", key.as_bytes())
+            .map_err(|_| "无法保存到 macOS 钥匙串，请检查系统授权")?;
+    }
     *state.device_key.lock().map_err(|_| "凭据暂不可用")? = key.to_owned();
     Ok(())
 }
 
 fn voice_key(state: &AssistantState) -> Result<String, String> {
     let current = state.device_key.lock().map_err(|_| "凭据暂不可用")?.clone();
-    let key = if current.is_empty() { std::env::var("ANTDESK_VOICE_DEVICE_KEY").unwrap_or_default() } else { current };
+    let mut key = if current.is_empty() { std::env::var("ANTDESK_VOICE_DEVICE_KEY").unwrap_or_default() } else { current };
+    #[cfg(target_os = "macos")]
+    if key.trim().is_empty() {
+        if let Ok(saved)=security_framework::passwords::get_generic_password("com.antdesk.app.voice", "device-key") {
+            key=String::from_utf8(saved).map_err(|_|"钥匙串凭据格式无效")?;
+        }
+    }
     if key.trim().is_empty() { return Err("请在设置中输入语音设备密钥".into()); }
     Ok(key.trim().to_owned())
 }
@@ -60,19 +71,54 @@ pub fn voice_key_ready(state: tauri::State<AssistantState>) -> bool {
     voice_key(&state).is_ok()
 }
 
+/// Bind this desktop to the already configured local gateway. Credentials stay native.
+#[tauri::command]
+pub async fn connect_local_voice(state: tauri::State<'_, AssistantState>) -> Result<Value, String> {
+    let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).map_err(|_| "无法定位本机配置")?;
+    let config = std::env::var("ANTDESK_VOICE_CONFIG_FILE").map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from(home).join("projects/chatgpt-web-voice/.env"));
+    let env = std::fs::read_to_string(config).map_err(|_| "未找到已部署的本机语音配置，请使用下方手动连接")?;
+    let value = |name: &str| env.lines().find_map(|line| {
+        let (key, value) = line.trim().strip_prefix("export ").unwrap_or(line.trim()).split_once('=')?;
+        (key.trim() == name).then(|| value.trim().trim_matches(|c| c=='\'' || c=='"').to_string())
+    });
+    let port = value("VOICE_PORT").unwrap_or_else(||"6080".into()).parse::<u16>().map_err(|_| "本机语音端口配置无效")?;
+    let base = format!("http://127.0.0.1:{port}");
+    let client=client()?;
+    if let Ok(key)=voice_key(&state) {
+        if let Ok(response)=client.get(format!("{base}/v1/capabilities")).bearer_auth(key).timeout(Duration::from_secs(8)).send().await {
+            if response.status().is_success() {return Ok(json!({"baseUrl":base,"ready":true}));}
+        }
+    }
+    let admin=value("VOICE_AUTH_KEY").filter(|s|!s.is_empty()).ok_or("本机语音配置缺少管理凭据")?;
+    let response=client.post(format!("{base}/v1/devices")).bearer_auth(&admin).json(&json!({"name":"AntDesk personal PM","max_sessions":1})).timeout(Duration::from_secs(10)).send().await
+        .map_err(|_|"本机语音网关未启动，请检查服务")?;
+    if !response.status().is_success(){return Err(format!("本机绑定失败（HTTP {}）",response.status().as_u16()));}
+    let data:Value=response.json().await.map_err(|_|"本机网关返回无效数据")?;
+    let key=data["api_key"].as_str().ok_or("网关未返回设备密钥")?;
+    if let Err(error)=set_voice_device_key(key.into(),state) {
+        if let Some(id)=data["id"].as_str().filter(|id| id.chars().all(|c|c.is_ascii_alphanumeric()||c=='_')) {
+            let _=client.delete(format!("{base}/v1/devices/{id}")).bearer_auth(admin).timeout(Duration::from_secs(8)).send().await;
+        }
+        return Err(error);
+    }
+    Ok(json!({"baseUrl":base,"ready":true}))
+}
+
 #[tauri::command]
 pub fn is_development_build() -> bool { cfg!(debug_assertions) }
 
 #[tauri::command]
 pub async fn voice_gateway_request(
-    base_url: String, path: String, method: String, body: Option<Value>,
+    base_url: String, path: String, method: String, body: Option<Value>, timeout_ms: Option<u64>,
     state: tauri::State<'_, AssistantState>,
 ) -> Result<Value, String> {
     if !valid_voice_path(&path, &method) { return Err("不支持的语音操作".into()); }
     let url = gateway_url(&base_url)?.join(&path).map_err(|_| "语音地址无效")?;
     let key = voice_key(&state)?;
     let method = reqwest::Method::from_bytes(method.as_bytes()).map_err(|_| "请求方法无效")?;
-    let mut request = client()?.request(method, url).bearer_auth(key);
+    let mut request = client()?.request(method, url).bearer_auth(key)
+        .timeout(Duration::from_millis(timeout_ms.unwrap_or(75000).clamp(1000,75000)));
     if let Some(data) = body {
         if data.to_string().len() > 72000 { return Err("语音请求过大".into()); }
         request = request.json(&data);

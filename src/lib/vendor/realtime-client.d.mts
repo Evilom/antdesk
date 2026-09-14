@@ -18,6 +18,7 @@ export class RealtimeAssistant extends EventTarget {
   dc: RTCDataChannel | null;
   stream: MediaStream | null;
   context: string;
+  getContext?: () => Promise<string>;
   start(options?: {voice?: string; language?: string}): Promise<void>;
   stop(): Promise<void>;
   sendText(text: string): void;

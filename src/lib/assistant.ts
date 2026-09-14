@@ -21,9 +21,9 @@ export function createVoiceClient(settings: AppSettings, audio: HTMLAudioElement
   }
   return new RealtimeAssistant({
     baseUrl: settings.voiceGatewayUrl, apiKey: isTauri() ? 'native-managed' : browserDeviceKey,
-    audioElement: audio, context,
+    audioElement: audio, context, maxReconnects: Infinity,
     transport: isTauri() ? (path, options) => invoke('voice_gateway_request', {
-      baseUrl: settings.voiceGatewayUrl, path, method: options.method, body: options.body ?? null,
+      baseUrl: settings.voiceGatewayUrl, path, method: options.method, body: options.body ?? null, timeoutMs:options.timeout,
     }) : undefined,
   });
 }

@@ -33,3 +33,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; u
   pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) { .pet-caption { transition: none; } }
+.pet-voice-controls { position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 20px; background: rgba(28,30,36,.85); backdrop-filter: blur(14px); color: white; }
+.pet-voice-controls button { display:flex; align-items:center; justify-content:center; height:26px; min-width:28px; padding:0 6px; border:0; border-radius:16px; background:transparent; color:inherit; font-size:10px; cursor:pointer; }
+.pet-voice-controls button[aria-pressed="true"] { background:#246b57; }
+.pet-voice-controls button:disabled { opacity:.45; }
+.pet-voice-controls button:focus-visible { outline:2px solid #90baff; }

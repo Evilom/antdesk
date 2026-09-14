@@ -18,6 +18,8 @@ import { useAppStore } from "./stores/appStore";
 import { EmotionEngine } from "./lib/EmotionEngine";
 import { getLocalNotionToken } from "./lib/localSettings";
 import { beginPetGesture } from "./lib/petGesture";
+import { Mic, MicOff, PhoneOff, Square } from 'lucide-react';
+import { INITIAL_VOICE, publish, subscribe, type VoiceStatus } from './lib/pm';
 
 const ANIMATIONS: Record<string, string> = {
   idle: "stand", walk: "walk", run: "run", jump: "jump", falling: "fall",
@@ -46,6 +48,8 @@ export default function Pet() {
   const [notice, setNotice] = useState<string | null>(null);
   const [hovered, setHovered] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [voice, setVoice] = useState<VoiceStatus>(INITIAL_VOICE);
+  const voiceActive = !['idle','disconnected'].includes(voice.state);
   const reduceMotion = useAppStore(s => s.settings.reduceMotion);
   const spineRef = useRef<SpinePetHandle>(null);
   const runtimeRef = useRef<PetRuntime | null>(null);
@@ -55,6 +59,20 @@ export default function Pet() {
   const optionsRef = useRef({ locked, mode, reduceMotion });
   const kanbanEndpoint = useKanbanStore(s => s.endpoint);
   const kanbanStats = useKanbanStore(s => s.data.stats);
+
+  useEffect(()=>{
+    let disposed=false;let off:(()=>void)|undefined;
+    void subscribe<VoiceStatus>('pm:voice:status',setVoice).then(fn=>{if(disposed)fn();else{off=fn;void publish('pm:voice:request',null);}});
+    return ()=>{disposed=true;off?.();};
+  },[]);
+  useEffect(()=>{
+    const send=()=>{
+      const runtime=runtimeRef.current;
+      void publish('pm:pet:snapshot',{observedAt:Date.now(),visualState,mode:petMode,locked,sleep:runtime?.sleep.getPhase()||'unknown',emotion:runtime?.emotion.getState()||null,tasks:{notionPending:pendingCount,kanban:kanbanStats}});
+    };
+    send();const timer=setInterval(send,5000);return ()=>clearInterval(timer);
+  },[visualState,petMode,locked,pendingCount,kanbanStats]);
+  const voiceCommand=(action:string)=>{void publish('pm:voice:command',action).catch(()=>runtimeRef.current?.notify('助理连接暂不可用'));};
 
   useEffect(() => {
     let disposed = false;
@@ -294,9 +312,14 @@ export default function Pet() {
           {status}{count > 0 ? ` · ${count} 项待办` : ""}
         </span>
       </button>
-      {(notice || hovered || dragging) && <div className="thought-bubble" role={notice ? "status" : undefined}>
-        {notice || hint}
+      {(voice.error || notice || (voiceActive && voice.caption) || hovered || dragging) && <div className="thought-bubble" role="status">
+        {voice.error || notice || (voiceActive && voice.caption) || hint}
       </div>}
+      <div className="pet-voice-controls" aria-label="宠物语音助理">
+        <button aria-label={voiceActive?(voice.muted?'取消静音':'静音麦克风'):'开启常驻语音'} aria-pressed={voiceActive&&!voice.muted} onClick={()=>voiceCommand(voiceActive?'mute':'toggle')} disabled={voiceActive&&voice.state!=='connected'}>{voice.muted?<MicOff size={14}/>:<Mic size={14}/>}</button>
+        {voiceActive && <><button aria-label="打断助理" disabled={voice.state!=='connected'} onClick={()=>voiceCommand('interrupt')}><Square size={11}/></button><button aria-label="结束语音" onClick={()=>voiceCommand('stop')}><PhoneOff size={14}/></button></>}
+        {voice.error && <button aria-label="打开助理设置" onClick={()=>{voiceCommand('settings');if(native)void invoke('open_full_panel');}}>设置</button>}
+      </div>
     </div>
   );
 }
