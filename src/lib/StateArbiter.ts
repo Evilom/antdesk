@@ -57,7 +57,7 @@ const DEFAULT_PRIORITY: Record<string, number> = {
   perch:        2,
   bumped:       2,
   pushed:       2,
-  dragged:      1,
+  dragged:      9,
   // Deepest
   sleep:        0,
   dozing:       0,
@@ -69,6 +69,7 @@ const ONESHOT_STATES = new Set(["error", "notification", "celebrate", "interact"
 export class StateArbiter {
   private activeRequests = new Map<string, StateRequest>();
   private resolvedState: string = "idle";
+  private resolvedPriority = 1;
   private oneshotTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private onResolved?: (state: string, prev: string) => void;
   private defaultPriority: Record<string, number>;
@@ -87,12 +88,15 @@ export class StateArbiter {
    */
   request(req: StateRequest): void {
     const key = `${req.source}:${req.state}`;
+    const isOneshot = req.oneshot ?? ONESHOT_STATES.has(req.state);
 
     // Continuous sources represent one current state at a time.
     // Without this, equal-priority physics states can get stuck behind older entries.
-    if (!req.oneshot) {
+    if (!isOneshot) {
       for (const existingKey of Array.from(this.activeRequests.keys())) {
-        if (existingKey.startsWith(`${req.source}:`) && existingKey !== key) {
+        const existing = this.activeRequests.get(existingKey)!;
+        const existingOneshot = existing.oneshot ?? ONESHOT_STATES.has(existing.state);
+        if (existingKey.startsWith(`${req.source}:`) && existingKey !== key && !existingOneshot) {
           this.activeRequests.delete(existingKey);
           if (this.oneshotTimers.has(existingKey)) {
             clearTimeout(this.oneshotTimers.get(existingKey)!);
@@ -111,7 +115,6 @@ export class StateArbiter {
     this.activeRequests.set(key, req);
 
     // Auto-expire oneshot states
-    const isOneshot = req.oneshot ?? ONESHOT_STATES.has(req.state);
     if (isOneshot) {
       const duration = req.durationMs ?? this.getDefaultDuration(req.state);
       const timer = setTimeout(() => {
@@ -169,7 +172,7 @@ export class StateArbiter {
    * Get the priority of the current resolved state.
    */
   getPriority(): number {
-    return this.getEffectivePriority(this.resolvedState);
+    return this.resolvedPriority;
   }
 
   /**
@@ -204,6 +207,7 @@ export class StateArbiter {
       }
     }
 
+    this.resolvedPriority = bestPriority < 0 ? 1 : bestPriority;
     if (bestState !== this.resolvedState) {
       const prev = this.resolvedState;
       this.resolvedState = bestState;

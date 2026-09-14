@@ -185,7 +185,7 @@ export default function FAB() {
         onContextMenu={handleContextMenu}
         title="AntDesk"
       >
-        <span style={{ fontSize: "22px", lineHeight: 1 }}>&#129514;</span>
+        <img src="/assets/brand/app-icon.png" alt="" width={36} height={36} draggable={false} />
         <span className={`status-dot ${connected ? "connected" : "disconnected"}`} />
         {pendingCount > 0 && (
           <span className="pending-badge">{pendingCount > 99 ? "99+" : pendingCount}</span>

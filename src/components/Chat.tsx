@@ -225,7 +225,7 @@ export default function Chat() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-2.5 pb-2">
         {messages.length === 0 && (
           <div className="text-center text-text-muted text-xs py-12 space-y-2">
-            <div className="text-2xl">&#129514;</div>
+            <img src="/assets/brand/app-icon.png" alt="" width={40} height={40} className="mx-auto" />
             <div>有什么可以帮你的？</div>
             <div className="text-[10px]">
               输入 /todo 创建任务 · /report 生成日报

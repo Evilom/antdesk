@@ -56,4 +56,9 @@ export interface AppSettings {
   glass: GlassIntensity;
   transparency: number; // 0-175, 0=opaque, 175=very transparent
   kanbanEndpoint: string;
+  voiceGatewayUrl: string;
+  voiceName: string;
+  knowledgeEnabled: boolean;
+  autoBriefing: boolean;
+  reduceMotion: boolean;
 }

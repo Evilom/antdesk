@@ -133,7 +133,7 @@ export class PetBrain {
 
   private mode: PetMode = "leisure";
   private mood = "(^・ω・^)";
-  private prevMode: PetMode = "leisure";
+  private kanbanInitialized = false;
 
   private lastInteraction = Date.now();
   private sleepCheckTimer: ReturnType<typeof setInterval> | null = null;
@@ -157,9 +157,12 @@ export class PetBrain {
   private cb: PetBrainCallbacks;
   private disposed = false;
 
-  constructor(callbacks: PetBrainCallbacks) {
+  constructor(callbacks: PetBrainCallbacks, privateOptions: { autonomousBehavior?: boolean } = {}) {
     this.cb = callbacks;
+    this.autonomousBehavior = privateOptions.autonomousBehavior ?? true;
   }
+
+  private autonomousBehavior: boolean;
 
   setAnimationChecker(checker: (name: string) => boolean) {
     this.hasAnimation = checker;
@@ -168,10 +171,12 @@ export class PetBrain {
   // ── Lifecycle ──
 
   start() {
-    this.scheduleSleepCheck();
     this.scheduleTodoPoll();
-    this.startIdleCounter();
-    this.enterBehavior("idle");
+    if (this.autonomousBehavior) {
+      this.scheduleSleepCheck();
+      this.startIdleCounter();
+      this.enterBehavior("idle");
+    }
   }
 
   dispose() {
@@ -201,6 +206,7 @@ export class PetBrain {
 
   // v2: Accept kanban data from external source
   updateKanban(data: KanbanData) {
+    if (this.disposed) return;
     const prev = this.prevKanbanStats;
 
     this.kanbanStatus = {
@@ -212,20 +218,20 @@ export class PetBrain {
     };
 
     // Detect kanban events → notify
-    if (data.stats.completedToday > prev.completedToday) {
+    if (this.kanbanInitialized && data.stats.completedToday > prev.completedToday) {
       const diff = data.stats.completedToday - prev.completedToday;
       this.cb.onKanbanEvent?.("completed", `${diff} 个任务完成了！`);
       // Brief celebration
-      if (this.behavior !== "sleep") {
+      if (this.autonomousBehavior && this.behavior !== "sleep") {
         this.enterBehavior("interact");
       }
     }
 
-    if (data.stats.blocked > prev.blocked) {
+    if (this.kanbanInitialized && data.stats.blocked > prev.blocked && this.mode === "alert") {
       this.cb.onKanbanEvent?.("blocked", `有 ${data.stats.blocked} 个任务被阻塞了`);
     }
 
-    if (data.stats.active > prev.active) {
+    if (this.kanbanInitialized && data.stats.active > prev.active) {
       const newActions = data.actions
         .filter((a) => a.status === "active")
         .slice(0, 2)
@@ -237,6 +243,7 @@ export class PetBrain {
     }
 
     this.prevKanbanStats = { ...data.stats };
+    this.kanbanInitialized = true;
     this.updateMode();
   }
 
@@ -363,7 +370,7 @@ export class PetBrain {
 
       const todos: Array<{ status: boolean; dueDate?: string }> = JSON.parse(raw);
       const now = new Date();
-      const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
       let overdue = 0;
       let dueToday = 0;
@@ -429,7 +436,7 @@ export class PetBrain {
       newMode = "celebrate";
     }
     // Active work → busy
-    else if (kanban.active > 0 || total > 0) {
+    else if (kanban.active > 0 || total > completed) {
       newMode = "busy";
     }
     // Nothing to do → leisure
@@ -437,8 +444,7 @@ export class PetBrain {
       newMode = "leisure";
     }
 
-    if (newMode !== this.prevMode) {
-      this.prevMode = this.mode;
+    if (newMode !== this.mode) {
       this.mode = newMode;
       this.cb.onModeChange(newMode);
 

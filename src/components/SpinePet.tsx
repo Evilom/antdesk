@@ -30,15 +30,19 @@ const SpinePet = forwardRef<SpinePetHandle, SpinePetProps>(function SpinePet(
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<SpineRenderer | null>(null);
+  const desiredAnimation = useRef({ name: "stand", loop: true });
+  const desiredFacing = useRef<1 | -1>(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Expose imperative API to parent
   useImperativeHandle(ref, () => ({
     setAnimation: (name: string, loop = true) => {
+      desiredAnimation.current = { name, loop };
       rendererRef.current?.setAnimation(name, loop);
     },
     setFacingDirection: (dir: 1 | -1) => {
+      desiredFacing.current = dir;
       rendererRef.current?.setFacingDirection(dir);
     },
     getFacingDirection: () => {
@@ -68,11 +72,15 @@ const SpinePet = forwardRef<SpinePetHandle, SpinePetProps>(function SpinePet(
       atlasName: `${petName}.atlas.txt`,
       defaultAnimation: "stand",
     });
+    let disposed = false;
 
     renderer
       .load()
-      .then(() => {
+      .then((loaded) => {
+        if (disposed || !loaded) return;
         rendererRef.current = renderer;
+        renderer.setAnimation(desiredAnimation.current.name, desiredAnimation.current.loop);
+        renderer.setFacingDirection(desiredFacing.current);
         setLoading(false);
         console.log(
           `[SpinePet] Loaded '${petName}', animations:`,
@@ -80,12 +88,14 @@ const SpinePet = forwardRef<SpinePetHandle, SpinePetProps>(function SpinePet(
         );
       })
       .catch((err) => {
+        if (disposed) return;
         console.error("[SpinePet] Load failed:", err);
         setError(err.message ?? "Load failed");
         setLoading(false);
       });
 
     return () => {
+      disposed = true;
       renderer.dispose();
       rendererRef.current = null;
     };

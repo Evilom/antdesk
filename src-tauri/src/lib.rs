@@ -3,6 +3,8 @@ use tauri::Manager;
 use tauri::Emitter;
 
 mod desktop_surfaces;
+mod assistant;
+mod pet_input;
 
 #[derive(Default)]
 struct AppState {
@@ -624,6 +626,9 @@ fn setup_tray(app: &tauri::App) {
     let menu = Menu::with_items(&handle, &[&show_item, &settings_item, &separator, &quit_item])
         .expect("failed to create tray menu");
 
+    #[cfg(target_os = "macos")]
+    let icon_data = include_bytes!("../icons/tray-template.png");
+    #[cfg(not(target_os = "macos"))]
     let icon_data = include_bytes!("../icons/32x32.png");
     let img = image::load_from_memory(icon_data).expect("failed to decode tray icon");
     let rgba = img.to_rgba8();
@@ -632,6 +637,7 @@ fn setup_tray(app: &tauri::App) {
 
     let _tray = TrayIconBuilder::new()
         .icon(icon)
+        .icon_as_template(cfg!(target_os = "macos"))
         .menu(&menu)
         .tooltip("AntDesk")
         .on_menu_event(move |app, event| {
@@ -695,7 +701,18 @@ fn setup_menu_events(app: &tauri::App) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // Register before all other plugins and before any pet window is created.
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        if args.iter().any(|arg| arg == "--minimized") { return; }
+        if let Some(main) = app.get_webview_window("main") {
+            let _ = main.show();
+            let _ = main.unminimize();
+            let _ = main.set_focus();
+        }
+    }));
+    builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -704,6 +721,7 @@ pub fn run() {
             Some(vec!["--minimized"]),
         ))
         .manage(AppState::default())
+        .manage(assistant::AssistantState::default())
         .setup(|app| {
             setup_tray(app);
             setup_menu_events(app);
@@ -732,6 +750,14 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            pet_input::pet_primary_button_down,
+            assistant::set_voice_device_key,
+            assistant::voice_key_ready,
+            assistant::is_development_build,
+            assistant::voice_gateway_request,
+            assistant::knowledge_status,
+            assistant::search_hermes_knowledge,
+            assistant::read_hermes_document,
             get_notion_token,
             clear_token_cache,
             fetch_notion,

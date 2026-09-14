@@ -47,6 +47,7 @@ export class SpineRenderer {
   private lastFrameTime = 0;
   private renderErrorCount = 0;
   private disposed = false;
+  private renderFrame = 0;
 
   private assetPath: string;
   private skelName: string;
@@ -92,6 +93,7 @@ export class SpineRenderer {
 
     // Wait for assets
     await this.waitForAssets();
+    if (this.disposed) return false;
 
     if (this.assetManager.hasErrors()) {
       const errors = this.assetManager.getErrors();
@@ -108,7 +110,7 @@ export class SpineRenderer {
   private waitForAssets(): Promise<void> {
     return new Promise((resolve) => {
       const check = () => {
-        if (this.assetManager.isLoadingComplete()) {
+        if (this.disposed || this.assetManager.isLoadingComplete()) {
           resolve();
         } else {
           requestAnimationFrame(check);
@@ -159,7 +161,7 @@ export class SpineRenderer {
     if (!this.isRendering) {
       this.isRendering = true;
       this.lastFrameTime = Date.now() / 1000;
-      requestAnimationFrame(this.render.bind(this));
+      this.renderFrame = requestAnimationFrame(this.render.bind(this));
     }
   }
 
@@ -190,6 +192,8 @@ export class SpineRenderer {
       }
     }
 
+    const current = this.animationState.getCurrent(0);
+    if (current?.animation?.name === name && current.loop === loop) return;
     this.animationState.setAnimation(0, name, loop);
   }
 
@@ -228,11 +232,16 @@ export class SpineRenderer {
   }
 
   dispose() {
+    if (this.disposed) return;
     this.disposed = true;
+    cancelAnimationFrame(this.renderFrame);
     this.isRendering = false;
     this.isLoading = false;
     this.skeleton = null;
     this.animationState = null;
+    this.assetManager.dispose();
+    this.renderer.dispose();
+    this.context.dispose();
   }
 
   private render() {
@@ -240,7 +249,7 @@ export class SpineRenderer {
 
     try {
       const now = Date.now() / 1000;
-      const delta = now - this.lastFrameTime;
+      const delta = Math.min(Math.max(0, now - this.lastFrameTime), 0.1);
       this.lastFrameTime = now;
 
       this.timeKeeper.update();
@@ -305,6 +314,6 @@ export class SpineRenderer {
       }
     }
 
-    requestAnimationFrame(this.render.bind(this));
+    this.renderFrame = requestAnimationFrame(this.render.bind(this));
   }
 }

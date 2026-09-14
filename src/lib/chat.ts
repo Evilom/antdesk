@@ -6,7 +6,7 @@ export interface ChatRequestMessage {
 const SYSTEM_PROMPT = `你是 AntDesk AI 助手，一个 PM 桌面助手的内置 AI。
 你帮助用户管理任务、写日报、回答问题。
 请用简洁专业的中文回复。
-当用户说 /todo 时，帮他们创建任务。
+当用户说 /todo 时，帮他们整理任务草稿，提示在任务编辑器中保存，不要宣称已经创建。
 当用户说 /report 时，帮他们生成日报。
 当用户说 /help 时，列出可用指令。`;
 
@@ -51,27 +51,26 @@ export async function sendChatMessage(
   const decoder = new TextDecoder();
   let buffer = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || !trimmed.startsWith("data: ")) continue;
-      const data = trimmed.slice(6);
-      if (data === "[DONE]") return;
-
-      try {
-        const parsed = JSON.parse(data);
-        const delta = parsed.choices?.[0]?.delta?.content;
-        if (delta) onChunk(delta);
-      } catch {
-        // skip malformed JSON
-      }
+  const consume = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) return false;
+    const data = trimmed.slice(5).trim();
+    if (data === '[DONE]') return true;
+    let parsed;
+    try { parsed = JSON.parse(data); } catch { return false; }
+    if (parsed.error) throw new Error(parsed.error.message || 'AI 服务返回错误');
+    const delta = parsed.choices?.[0]?.delta?.content;
+    if (typeof delta === 'string') onChunk(delta);
+    return false;
+  };
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) if (consume(line)) return;
+      if (done) { if (buffer) consume(buffer); break; }
     }
-  }
+  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }

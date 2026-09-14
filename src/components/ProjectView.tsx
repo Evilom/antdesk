@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useAppStore } from "../stores/appStore";
 import { createTodo, toggleTodoStatus, closeProject, fetchProjects, createProject } from "../lib/notion";
 import { IconBriefcase, IconCheck, IconChevronDown, IconFolder, IconHeart, IconInbox, IconPlus, IconSearch, IconTarget, IconX } from "./Icons";
@@ -47,6 +47,10 @@ export default function ProjectView() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(["__other__"]));
   const [showCompleted, setShowCompleted] = useState<Set<string>>(new Set());
   const [showAddForm, setShowAddForm] = useState(false);
+  const requestedAction = useAppStore(s => s.requestedAction);
+  useEffect(() => {
+    if (requestedAction === 'newTodo') {setShowAddForm(true); useAppStore.getState().setRequestedAction(null);}
+  }, [requestedAction]);
   const [newName, setNewName] = useState("");
   const [newPriority, setNewPriority] = useState<Priority>("Medium");
   const [newProjectId, setNewProjectId] = useState("");

@@ -11,7 +11,7 @@ export const WINDOW_INTERACTION_LABEL: Record<WindowInteractionMode, string> = {
 };
 
 export const WINDOW_INTERACTION_HINT: Record<WindowInteractionMode, string> = {
-  off: "只保留基础移动，不读取外部窗口位置",
+  off: "留在原位安静陪伴，不主动跑跳或读取外部窗口位置",
   standard: "感知窗口位置，轻量站立、避让和推动反馈",
   enhanced: "更明显的跳跃、滑动和窗口物理反馈",
 };
@@ -126,6 +126,7 @@ export class DesktopWorldBridge {
     try {
       const response = await invoke<DesktopSurfaceResponse>("get_desktop_surfaces");
       const petRect = await this.readPetRect();
+      if (this.disposed) return;
       const surfaces = response.surfaces
         .filter((surface) => surface.width >= 120 && surface.height >= 80)
         .slice(0, 24)
@@ -136,6 +137,7 @@ export class DesktopWorldBridge {
       this.prunePreviousSurfaces(surfaces);
       this.onSurfaces(surfaces, { capability: response.capability, reason: response.reason });
     } catch (error) {
+      if (this.disposed) return;
       this.onError?.(error);
       this.onSurfaces([], { capability: "degraded", reason: "desktop surface sampling failed" });
     } finally {

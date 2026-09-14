@@ -3,6 +3,8 @@ import type { Todo, Report, Project, ChatMessage, Page, AppSettings, ThemeMode, 
 
 interface AppState {
   currentPage: Page;
+  requestedAction: "newTodo" | "newReport" | null;
+  setRequestedAction: (action: "newTodo" | "newReport" | null) => void;
   setCurrentPage: (page: Page) => void;
 
   todos: Todo[];
@@ -41,6 +43,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   glass: "medium",
   transparency: 100,
   kanbanEndpoint: "",
+  voiceGatewayUrl: "http://127.0.0.1:6080",
+  voiceName: "juniper",
+  knowledgeEnabled: true,
+  autoBriefing: false,
+  reduceMotion: false,
 };
 
 function loadSettings(): AppSettings {
@@ -63,6 +70,8 @@ const initialSettings = loadSettings();
 
 export const useAppStore = create<AppState>((set) => ({
   currentPage: "agenda",
+  requestedAction: null,
+  setRequestedAction: (requestedAction) => set({ requestedAction }),
   setCurrentPage: (page) => set({ currentPage: page }),
 
   todos: [],
@@ -146,6 +155,7 @@ export function applyTheme(settings: AppSettings) {
 
   // Mode
   root.setAttribute("data-theme", isDark ? "dark" : "light");
+  root.setAttribute("data-reduce-motion", String(settings.reduceMotion ?? false));
 
   // Accent
   const accent = ACCENT_COLORS[settings.accent || "blue"];

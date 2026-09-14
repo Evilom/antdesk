@@ -109,6 +109,10 @@ export default function Reports() {
   const setReports = useAppStore((s) => s.setReports);
 
   const [showWrite, setShowWrite] = useState(false);
+  const requestedAction = useAppStore(s => s.requestedAction);
+  useEffect(() => {
+    if (requestedAction === 'newReport') {setShowWrite(true); useAppStore.getState().setRequestedAction(null);}
+  }, [requestedAction]);
   const [writeContent, setWriteContent] = useState("");
   const [saving, setSaving] = useState(false);
 

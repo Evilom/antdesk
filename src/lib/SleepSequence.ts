@@ -79,11 +79,10 @@ export class SleepSequence {
 
   /** Force wake (e.g., from notification) */
   wake(): void {
-    if (this.phase === "awake") return;
-    const prev = this.phase;
-    this.phase = "awake";
     this.mouseIdleTimer = 0;
     this.phaseTimer = 0;
+    if (this.phase === "awake") return;
+    this.phase = "awake";
     this.arbiter.revoke("emotion", "yawn");
     this.arbiter.revoke("emotion", "dozing");
     this.arbiter.revoke("emotion", "sleep");
@@ -97,6 +96,7 @@ export class SleepSequence {
 
     switch (this.phase) {
       case "awake":
+        if (this.arbiter.isAtLeast(4)) { this.mouseIdleTimer = 0; break; }
         this.mouseIdleTimer += 1000;
         if (this.mouseIdleTimer >= this.yawnDelayMs) {
           this.transition("yawn");
@@ -168,5 +168,6 @@ export class SleepSequence {
 
   dispose(): void {
     this.stop();
+    this.wake();
   }
 }

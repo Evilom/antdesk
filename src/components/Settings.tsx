@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import AssistantSettings from "./AssistantSettings";
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { useAppStore } from "../stores/appStore";
@@ -51,6 +52,7 @@ export default function Settings() {
   // Update
   const [updateStatus, setUpdateStatus] = useState("");
   const [checking, setChecking] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     invoke<boolean>("plugin:autostart|is_enabled")
@@ -71,6 +73,7 @@ export default function Settings() {
       aiEndpoint: endpointInput,
       aiModel: modelInput,
     });
+    setSaved(true);
   };
 
   const handlePetModeChange = (mode: WindowInteractionMode) => {
@@ -157,6 +160,7 @@ export default function Settings() {
 
   return (
     <div className="space-y-4 fade-in">
+      <AssistantSettings />
       {/* ── 外观 ── */}
       <Section title="外观">
         {/* 主题 */}
@@ -303,14 +307,7 @@ export default function Settings() {
           className="input-field mb-2"
         />
         <Label>模型</Label>
-        <select
-          value={modelInput}
-          onChange={(e) => setModelInput(e.target.value)}
-          className="input-field cursor-pointer"
-        >
-          <option value="DeepSeek-V3.2">DeepSeek-V3.2 (稳定)</option>
-          <option value="deepseek-v4-flash-think">deepseek-v4-flash-think (快速)</option>
-        </select>
+        <input aria-label="文字 AI 模型" value={modelInput} onChange={(e) => setModelInput(e.target.value)} className="input-field" placeholder="服务支持的模型名称" />
       </Section>
 
       {/* ── Kanban ── */}
@@ -367,13 +364,13 @@ export default function Settings() {
         className="w-full py-2 text-white text-xs rounded-button hover:opacity-85 transition-colors"
         style={{ background: "var(--accent-primary)" }}
       >
-        保存设置
+        {saved ? '设置已保存' : '保存设置'}
       </button>
 
       {/* Info */}
       <div className="text-center text-[10px] text-text-muted space-y-0.5">
         <AppVersion />
-        <div>Tauri 2 + React 19 + Zustand</div>
+        <div>给日常多一点从容</div>
       </div>
     </div>
   );

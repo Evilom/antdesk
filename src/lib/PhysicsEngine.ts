@@ -86,6 +86,9 @@ export class PhysicsEngine {
 
   private state: PetState = "idle";
   private running = false;
+  private startTask: Promise<void> | null = null;
+  private generation = 0;
+  private positionTask: Promise<void> | null = null;
   private rafId = 0;
   private lastTime = 0;
 
@@ -175,31 +178,47 @@ export class PhysicsEngine {
 
   async start(): Promise<void> {
     if (this.running) return;
-    await this.refreshBounds();
-    try {
+    if (this.startTask) return this.startTask;
+    const generation = ++this.generation;
+    const task = (async () => {
+      await this.positionTask;
+      if (generation !== this.generation) return;
+      await this.refreshBounds();
+      if (generation !== this.generation) return;
       const pos = await getCurrentWindow().outerPosition();
+      if (generation !== this.generation) return;
       const s = this.bounds?.scale ?? 1;
-      this.x = pos.x / s;
-      this.y = pos.y / s;
-    } catch {}
-    if (Math.abs(this.y - this.groundY) < 10) this.y = this.groundY;
-    this.pickBehavior();
-    document.addEventListener("mousemove", this.boundMouseMove);
-    this.running = true;
-    this.spontaneousJumpTimer = 8 + Math.random() * 15;
-    this.lastTime = performance.now() / 1000;
-    this.rafId = requestAnimationFrame(this.tick.bind(this));
+      this.x = this.prevX = pos.x / s;
+      this.y = this.prevY = pos.y / s;
+      this.vx = this.vy = 0;
+      this.floorY = this.resolveFloorY(this.x, this.y);
+      this.running = true;
+      if (this.y < this.floorY - 10) this.setState("falling");
+      else { this.y = this.floorY; this.startRest(); }
+      document.addEventListener("mousemove", this.boundMouseMove);
+      this.spontaneousJumpTimer = 15 + Math.random() * 20;
+      this.lastTime = performance.now() / 1000;
+      this.rafId = requestAnimationFrame(this.tick.bind(this));
+    })();
+    this.startTask = task;
+    try { await task; }
+    finally { if (this.startTask === task) this.startTask = null; }
   }
 
   stop(): void {
+    ++this.generation;
+    this.startTask = null;
     this.running = false;
     if (this.rafId) cancelAnimationFrame(this.rafId);
     this.rafId = 0;
     document.removeEventListener("mousemove", this.boundMouseMove);
+    this.vx = this.vy = 0;
+    this.setState("idle");
   }
 
   configure(opts: Partial<PhysicsEngineOptions>): void {
     if (opts.walkSpeed !== undefined) this.walkSpeed = opts.walkSpeed;
+    if (opts.runSpeed !== undefined) this.runSpeed = opts.runSpeed;
     if (opts.gravity !== undefined) this.gravity = opts.gravity;
     if (opts.idleProbability !== undefined) this.idleProbability = opts.idleProbability;
     if (opts.mouseAttraction !== undefined) this.mouseAttraction = opts.mouseAttraction;
@@ -224,30 +243,34 @@ export class PhysicsEngine {
   }
   getState(): PetState { return this.state; }
 
-  onDragStart(): void { this.setState("dragged"); }
+  onDragStart(): void { this.stop(); this.setState("dragged"); }
 
-  onDragEnd(vx: number, vy: number): void {
+  async onDragEnd(vx = 0, vy = 0): Promise<void> {
+    if (this.state !== "dragged") return;
+    await this.start();
+    if (!this.running) return;
     this.vx = vx * 0.4;
     this.vy = vy * 0.3;
-    getCurrentWindow().outerPosition().then(pos => {
-      const s = this.bounds?.scale ?? 1;
-      this.x = pos.x / s;
-      this.y = pos.y / s;
-      this.setState("jump");
-    }).catch(() => this.setState("jump"));
+    if (Math.abs(vx) + Math.abs(vy) > 30) {
+      this.setState(this.vy < 0 ? "jump" : "falling");
+      this.jumpTimer = 0;
+    }
   }
 
   // ── Bounds ──
 
   private async refreshBounds(): Promise<void> {
+    const generation = this.generation;
     try {
       const raw = await invoke<ScreenBounds>("get_screen_bounds");
+      if (generation !== this.generation) return;
       this.bounds = {
         x: raw.x / raw.scale, y: raw.y / raw.scale,
         width: raw.width / raw.scale, height: raw.height / raw.scale,
         scale: raw.scale,
       };
     } catch {
+      if (generation !== this.generation) return;
       this.bounds = { x: 0, y: 25, width: 1920, height: 990, scale: 1 };
     }
     this.recomputeGround();
@@ -269,7 +292,7 @@ export class PhysicsEngine {
     const pcx = this.x + this.windowWidth / 2;
     const dx = this.mouseX - pcx;
     const dist = Math.abs(dx);
-    if (dist < this.mouseAttractionDistance * 0.4 && dist > 30 && this.behaviorWeights.chase > 0.05) {
+    if (this.mouseAttraction > 0 && dist < this.mouseAttractionDistance * 0.4 && dist > 30 && this.behaviorWeights.chase > 0.05) {
       this.behavior = "chase";
       this.behaviorTimer = 2 + Math.random() * 3;
       this.vx = Math.sign(dx) * this.runSpeed;
@@ -295,9 +318,7 @@ export class PhysicsEngine {
     cumulative += w.rest;
     if (r < cumulative) { this.startRest(); return; }
 
-    // Remaining → stroll with spontaneous jump
-    this.startStroll();
-    this.spontaneousJumpTimer = 2 + Math.random() * 5;
+    this.startRest();
   }
 
   private startStroll(): void {
@@ -391,8 +412,11 @@ export class PhysicsEngine {
       case "pushed":  this.tickPushed(dt); break;
     }
 
-    this.applyMovingWindowImpulses();
-    this.safetyClamp();
+    if (this.state !== "dragged") {
+      this.applyMovingWindowImpulses();
+      this.safetyClamp();
+      this.moveWindow();
+    }
     this.rafId = requestAnimationFrame(this.tick.bind(this));
   }
   private _boundsTimer = 0;
@@ -429,7 +453,7 @@ export class PhysicsEngine {
 
     // Spontaneous jump timer
     this.spontaneousJumpTimer -= dt;
-    if (this.spontaneousJumpTimer <= 0 && Math.random() < 0.4) {
+    if (this.interactionMode === "enhanced" && this.spontaneousJumpTimer <= 0 && Math.random() < 0.4) {
       this.vy = -300; // upward impulse
       this.spontaneousJumpTimer = 10 + Math.random() * 20;
       this.setState("jump");
@@ -931,14 +955,15 @@ export class PhysicsEngine {
   }
 
   private moveWindow(): void {
+    if (!this.running || this.state === "dragged" || this.positionTask) return;
     const dx = Math.abs(Math.round(this.x) - Math.round(this.prevX));
     const dy = Math.abs(Math.round(this.y) - Math.round(this.prevY));
     if (dx >= 1 || dy >= 1) {
       this.prevX = this.x;
       this.prevY = this.y;
-      getCurrentWindow().setPosition(
+      this.positionTask = getCurrentWindow().setPosition(
         new LogicalPosition(Math.round(this.x), Math.round(this.y))
-      ).catch(() => {});
+      ).catch(() => {}).finally(() => { this.positionTask = null; });
     }
   }
 }

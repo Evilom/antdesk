@@ -4,6 +4,7 @@ import { sendChatMessage } from "../lib/chat";
 import { localDateString } from "../lib/date";
 import { IconBrain, IconPlus, IconRefresh, IconReport, IconTarget, IconX } from "./Icons";
 import type { Todo, Page } from "../types";
+import { ArrowUpRight, AudioLines } from 'lucide-react';
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 
@@ -17,9 +18,12 @@ function todayStr(): string {
 
 interface Props {
   onRefresh: () => void;
+  onAssistant: () => void;
+  onBriefing: () => void;
+  refreshing: boolean;
 }
 
-export default function Agenda({ onRefresh }: Props) {
+export default function Agenda({ onRefresh, onAssistant, onBriefing, refreshing }: Props) {
   const todos = useAppStore((s) => s.todos);
   const projects = useAppStore((s) => s.projects);
   const notionConnected = useAppStore((s) => s.notionConnected);
@@ -131,18 +135,24 @@ export default function Agenda({ onRefresh }: Props) {
       {/* Date Header */}
       <div className="agenda-hero anim-card" style={{ animationDelay: delay() }}>
         <div className="agenda-hero-main">
-          <span className="agenda-kicker">今日控制台</span>
-          <h1 className="agenda-date">{formatChineseDate(todayDate)}</h1>
-          <p>{pendingCount > 0 ? `${pendingCount} 项待办需要排序推进` : "今天的待办已经清空"}</p>
+          <span className="agenda-kicker">{formatChineseDate(todayDate)}</span>
+          <h1 className="agenda-date">把今天，过得从容。</h1>
+          <p>{!notionConnected ? '先聊聊想法，再一起安排今天。' : pendingCount > 0 ? `有 ${pendingCount} 件事，等你慢慢完成。` : '今天没有未完成的待办，留一点时间给自己。'}</p>
         </div>
         <button
           onClick={onRefresh}
           className="agenda-refresh btn-ghost text-[10px] px-2 py-1 inline-flex items-center gap-1.5"
           title="刷新数据"
+          disabled={refreshing}
         >
           <IconRefresh size={12} />
-          刷新
+          {refreshing ? '同步中' : '刷新'}
         </button>
+      </div>
+
+      <div className="assistant-invitation">
+        <img src="/assets/assistant/pearl.png" alt="珠光玻璃助理"/>
+        <div><span className="eyebrow">ALWAYS BY YOUR SIDE</span><h2>你的助理，就在身边。</h2><p>实时聊聊，也听听今天的安排。</p><div className="invitation-actions"><button onClick={onAssistant}>和我聊聊<ArrowUpRight size={14}/></button><button onClick={onBriefing}><AudioLines size={14}/>听汇报</button></div></div>
       </div>
 
       <div className="metrics-strip grid grid-cols-3 gap-2 anim-card" style={{ animationDelay: delay() }}>
@@ -184,7 +194,7 @@ export default function Agenda({ onRefresh }: Props) {
         </Section>
       )}
 
-      {!hasUrgentTasks && (
+      {!hasUrgentTasks && notionConnected && (
         <EmptyPanel
           title={pendingCount > 0 ? "今天没有紧急任务" : "任务已清空"}
           body={pendingCount > 0 ? "可以从项目快览里挑一个推进，或直接记录今天的阶段性进展。" : "现在适合补一篇日报，或者新增下一件明确的小任务。"}
@@ -208,7 +218,7 @@ export default function Agenda({ onRefresh }: Props) {
       )}
 
       {/* AI Suggestion Card */}
-      {!suggestionDismissed && hasUrgentTasks && (
+      {!suggestionDismissed && hasUrgentTasks && settings.aiEndpoint.trim() && (
         <div className="card p-3.5 border-l-2 border-l-accent-blue/30 anim-card" style={{ animationDelay: delay() }}>
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
@@ -242,11 +252,11 @@ export default function Agenda({ onRefresh }: Props) {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-2 anim-card" style={{ animationDelay: delay() }}>
-        <button onClick={() => navigate("goals")} className="card p-3 flex items-center justify-center gap-2 hover:bg-bg-card-hover transition-colors">
+        <button onClick={() => { useAppStore.getState().setRequestedAction("newTodo"); navigate("goals"); }} className="card p-3 flex items-center justify-center gap-2 hover:bg-bg-card-hover transition-colors">
           <IconPlus size={14} className="text-accent-blue" />
           <span className="text-body">快速新增</span>
         </button>
-        <button onClick={() => navigate("reports")} className="card p-3 flex items-center justify-center gap-2 hover:bg-bg-card-hover transition-colors">
+        <button onClick={() => { useAppStore.getState().setRequestedAction("newReport"); navigate("reports"); }} className="card p-3 flex items-center justify-center gap-2 hover:bg-bg-card-hover transition-colors">
           <IconReport size={14} className="text-accent-blue" />
           <span className="text-body">写日报</span>
         </button>
