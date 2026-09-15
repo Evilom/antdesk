@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
-import AssistantSettings from "./AssistantSettings";
+import { useState, useEffect, useRef } from "react";
+import AssistantSettings, {type AssistantSettingsArea} from "./AssistantSettings";
+import {SettingsGroup, SettingToggle} from "./SettingsControls";
+import {Bell, ChevronLeft, ChevronRight, FolderOpen, Mic, Palette, SlidersHorizontal} from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { useAppStore } from "../stores/appStore";
@@ -36,7 +38,25 @@ const GLASS_OPTIONS: { id: GlassIntensity; label: string; desc: string }[] = [
 
 const PET_MODE_OPTIONS: WindowInteractionMode[] = ["off", "standard", "enhanced"];
 
-export default function Settings() {
+const CATEGORIES = [
+  {id:'voice', title:'语音与助理', description:'连接服务、选择声音', icon:Mic},
+  {id:'memory', title:'项目与记忆', description:'项目目录、Hermes 知识、长期记忆', icon:FolderOpen},
+  {id:'briefing', title:'提醒与简报', description:'关键事件、每日汇报', icon:Bell},
+  {id:'appearance', title:'外观与桌宠', description:'主题、玻璃效果、陪伴方式', icon:Palette},
+  {id:'services', title:'连接与应用', description:'Notion、文字 AI、更新与启动', icon:SlidersHorizontal},
+] as const;
+type SettingsCategory = typeof CATEGORIES[number]['id'];
+export default function Settings({voiceState='idle'}: {voiceState?:string}) {
+  const [category, setCategory] = useState<SettingsCategory|null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const backRef = useRef<HTMLButtonElement>(null);
+  const lastCategory = useRef<SettingsCategory|null>(null);
+  const navigate = (next:SettingsCategory|null) => { if(next)lastCategory.current=next; setCategory(next); };
+  useEffect(()=>{
+    contentRef.current?.scrollTo({top:0});
+    if(category) backRef.current?.focus();
+    else if(lastCategory.current) contentRef.current?.querySelector<HTMLButtonElement>(`[data-category="${lastCategory.current}"]`)?.focus();
+  },[category]);
   const settings = useAppStore((s) => s.settings);
   const updateSettings = useAppStore((s) => s.updateSettings);
   const notionConnected = useAppStore((s) => s.notionConnected);
@@ -52,7 +72,8 @@ export default function Settings() {
   // Update
   const [updateStatus, setUpdateStatus] = useState("");
   const [checking, setChecking] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState('');
+  const [kanbanInput,setKanbanInput] = useState(settings.kanbanEndpoint || localStorage.getItem('antdesk_kanban_endpoint') || '');
 
   useEffect(() => {
     invoke<boolean>("plugin:autostart|is_enabled")
@@ -67,13 +88,14 @@ export default function Settings() {
     setModelInput(settings.aiModel);
   }, [settings.notionToken, settings.aiEndpoint, settings.aiModel]);
 
-  const handleSave = () => {
-    updateSettings({
-      notionToken: tokenInput,
-      aiEndpoint: endpointInput,
-      aiModel: modelInput,
-    });
-    setSaved(true);
+  const saveConnection = (kind:'notion'|'ai'|'kanban') => {
+    if(kind==='notion') updateSettings({notionToken:tokenInput.trim()});
+    if(kind==='ai') updateSettings({aiEndpoint:endpointInput.trim(),aiModel:modelInput.trim()});
+    if(kind==='kanban') {
+      updateSettings({kanbanEndpoint:kanbanInput.trim()});
+      localStorage.setItem('antdesk_kanban_endpoint',kanbanInput.trim());
+    }
+    setSaved(kind);
   };
 
   const handlePetModeChange = (mode: WindowInteractionMode) => {
@@ -158,243 +180,61 @@ export default function Settings() {
     }
   };
 
-  return (
-    <div className="space-y-4 fade-in">
-      <AssistantSettings />
-      {/* ── 外观 ── */}
-      <Section title="外观">
-        {/* 主题 */}
-        <Label>主题模式</Label>
-        <div className="flex gap-1.5">
-          {(["dark", "light", "auto"] as ThemeMode[]).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => updateSettings({ theme: mode })}
-              className={`flex-1 py-1.5 rounded-lg text-[10px] transition-all ${
-                settings.theme === mode
-                  ? "text-white"
-                  : "text-text-muted hover:text-text-secondary"
-              }`}
-              style={{
-                background: settings.theme === mode ? "var(--accent-primary)" : "var(--bg-input)",
-                border: `1px solid ${settings.theme === mode ? "var(--accent-primary)" : "var(--border-card)"}`,
-              }}
-            >
-              {mode === "dark" ? "深色" : mode === "light" ? "浅色" : "跟随系统"}
-            </button>
-          ))}
-        </div>
-
-        {/* 主题色 */}
-        <Label>主题色</Label>
-        <div className="flex gap-2">
-          {ACCENT_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => updateSettings({ accent: opt.id })}
-              className="w-7 h-7 rounded-full flex items-center justify-center transition-all"
-              style={{
-                background: opt.color,
-                boxShadow: settings.accent === opt.id ? `0 0 0 2px var(--bg-root), 0 0 0 4px ${opt.color}` : "none",
-                transform: settings.accent === opt.id ? "scale(1.1)" : "scale(1)",
-              }}
-              title={opt.label}
-            >
-              {settings.accent === opt.id && <IconCheck size={12} className="text-white" />}
-            </button>
-          ))}
-        </div>
-
-        {/* 字体大小 */}
-        <Label>字体大小</Label>
-        <div className="flex gap-1.5">
-          {FONT_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => updateSettings({ fontSize: opt.id })}
-              className={`flex-1 py-1.5 rounded-lg transition-all ${
-                settings.fontSize === opt.id ? "text-white" : "text-text-muted"
-              }`}
-              style={{
-                background: settings.fontSize === opt.id ? "var(--accent-primary)" : "var(--bg-input)",
-                border: `1px solid ${settings.fontSize === opt.id ? "var(--accent-primary)" : "var(--border-card)"}`,
-                fontSize: opt.size,
-              }}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
-        {/* 透明度 */}
-        <Label>透明度</Label>
-        <div className="flex items-center gap-2">
-          <span className="text-[9px] text-text-muted w-6">实</span>
-          <input
-            type="range"
-            min={0}
-            max={175}
-            value={settings.transparency ?? 100}
-            onChange={(e) => updateSettings({ transparency: Number(e.target.value) })}
-            className="flex-1 accent-accent h-1"
-            style={{ accentColor: "var(--accent-primary)" }}
-          />
-          <span className="text-[9px] text-text-muted w-6 text-right">透</span>
-          <span className="text-[9px] text-text-muted w-6 text-right">
-            {settings.transparency ?? 100}
-          </span>
-        </div>
-      </Section>
-
-      {/* ── 桌宠 ── */}
-      <Section title="桌宠">
-        <Label>行为模式</Label>
-        <div className="flex gap-1.5">
-          {PET_MODE_OPTIONS.map((mode) => (
-            <button
-              key={mode}
-              onClick={() => handlePetModeChange(mode)}
-              className={`flex-1 py-1.5 rounded-lg text-[10px] transition-all ${
-                petMode === mode
-                  ? "text-white"
-                  : "text-text-muted hover:text-text-secondary"
-              }`}
-              style={{
-                background: petMode === mode ? "var(--accent-primary)" : "var(--bg-input)",
-                border: `1px solid ${petMode === mode ? "var(--accent-primary)" : "var(--border-card)"}`,
-              }}
-            >
-              {WINDOW_INTERACTION_LABEL[mode]}
-            </button>
-          ))}
-        </div>
-        <div className="text-[10px] text-text-secondary leading-relaxed">
-          {WINDOW_INTERACTION_HINT[petMode]}
-        </div>
-        <div className="text-[9px] text-text-muted leading-relaxed">
-          标准/增强仅用窗口位置做避让和物理反馈；密码、银行、隐私浏览等敏感窗口会在本机过滤。
-        </div>
-      </Section>
-
-      {/* ── Notion ── */}
-      <Section title="Notion 连接">
-        <div className="flex items-center gap-2 mb-2">
-          <span className={`w-2 h-2 rounded-full ${notionConnected ? "bg-accent-green" : "bg-accent-red"}`} />
-          <span className="text-xs text-text-secondary">
-            {notionConnected ? "已连接" : "未连接"}
-          </span>
-        </div>
-        <Label>Notion Token</Label>
-        <input
-          type="password"
-          value={tokenInput}
-          onChange={(e) => setTokenInput(e.target.value)}
-          placeholder="ntn_..."
-          className="input-field"
-        />
-        <button onClick={handleClearCache} className="text-[10px] text-accent-red hover:text-accent-red/80 mt-1 transition-colors">
-          清除缓存
-        </button>
-      </Section>
-
-      {/* ── AI ── */}
-      <Section title="AI 配置">
-        <Label>API 端点</Label>
-        <input
-          type="text"
-          value={endpointInput}
-          onChange={(e) => setEndpointInput(e.target.value)}
-          className="input-field mb-2"
-        />
-        <Label>模型</Label>
-        <input aria-label="文字 AI 模型" value={modelInput} onChange={(e) => setModelInput(e.target.value)} className="input-field" placeholder="服务支持的模型名称" />
-      </Section>
-
-      {/* ── Kanban ── */}
-      <Section title="看板连接">
-        <Label>Hermes 看板端点</Label>
-        <input
-          type="text"
-          value={localStorage.getItem("antdesk_kanban_endpoint") || ""}
-          onChange={(e) => {
-            localStorage.setItem("antdesk_kanban_endpoint", e.target.value);
-            updateSettings({ kanbanEndpoint: e.target.value });
-          }}
-          placeholder="http://YOUR_IP:8765/kanban.json"
-          className="input-field"
-        />
-        <div className="text-[9px] text-text-muted mt-1">
-          运行 kanban-server.py 后填入地址
-        </div>
-      </Section>
-
-      {/* ── 通用 ── */}
-      <Section title="通用">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-text-secondary">开机自启动</span>
-          <button
-            onClick={handleToggleAutostart}
-            className={`relative w-10 h-5 rounded-full transition-colors ${autostartEnabled ? "" : ""}`}
-            style={{ background: autostartEnabled ? "var(--accent-primary)" : "var(--bg-input)" }}
-          >
-            <div
-              className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${autostartEnabled ? "translate-x-5" : "translate-x-0.5"}`}
-            />
-          </button>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-text-secondary">检查更新</span>
-          <button
-            onClick={handleCheckUpdate}
-            disabled={checking}
-            className="text-[10px] px-3 py-1 rounded-lg transition-colors disabled:opacity-40"
-            style={{ background: "var(--bg-hover)", color: "var(--accent-text)" }}
-          >
-            {checking ? "检查中..." : "检查"}
-          </button>
-        </div>
-        {updateStatus && (
-          <div className="text-[10px] text-accent-green text-center">{updateStatus}</div>
-        )}
-      </Section>
-
-      {/* Save */}
-      <button
-        onClick={handleSave}
-        className="w-full py-2 text-white text-xs rounded-button hover:opacity-85 transition-colors"
-        style={{ background: "var(--accent-primary)" }}
-      >
-        {saved ? '设置已保存' : '保存设置'}
-      </button>
-
-      {/* Info */}
-      <div className="text-center text-[10px] text-text-muted space-y-0.5">
-        <AppVersion />
-        <div>给日常多一点从容</div>
+  const selected = CATEGORIES.find(item=>item.id===category);
+  return <div className="settings-shell">
+    {selected&&<div className="settings-subheading"><button ref={backRef} className="text-button" onClick={()=>navigate(null)}><ChevronLeft size={16}/>全部设置</button><h3>{selected.title}</h3></div>}
+    <div className="settings-content" ref={contentRef}>
+      <div hidden={category!==null} className="settings-home">
+        <p className="settings-intro">把助理调成适合你的样子。</p>
+        <nav aria-label="设置分类" className="settings-categories">{CATEGORIES.map(({id,title,description,icon:Icon})=><button key={id} data-category={id} onClick={()=>navigate(id)}><span className="settings-category-icon"><Icon size={20}/></span><span><strong>{title}</strong><small>{description}</small></span><ChevronRight size={16}/></button>)}</nav>
+        <p className="settings-footnote">开关和外观即时保存。连接信息验证或保存后生效。</p>
+        <AppVersion/>
+      </div>
+      <AssistantSettings area={['voice','memory','briefing'].includes(category||'')?category as AssistantSettingsArea:null} voiceState={voiceState}/>
+      <div hidden={category!=='appearance'} className="settings-page">
+        <SettingsGroup title="外观" description="调整后立即预览。">
+          <label>主题</label><div className="settings-segments">{(['dark','light','auto'] as ThemeMode[]).map(mode=><button key={mode} aria-pressed={settings.theme===mode} onClick={()=>updateSettings({theme:mode})}>{mode==='dark'?'深色':mode==='light'?'浅色':'跟随系统'}</button>)}</div>
+          <label>主题色</label><div className="settings-colors">{ACCENT_OPTIONS.map(opt=><button key={opt.id} aria-label={`${opt.label}色`} aria-pressed={settings.accent===opt.id} onClick={()=>updateSettings({accent:opt.id})} style={{background:opt.color}}>{settings.accent===opt.id&&<IconCheck size={15}/>}</button>)}</div>
+          <label>文字大小</label><div className="settings-segments">{FONT_OPTIONS.map(opt=><button key={opt.id} aria-pressed={settings.fontSize===opt.id} onClick={()=>updateSettings({fontSize:opt.id})}>{opt.label}</button>)}</div>
+          <label htmlFor="settings-transparency">玻璃透明度 <span className="muted-copy">{settings.transparency??100}</span></label><input id="settings-transparency" type="range" min={0} max={175} value={settings.transparency??100} onChange={e=>updateSettings({transparency:Number(e.target.value)})}/>
+          <SettingToggle title="减少动态效果" description="保留玻璃层次，关闭浮动和过渡动画。" checked={settings.reduceMotion} onChange={reduceMotion=>updateSettings({reduceMotion})}/>
+        </SettingsGroup>
+        <SettingsGroup title="桌宠陪伴">
+          <div className="settings-choice-list">{PET_MODE_OPTIONS.map(mode=><button key={mode} aria-pressed={petMode===mode} onClick={()=>handlePetModeChange(mode)}><span><strong>{WINDOW_INTERACTION_LABEL[mode]}</strong><small>{WINDOW_INTERACTION_HINT[mode]}</small></span>{petMode===mode&&<IconCheck size={17}/>}</button>)}</div>
+          <p className="muted-copy">标准与增强模式只使用窗口位置做避让，敏感窗口会在本机过滤。</p>
+        </SettingsGroup>
+      </div>
+      <div hidden={category!=='services'} className="settings-page">
+        <SettingsGroup title="数据与文字服务" description="根据需要连接，彼此独立。">
+          <details className="settings-disclosure"><summary>Notion 日程 <span>{notionConnected?'已连接':'未连接'}</span></summary>
+            <label htmlFor="settings-notion-token">Notion Token</label><input id="settings-notion-token" type="password" autoComplete="off" value={tokenInput} onChange={e=>{setTokenInput(e.target.value);setSaved('');}} placeholder="ntn_..." className="input-field"/>
+            <button className="btn-primary" onClick={()=>saveConnection('notion')}>{saved==='notion'?'已保存':'保存 Notion 连接'}</button>
+            <button onClick={handleClearCache} className="text-button">清除凭据缓存</button>
+          </details>
+          <details className="settings-disclosure"><summary>文字 AI <span>{settings.aiEndpoint?'已配置':'未配置'}</span></summary>
+            <p className="muted-copy">未通话时用于文字聊天，与语音服务独立。</p>
+            <label htmlFor="settings-ai-endpoint">服务端点</label><input id="settings-ai-endpoint" value={endpointInput} onChange={e=>{setEndpointInput(e.target.value);setSaved('');}} className="input-field"/>
+            <label htmlFor="settings-ai-model">模型</label><input id="settings-ai-model" value={modelInput} onChange={e=>{setModelInput(e.target.value);setSaved('');}} className="input-field"/>
+            <button className="btn-primary" onClick={()=>saveConnection('ai')}>{saved==='ai'?'已保存':'保存文字 AI'}</button>
+          </details>
+          <details className="settings-disclosure"><summary>Hermes 看板 <span>{settings.kanbanEndpoint?'已配置':'未配置'}</span></summary>
+            <label htmlFor="settings-kanban">看板地址</label><input id="settings-kanban" value={kanbanInput} onChange={e=>{setKanbanInput(e.target.value);setSaved('');}} placeholder="https://你的服务/kanban.json" className="input-field"/>
+            <button className="btn-primary" onClick={()=>saveConnection('kanban')}>{saved==='kanban'?'已保存':'保存看板连接'}</button>
+          </details>
+        </SettingsGroup>
+        <SettingsGroup title="应用">
+          <SettingToggle title="开机自启动" checked={autostartEnabled} onChange={()=>void handleToggleAutostart()}/>
+          <div className="setting-row"><strong>应用更新</strong><button className="text-button" onClick={()=>void handleCheckUpdate()} disabled={checking}>{checking?'检查中…':'检查更新'}</button></div>
+          {updateStatus&&<p role="status" className="service-status">{updateStatus}</p>}
+          <AppVersion/>
+        </SettingsGroup>
       </div>
     </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="card p-3 space-y-2">
-      <h3 className="text-caption text-text-secondary">{title}</h3>
-      {children}
-    </div>
-  );
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-  return <label className="text-[10px] text-text-muted block mb-1">{children}</label>;
+  </div>;
 }
 
 function AppVersion() {
-  const [ver, setVer] = useState("");
-  useEffect(() => {
-    import("@tauri-apps/api/app").then(({ getVersion }) => {
-      getVersion().then((v) => setVer(`v${v}`)).catch(() => {});
-    }).catch(() => {});
-  }, []);
-  return <div>AntDesk {ver}</div>;
+  const [ver,setVer]=useState('');
+  useEffect(()=>{import('@tauri-apps/api/app').then(({getVersion})=>getVersion()).then(setVer).catch(()=>{});},[]);
+  return <p className="settings-version">AntDesk {ver?`v${ver}`:''}</p>;
 }

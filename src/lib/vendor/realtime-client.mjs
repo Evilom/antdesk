@@ -46,22 +46,30 @@ export class GatewayAPIError extends Error {
   }
 }
 
-export function requestMicrophone(timeoutMs = 20000) {
+export function requestMicrophone(timeoutMs = 20000, signal) {
   if (!navigator.mediaDevices?.getUserMedia) {
     return Promise.reject(new Error('当前浏览器不支持麦克风，请在 Safari 或 Chrome 中打开此页面。'));
   }
   return new Promise((resolve, reject) => {
     let settled = false;
-    const timer = setTimeout(() => {
-      settled = true;
-      reject(new Error('等待麦克风授权超时。请允许麦克风；若没有弹出提示，请在系统 Safari 或 Chrome 中重新打开。'));
-    }, timeoutMs);
-    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false }).then(stream => {
-      if (settled) { stream.getTracks().forEach(track => track.stop()); return; }
-      settled = true; clearTimeout(timer); resolve(stream);
-    }, error => {
+    const cancel = () => {
       if (settled) return;
       settled = true; clearTimeout(timer);
+      reject(new Error('连接已取消。'));
+    };
+    const timer = setTimeout(() => {
+      settled = true;
+      signal?.removeEventListener('abort', cancel);
+      reject(new Error('等待麦克风授权超时。请允许麦克风；若没有弹出提示，请在系统 Safari 或 Chrome 中重新打开。'));
+    }, timeoutMs);
+    signal?.addEventListener('abort', cancel, {once: true});
+    if (signal?.aborted) { cancel(); return; }
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false }).then(stream => {
+      if (settled) { stream.getTracks().forEach(track => track.stop()); return; }
+      settled = true; clearTimeout(timer); signal?.removeEventListener('abort', cancel); resolve(stream);
+    }, error => {
+      if (settled) return;
+      settled = true; clearTimeout(timer); signal?.removeEventListener('abort', cancel);
       const messages = {
         NotAllowedError: '麦克风权限被拒绝，请在浏览器的网站设置中允许麦克风，再重新开始。',
         NotFoundError: '没有找到可用麦克风，请检查手机或耳机的音频设备。',
@@ -89,6 +97,9 @@ export class RealtimeAssistant extends EventTarget {
     this.muted = false;
     this.wanted = false;
     this.epoch = 0;
+    this.runEpoch = 0;
+    this.releases = new Map();
+    this.unreleased = new Set();
     this.retries = 0;
     this.caption = {};
   }
@@ -124,26 +135,37 @@ export class RealtimeAssistant extends EventTarget {
   }
 
   async start({ voice = 'cove', language = 'zh-CN', ttlSeconds = 1800 } = {}) {
-    if (this.wanted) throw new Error('客户端已启动，请先停止。');
+    if (this.wanted || this.stopping) throw new Error('旧通话正在结束，请稍后再开始。');
+    if (this.unreleased.size) throw new Error('旧语音会话尚未释放，请检查网络后重试结束通话。');
+    const run = ++this.runEpoch;
     this.wanted = true;
     this.options = { voice, language, ttlSeconds };
     this.retries = 0;
     try { await this.connect(); }
     catch (error) {
-      if (retryableFailure(error) && this.maxReconnects > 0) { this.wanted = true; await this.reconnect(); }
-      else throw error;
+      if (run !== this.runEpoch || !this.wanted) return;
+      if (retryableFailure(error) && this.maxReconnects > 0 && !this.unreleased.size) await this.reconnect();
+      else { this.wanted = false; throw error; }
     }
   }
 
   async connect() {
+    const task = this.connectAttempt();
+    this.connectTask = task;
+    try { await task; }
+    finally { if (this.connectTask === task) this.connectTask = null; }
+  }
+
+  async connectAttempt() {
     const epoch = ++this.epoch;
+    const microphoneAbort = this.microphoneAbort = new AbortController();
     this.state(this.retries ? 'reconnecting' : 'checking');
     try {
       if (!globalThis.isSecureContext) throw new Error('麦克风需要 HTTPS 或 localhost。');
       await this.request('/v1/capabilities', { timeout: 8000 });
       if (!this.wanted || epoch !== this.epoch) return;
       this.state('microphone');
-      const stream = await requestMicrophone();
+      const stream = await requestMicrophone(20000, microphoneAbort.signal);
       if (!this.wanted || epoch !== this.epoch) { stream.getTracks().forEach(t => t.stop()); return; }
       this.stream = stream;
       this.mute(this.muted);
@@ -152,6 +174,7 @@ export class RealtimeAssistant extends EventTarget {
       this.dc = pc.createDataChannel('oai-events', { negotiated: true, id: 0 });
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
       this.dc.onmessage = ({ data }) => {
+        if (!this.wanted || epoch !== this.epoch || pc !== this.pc) return;
         try {
           const event = decodeEvent(data);
           this.emit('event', event);
@@ -165,8 +188,9 @@ export class RealtimeAssistant extends EventTarget {
         } catch { /* Ignore unrelated protocol events. */ }
       };
       pc.ontrack = ({ track, streams }) => {
+        if (!this.wanted || epoch !== this.epoch || pc !== this.pc) return;
         this.audio.srcObject = streams[0] || new MediaStream([track]);
-        this.audio.play().catch(() => this.emit('playbackblocked', null));
+        this.audio.play().catch(() => { if (this.wanted && epoch === this.epoch) this.emit('playbackblocked', null); });
       };
       await pc.setLocalDescription(await pc.createOffer());
       await new Promise(resolve => {
@@ -184,6 +208,7 @@ export class RealtimeAssistant extends EventTarget {
       if (!this.wanted || epoch !== this.epoch) { await this.release(session.id); return; }
       this.session = session;
       await pc.setRemoteDescription({ type: 'answer', sdp: session.answer_sdp });
+      if (!this.wanted || epoch !== this.epoch) return;
       await new Promise((resolve, reject) => {
         const dc = this.dc;
         const timer = setTimeout(() => done(new Error('WebRTC 连接超时。')), 30000);
@@ -227,7 +252,6 @@ export class RealtimeAssistant extends EventTarget {
       if (!this.wanted || epoch !== this.epoch) return;
       await this.cleanup();
       if (!this.wanted || epoch !== this.epoch) return;
-      if (!this.reconnecting) this.wanted = false;
       this.state(this.reconnecting ? 'reconnecting' : 'disconnected');
       this.emit('error', error);
       throw error;
@@ -243,6 +267,7 @@ export class RealtimeAssistant extends EventTarget {
         ++this.epoch;
         await this.cleanup();
         if (!this.wanted) return;
+        if (this.unreleased.size) { this.emit('error', new Error('旧语音会话尚未释放，请检查网络后重新连接。')); await this.stop(); return; }
         this.state('reconnecting');
         await new Promise(resolve => { this.retryResolve = resolve; this.retryTimer = setTimeout(resolve, Math.min(30000, 1000 * 2 ** Math.min(5, this.retries - 1))); });
         this.retryResolve = null;
@@ -286,24 +311,50 @@ export class RealtimeAssistant extends EventTarget {
   }
 
   async release(id) {
-    try { await this.request(`/v1/realtime/sessions/${id}`, { method: 'DELETE', timeout: 10000 }); } catch { /* Server TTL also cleans up abandoned signaling sessions. */ }
+    if (this.releases.has(id)) return this.releases.get(id);
+    this.unreleased.add(id);
+    const task = (async () => {
+      try {
+        await this.request(`/v1/realtime/sessions/${id}`, { method: 'DELETE', timeout: 10000 });
+        this.unreleased.delete(id);
+      } catch (error) {
+        if (error.status === 404 || error.status === 410) this.unreleased.delete(id);
+      }
+    })();
+    this.releases.set(id, task);
+    try { await task; } finally { this.releases.delete(id); }
   }
 
   async cleanup() {
     clearInterval(this.heartbeat); clearTimeout(this.expiryTimer); clearTimeout(this.stableTimer); clearTimeout(this.disconnectTimer);
+    this.microphoneAbort?.abort();
     this.cancelConnect?.();
-    if (this.pc) { this.pc.onconnectionstatechange = null; this.pc.close(); }
+    if (this.dc) { this.dc.onmessage = null; this.dc.onopen = null; this.dc.onclose = null; this.dc.onerror = null; this.dc.close?.(); }
+    if (this.pc) { this.pc.ontrack = null; this.pc.onconnectionstatechange = null; this.pc.close(); }
     this.pc = null; this.dc = null;
     this.stream?.getTracks().forEach(track => track.stop()); this.stream = null;
-    this.audio.srcObject = null;
+    this.audio.pause?.(); this.audio.srcObject = null;
     const session = this.session; this.session = null;
-    if (session) await this.release(session.id);
+    if (session) this.unreleased.add(session.id);
+    await Promise.all([...this.unreleased].map(id => this.release(id)));
   }
 
-  async stop() {
-    this.wanted = false; ++this.epoch;
+  stop() {
+    if (this.stopping) return this.stopping;
+    this.wanted = false; ++this.epoch; ++this.runEpoch;
     clearTimeout(this.retryTimer); this.retryResolve?.();
-    await this.cleanup(); this.state('disconnected');
+    this.state('stopping');
+    const pending = this.connectTask;
+    this.stopping = (async () => {
+      await this.cleanup();
+      // A pending POST may still allocate a server session after local capture stops.
+      // Wait for that response and its DELETE before allowing a replacement call.
+      await pending?.catch(() => {});
+      await Promise.all(this.releases.values());
+      if (this.unreleased.size) this.emit('error', new Error('麦克风已关闭，但旧语音会话尚未释放。请检查网络后重试。'));
+      this.state('disconnected');
+    })().finally(() => { this.stopping = null; });
+    return this.stopping;
   }
 }
 

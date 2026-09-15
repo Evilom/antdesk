@@ -126,9 +126,9 @@ test('canceling while the gateway creates a session releases that late session',
   try {
     const connecting = client.start();
     while (!resolveSession) await new Promise(r => setImmediate(r));
-    await client.stop();
+    const stopping = client.stop();
     resolveSession({status: 201, payload: {id: 'late-session', answer_sdp: 'v=0'}});
-    await connecting;
+    await Promise.all([connecting, stopping]);
     assert.equal(stopped, 1); assert.equal(closed, 1);
     assert.deepEqual(released, ['/v1/realtime/sessions/late-session']);
     assert.equal(client.pc, null); assert.equal(client.stream, null);
@@ -172,7 +172,7 @@ test('auth, microphone denial and upstream quota cannot enter an infinite retry 
 test('initial transient outage retries but an explicit stop cannot restart capture',async()=>{
   const client=new RealtimeAssistant({baseUrl:'http://localhost',apiKey:'test',audioElement:{},maxReconnects:Infinity});
   let retries=0;
-  client.connect=async()=>{client.wanted=false;throw new Error('无法连接语音服务，请检查地址与网络');};
+  client.connect=async()=>{throw new Error('无法连接语音服务，请检查地址与网络');};
   client.reconnect=async()=>{assert.equal(client.wanted,true);retries++;};
   await client.start();assert.equal(retries,1);await client.stop();assert.equal(client.wanted,false);
 });

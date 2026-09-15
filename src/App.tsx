@@ -153,7 +153,7 @@ export default function App() {
       </footer>
     </div>
     <AssistantPanel open={showAssistant} onClose={() => setShowAssistant(false)} onSettings={openSettings} onState={setVoiceState} requestBriefing={briefingRequest}/>
-    {showSettings && <div className="settings-backdrop" onClick={() => setShowSettings(false)}><section ref={settingsRef} className="settings-sheet" role="dialog" aria-modal="true" aria-label="设置" onClick={e => e.stopPropagation()}><header className="settings-heading"><div><span className="eyebrow">MAKE IT YOURS</span><h2>设置</h2></div><button className="icon-button" aria-label="关闭设置" onClick={() => setShowSettings(false)}><X size={18}/></button></header><Settings/></section></div>}
+    {showSettings && <div className="settings-backdrop" onClick={() => setShowSettings(false)}><section ref={settingsRef} className="settings-sheet" role="dialog" aria-modal="true" aria-label="设置" onClick={e => e.stopPropagation()}><header className="settings-heading"><div><h2>设置</h2></div><button className="icon-button" aria-label="关闭设置" onClick={() => setShowSettings(false)}><X size={18}/></button></header><Settings voiceState={voiceState}/></section></div>}
     {showSearch && <SearchModal onClose={() => setShowSearch(false)}/>}
   </div>;
 }

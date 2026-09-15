@@ -14,6 +14,7 @@ export class RealtimeAssistant extends EventTarget {
     transport?: (path: string, options: {method: string; body?: unknown; timeout: number}) => Promise<{status: number; payload: any}>;
   });
   wanted: boolean;
+  unreleased: Set<string>;
   pc: RTCPeerConnection | null;
   dc: RTCDataChannel | null;
   stream: MediaStream | null;

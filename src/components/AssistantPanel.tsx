@@ -14,11 +14,11 @@ import type { Caption, RealtimeAssistant } from '../lib/vendor/realtime-client.m
 import { useDialogFocus } from '../lib/useDialogFocus';
 import { codexStatus, loadHistory, localContext, packContext, PM_INSTRUCTIONS, publish, remember, saveMessages, subscribe, type CodexSnapshot, type PetSnapshot, type LocalContext } from '../lib/pm';
 
-export const VOICE_LABELS: Record<string, string> = { idle: '随时聊聊', checking: '检查语音服务', microphone: '等待麦克风授权', connecting: '正在连接', connected: '正在通话', reconnecting: '正在重新连接', disconnected: '通话已结束' };
+export const VOICE_LABELS: Record<string, string> = { idle: '随时聊聊', checking: '检查语音服务', microphone: '等待麦克风授权', connecting: '正在连接', connected: '正在通话', reconnecting: '正在重新连接', stopping: '正在释放旧通话…', disconnected: '通话已结束' };
 interface Message { id: string; role: 'user' | 'assistant'; text: string; sources?: KnowledgeSource[] }
-interface Props { open: boolean; onClose: () => void; onSettings: () => void; onState: (state: string) => void; requestBriefing: number }
+interface Props { open: boolean; onClose: () => void; onSettings: () => void; onState: (state: string) => void; requestBriefing: number; voiceClientFactory?: typeof createVoiceClient }
 
-export default function AssistantPanel({ open, onClose, onSettings, onState, requestBriefing }: Props) {
+export default function AssistantPanel({ open, onClose, onSettings, onState, requestBriefing, voiceClientFactory = createVoiceClient }: Props) {
   const { settings, todos, projects, reports, notionConnected } = useAppStore();
   const [voiceState, setVoiceState] = useState('idle');
   const [muted, setMuted] = useState(false);
@@ -47,6 +47,10 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
   const [searching, setSearching] = useState(false);
   const [document, setDocument] = useState<{title: string; text: string} | null>(null);
   const clientRef = useRef<RealtimeAssistant | null>(null);
+  const retiredClient = useRef<RealtimeAssistant | null>(null);
+  const voiceTransition = useRef<Promise<void> | null>(null);
+  const switchingRef = useRef(false);
+  const [switching, setSwitching] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -142,7 +146,9 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
     if (caption.role !== 'user') return;
     if (captionTimer.current) clearTimeout(captionTimer.current);
     const epoch = voiceEpoch.current;
+    const conversation = conversationRef.current;
     captionTimer.current = setTimeout(async () => {
+      if (epoch !== voiceEpoch.current) return;
       const key = `${caption.id}:${caption.text}`;
       if (key === lastCaption.current) return;
       lastCaption.current = key;
@@ -150,7 +156,8 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
         const memory=caption.text.match(/^(?:请)?(?:帮我)?记住[：:，,\s]*(.+)/s);
         let saved='';
         if(memory && !/^(了吗|吗|了没)[？?。]*$/.test(memory[1])) {
-          await remember(memory[1],`${conversationRef.current}:${caption.id}`);
+          await remember(memory[1],`${conversation}:${caption.id}`);
+          if (epoch !== voiceEpoch.current) return;
           saved='本机长期记忆已保存成功。';setMemoryNotice(saved);
         }
         const pm=await background(caption.text);
@@ -164,45 +171,65 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
         if (result.length) {
           setMessages(old => [...old, {id: crypto.randomUUID(), role: 'assistant', text: '为这次对话找到了以下知识来源。', sources: result}]);
         }
-      } catch (e) { setMemoryError(e instanceof Error ? e.message : String(e)); }
+      } catch (e) { if (epoch === voiceEpoch.current) setMemoryError(e instanceof Error ? e.message : String(e)); }
     }, 1100);
   };
 
-  const startVoice = async (brief = false) => {
-    if (clientRef.current?.wanted || !audioRef.current || operationBusy.current) return;
+  const startVoice = async (brief = false, initiallyMuted = false) => {
+    if (voiceTransition.current || switchingRef.current || clientRef.current?.wanted || !audioRef.current || operationBusy.current) return;
     if (!memoryReady) {setError('正在恢复记忆，请稍后再试；读取失败时请检查设置。');return;}
     operationBusy.current = true;
-    setError(''); setMuted(false); setPlaybackBlocked(false);
+    setError(''); setMuted(initiallyMuted); setPlaybackBlocked(false); setVoiceState('checking');
     const epoch = ++voiceEpoch.current;
     try {
+      if (clientRef.current) { retiredClient.current = clientRef.current; clientRef.current = null; }
+      // Retry only this client's unconfirmed release; never terminate another device's call.
+      if (retiredClient.current) {
+        await retiredClient.current.stop();
+        if (retiredClient.current.unreleased.size) throw new Error('旧通话尚未释放，请检查语音服务和网络后重试。');
+        retiredClient.current = null;
+      }
       if (!(await hasVoiceKey())) throw new Error('还没有配置语音设备密钥，请打开设置连接语音服务。');
       if (epoch !== voiceEpoch.current) return;
-      const client = createVoiceClient(latest.current.settings, audioRef.current,
+      const client = voiceClientFactory(latest.current.settings, audioRef.current,
         `${ASSISTANT_PERSONA}\n当前日程数据：${context()}\n${brief ? '请先为大师做一个简短的今日汇报。未同步时请说明还没有日程数据。' : '简短打个招呼，然后等待大师说话。'}`);
       clientRef.current = client;
+      client.mute(initiallyMuted);
       client.getContext=async()=>`${await background('',true)}\n近期对话（仅作衔接，不重复回答历史问题）：${packContext(messagesRef.current.slice(-6).map(m=>({role:m.role,text:m.text.slice(-250)})),1700)}\n${brief?'请做一个简短的今日汇报。':'继续陪伴大师，简短问候后等待说话。'}`.slice(0,8000);
       sentIds.current.clear();
-      client.addEventListener('sent', event => sentIds.current.add((event as CustomEvent<{id: string}>).detail.id));
-      client.addEventListener('state', event => { if (clientRef.current === client) {const state=(event as CustomEvent<string>).detail;setVoiceState(state);if(state==='connected')setError('');} });
+      client.addEventListener('sent', event => { if (clientRef.current === client) sentIds.current.add((event as CustomEvent<{id: string}>).detail.id); });
+      client.addEventListener('state', event => { if (clientRef.current === client) {const state=(event as CustomEvent<string>).detail;setVoiceState(state);if(state==='connected'){setError('');setMemoryNotice('');}} });
       client.addEventListener('caption', event => { if (clientRef.current === client) pushCaption((event as CustomEvent<Caption>).detail); });
       client.addEventListener('error', event => { if (clientRef.current === client) setError((event as CustomEvent<Error>).detail.message); });
-      client.addEventListener('playbackblocked', () => setPlaybackBlocked(true));
+      client.addEventListener('playbackblocked', () => { if (clientRef.current === client) setPlaybackBlocked(true); });
       await client.start({voice: latest.current.settings.voiceName, language: 'zh-CN'});
     } catch (e) {
       if (epoch === voiceEpoch.current) { setError(e instanceof Error ? e.message : String(e)); setVoiceState('disconnected'); }
-    } finally { operationBusy.current = false; }
+    } finally { if (epoch === voiceEpoch.current) operationBusy.current = false; }
   };
-  const stopVoice = async () => {
-    ++voiceEpoch.current;
+  const stopVoice = () => {
+    if (voiceTransition.current) return voiceTransition.current;
+    const epoch = ++voiceEpoch.current;
+    ++requestEpoch.current; abortRef.current?.abort(); abortRef.current = null;
+    operationBusy.current = false; setBusy(false);
     if (captionTimer.current) clearTimeout(captionTimer.current);
-    setMuted(false); setVoiceState('disconnected');
+    lastCaption.current = ''; sentIds.current.clear();
+    setMuted(false); setPlaybackBlocked(false); setVoiceState('stopping');
     const client = clientRef.current; clientRef.current = null;
-    await client?.stop();
-    await saveMessages(conversationRef.current,messagesRef.current).catch(e=>setMemoryError(String(e)));
+    const conversation = conversationRef.current, savedMessages = messagesRef.current;
+    voiceTransition.current = (async () => {
+      await client?.stop();
+      if (client?.unreleased.size) { retiredClient.current = client; setError('麦克风已关闭，旧通话尚未释放；重新连接时会先重试释放。'); }
+      await saveMessages(conversation,savedMessages).catch(e=>setMemoryError(String(e)));
+    })().finally(() => {
+      voiceTransition.current = null;
+      if (epoch === voiceEpoch.current) setVoiceState('disconnected');
+    });
+    return voiceTransition.current;
   };
 
   const send = async (text: string, attached?: KnowledgeSource[]) => {
-    if (!text.trim() || operationBusy.current || !memoryReady) return;
+    if (!text.trim() || switchingRef.current || voiceTransition.current || operationBusy.current || !memoryReady) return;
     if (text.length > 4000) { setError('请将问题缩短到 4000 字以内'); return; }
     if (voiceActive && !connected) { setError('语音连接完成后即可发送'); return; }
     if (!connected && !settings.aiEndpoint.trim()) { setError('请先开始语音对话，或在设置中连接文字 AI 服务。'); return; }
@@ -234,7 +261,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
       let answer = '';
       await sendChatMessage(settings.aiEndpoint, settings.aiModel,
         [{role: 'system', content: prompt}, ...[...messages, user].slice(-12).map(m => ({role: m.role, content: m.text}))],
-        chunk => { answer += chunk; setMessages(old => old.map(m => m.id === id ? {...m, text: answer} : m)); }, controller.signal);
+        chunk => { if (epoch !== requestEpoch.current || controller.signal.aborted) return; answer += chunk; setMessages(old => old.map(m => m.id === id ? {...m, text: answer} : m)); }, controller.signal);
       if (!answer) throw new Error('AI 服务没有返回内容，请稍后重试');
     } catch (e) {
       if (!controller.signal.aborted) setError(e instanceof Error ? e.message : String(e));
@@ -254,13 +281,20 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
     if (action==='transcript') {onClose();void publish('pm:open-assistant',null);}
   };
   const newConversation = async () => {
-    if(!memoryReady || busy) return;
+    if(!memoryReady || switchingRef.current || voiceTransition.current) return;
+    switchingRef.current = true; setSwitching(true);
+    const resumeVoice = voiceActive, resumeMuted = muted;
+    let switched = false;
     try {
-      await saveMessages(conversationRef.current,messagesRef.current);
       await stopVoice();
+      await saveMessages(conversationRef.current,messagesRef.current);
       conversationRef.current=crypto.randomUUID();messagesRef.current=[];setMessages([]);
-      setMemoryNotice('已开始新对话，历史记录和长期记忆仍保留。');
+      setSources([]); setInput(''); setError(''); setWorkOpen(false); setKnowledgeOpen(false);
+      setMemoryNotice(resumeVoice ? '已保存旧对话，正在为新对话接通语音。' : '已开始新对话，历史记录和长期记忆仍保留。');
+      switched = true;
     } catch(e) {setMemoryError(`尚未切换对话：${String(e)}`);}
+    finally { switchingRef.current = false; setSwitching(false); }
+    if (switched && resumeVoice) await startVoice(false, resumeMuted);
   };
   const refreshWork = async () => {
     setWorkError('');
@@ -326,7 +360,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
         previous=next;
         const daily=dailyBriefingKey(new Date(),settings.projectBriefingTime);
         const due=daily&&localStorage.getItem('antdesk_project_briefing_day')!==daily;
-        if(!operationBusy.current&&(due||(pendingChange&&Date.now()-lastSent>=120000))) {
+        if(!switchingRef.current&&!voiceTransition.current&&!operationBusy.current&&(due||(pendingChange&&Date.now()-lastSent>=120000))) {
           deliverBriefing.current(buildProjectBriefing(f.snapshot,f.packages,due?'每日项目简报':'项目关键事件简报'));
           if(due)localStorage.setItem('antdesk_project_briefing_day',daily);
           pendingChange=false;lastSent=Date.now();
@@ -359,7 +393,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
     <header className="assistant-header">
       <div><span className="eyebrow">ANTDESK ASSISTANT</span><h2>{knowledgeOpen ? 'Hermes 知识库' : '你的私人助理'}</h2></div>
       <div className="assistant-header-actions">
-        <button className="text-button" disabled={!memoryReady || busy} onClick={()=>void newConversation()}>新对话</button>
+        <button className="text-button" disabled={!memoryReady || switching || voiceState==='stopping'} onClick={()=>void newConversation()}>{switching ? '正在切换…' : '新对话'}</button>
         <button className="icon-button" aria-label="助理设置" onClick={onSettings}><Settings2 size={17}/></button>
         <button className="icon-button" aria-label="收起助理" onClick={onClose}><X size={18}/></button>
       </div>
@@ -397,7 +431,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
         {voiceActive && <div className="voice-session-bar" role="status"><span className="live-dot"/>{VOICE_LABELS[voiceState]}{connected && <span>{muted ? '麦克风已静音' : '麦克风开启'}</span>}
           <button className="icon-button" disabled={!connected} aria-label={muted ? '打开麦克风' : '静音麦克风'} onClick={() => {clientRef.current?.mute(!muted); setMuted(!muted);}}>{muted ? <MicOff size={16}/> : <Mic size={16}/>}</button>
           <button className="icon-button" disabled={!connected} aria-label="打断助理" onClick={() => {try {clientRef.current?.interrupt();} catch {setError('通话已断开，请重新连接');}}}><Square size={13}/></button>
-          <button className="icon-button hangup" aria-label="结束通话" onClick={() => void stopVoice()}><PhoneOff size={16}/></button></div>}
+          <button className="icon-button hangup" disabled={voiceState==='stopping'} aria-label="结束通话" onClick={() => void stopVoice()}><PhoneOff size={16}/></button></div>}
         <form className="assistant-input" onSubmit={e => {e.preventDefault(); void send(input);}}>
           <input aria-label="给助理发消息" value={input} onChange={e => setInput(e.target.value)} maxLength={4000} placeholder={connected ? '也可以打字给我…' : '有什么想和我聊的？'}/>
           {busy ? <button type="button" aria-label="停止回复" onClick={stopText}><Square size={15}/></button> : input.trim() ? <button type="submit" aria-label="发送消息"><ArrowUp size={19}/></button> : <button type="button" aria-label={voiceActive ? '语音通话中' : '开始语音对话'} disabled={voiceActive} onClick={() => void startVoice()}><Mic size={19}/></button>}

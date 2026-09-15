@@ -253,3 +253,67 @@ button:not(:disabled):active { transform: scale(.97); }
 .source-row[data-state="error"] p,.source-row[data-state="stale"] p {color:#dfaa68;}
 
 .source-excerpt {white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;line-height:1.6;padding:12px;background:rgba(128,128,128,.08);border-radius:10px;user-select:text;}
+
+/* Settings use a short index and one focused page, with a stable close/back path. */
+.settings-sheet { display:flex; flex-direction:column; overflow:hidden; padding:20px; }
+.settings-heading { flex:none; padding-bottom:18px; }
+.settings-heading h2 { margin:0; }
+.settings-shell { display:flex; flex-direction:column; flex:1; min-height:0; }
+.settings-content { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:0 2px 20px; scrollbar-width:thin; }
+.settings-shell [hidden] { display:none!important; }
+.settings-subheading { flex:none; padding:0 0 16px; }
+.settings-subheading h3 { font-size:20px; font-weight:600; margin-top:14px; letter-spacing:-.025em; }
+.settings-subheading .text-button { display:inline-flex; align-items:center; gap:4px; margin-left:-5px; font-size:12px; }
+.settings-intro { font-size:13px; color:var(--text-secondary); line-height:1.7; margin:0 0 24px; }
+.settings-categories { border-block:1px solid var(--border-card); }
+.settings-categories>button { width:100%; display:flex; align-items:center; gap:13px; padding:19px 0; text-align:left; transition:background .16s; }
+.settings-categories>button+button { border-top:1px solid var(--border-card); }
+.settings-categories>button:hover { background:var(--bg-hover); }
+.settings-category-icon { color:var(--accent-text); width:38px; height:38px; border-radius:13px; display:grid; place-items:center; background:var(--bg-input); flex:none; }
+.settings-categories>button>span:nth-child(2) { flex:1; min-width:0; }
+.settings-categories strong { display:block; font-size:14px; font-weight:550; }
+.settings-categories small { display:block; margin-top:5px; font-size:11px; color:var(--text-muted); line-height:1.5; }
+.settings-categories>button>svg { color:var(--text-muted); flex:none; }
+.settings-footnote { margin:24px 0 15px; font-size:11px; line-height:1.8; color:var(--text-muted); }
+.settings-version { font-size:11px; color:var(--text-muted); }
+.settings-page { display:flex; flex-direction:column; gap:24px; }
+.settings-group { min-width:0; }
+.settings-group>header { padding-bottom:12px; }
+.settings-group h3 { font-size:14px; font-weight:600; }
+.settings-group>header p { font-size:12px; color:var(--text-muted); line-height:1.7; margin-top:5px; }
+.settings-group-body { border-top:1px solid var(--border-card); padding-top:12px; }
+.settings-group-body>label:not(.setting-row), .settings-disclosure label:not(.setting-row) { display:block; margin:12px 0 7px; font-size:12px; }
+.settings-page .input-field { font-size:13px; min-height:40px; }
+.settings-page .muted-copy { font-size:11px; line-height:1.8; margin-top:9px; }
+.settings-page .setting-row { display:flex; padding:12px 0; gap:16px; margin:0; }
+.settings-page .setting-row strong { font-size:13px; }
+.settings-page .setting-row small { font-size:11px; line-height:1.7; }
+.settings-page .setting-row input[type=checkbox] { appearance:none; -webkit-appearance:none; width:36px; height:22px; background:var(--bg-input); border:1px solid var(--border-card); border-radius:20px; position:relative; cursor:pointer; transition:background .15s; }
+.settings-page .setting-row input[type=checkbox]::after { content:''; position:absolute; width:16px; height:16px; border-radius:50%; top:2px; left:2px; background:var(--text-secondary); transition:transform .15s; }
+.settings-page .setting-row input[type=checkbox]:checked { background:var(--accent-primary); }
+.settings-page .setting-row input[type=checkbox]:checked::after { transform:translateX(14px); background:white; }
+.settings-call-status { display:flex; align-items:center; gap:12px; border-radius:16px; background:var(--bg-input); padding:15px; }
+.settings-call-status strong { font-size:13px; font-weight:550; }
+.settings-call-status p { font-size:11px; color:var(--text-muted); margin-top:5px; line-height:1.7; }
+.settings-disclosure { border-block-end:1px solid var(--border-card); padding:12px 0; }
+.settings-disclosure>summary { cursor:pointer; font-size:13px; line-height:1.6; padding:3px 0; }
+.settings-disclosure>summary>span { float:right; font-size:11px; color:var(--text-muted); }
+.settings-disclosure[open]>summary { margin-bottom:12px; }
+.settings-page .btn-primary { margin:12px 10px 4px 0; padding:9px 14px; font-size:12px; }
+.settings-page .text-button { min-height:32px; font-size:12px; }
+.settings-page .service-status { overflow-wrap:anywhere; font-size:12px; line-height:1.7; }
+.settings-segments { display:flex; gap:5px; }
+.settings-segments>button { flex:1; border:1px solid var(--border-card); border-radius:10px; padding:9px 4px; font-size:12px; background:var(--bg-input); }
+.settings-segments>button[aria-pressed=true] { background:var(--accent-primary); color:white; border-color:transparent; }
+.settings-colors { display:flex; gap:14px; padding:5px 2px; }
+.settings-colors button { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; color:white; }
+.settings-colors button[aria-pressed=true] { outline:2px solid var(--text-secondary); outline-offset:3px; }
+.settings-page input[type=range] { width:100%; accent-color:var(--accent-primary); }
+.settings-choice-list button { display:flex; align-items:center; gap:10px; text-align:left; width:100%; padding:12px; border-radius:12px; border:1px solid transparent; }
+.settings-choice-list button[aria-pressed=true] { background:var(--bg-input); border-color:var(--border-card); }
+.settings-choice-list span { flex:1; }
+.settings-choice-list strong { display:block; font-size:13px; font-weight:500; }
+.settings-choice-list small { display:block; font-size:11px; line-height:1.7; color:var(--text-muted); margin-top:4px; }
+.settings-choice-list svg { color:var(--accent-text); flex:none; }
+.settings-shell :is(button,input,select,textarea,summary):focus-visible { outline:2px solid var(--accent-text); outline-offset:3px; }
+@media(max-width:360px) { .settings-sheet { padding:16px; } .settings-categories>button { padding:15px 0; gap:10px; } .settings-colors { gap:12px; } }
