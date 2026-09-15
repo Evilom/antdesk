@@ -101,6 +101,7 @@ export class RealtimeAssistant extends EventTarget {
     this.releases = new Map();
     this.unreleased = new Set();
     this.retries = 0;
+    this.sessionsOpened = 0;
     this.caption = {};
   }
 
@@ -141,6 +142,7 @@ export class RealtimeAssistant extends EventTarget {
     this.wanted = true;
     this.options = { voice, language, ttlSeconds };
     this.retries = 0;
+    this.sessionsOpened = 0;
     try { await this.connect(); }
     catch (error) {
       if (run !== this.runEpoch || !this.wanted) return;
@@ -162,7 +164,7 @@ export class RealtimeAssistant extends EventTarget {
     this.state(this.retries ? 'reconnecting' : 'checking');
     try {
       if (!globalThis.isSecureContext) throw new Error('麦克风需要 HTTPS 或 localhost。');
-      await this.request('/v1/capabilities', { timeout: 8000 });
+      const capabilities = await this.request('/v1/capabilities', { timeout: 8000 });
       if (!this.wanted || epoch !== this.epoch) return;
       this.state('microphone');
       const stream = await requestMicrophone(20000, microphoneAbort.signal);
@@ -226,11 +228,12 @@ export class RealtimeAssistant extends EventTarget {
         pc.addEventListener('connectionstatechange', check); dc.addEventListener('open', check); check();
       });
       if (!this.wanted || epoch !== this.epoch) return;
-      if (this.getContext) this.context = await this.getContext();
+      if (this.getContext) this.context = await this.getContext({ resumed: this.sessionsOpened > 0 });
       if (!this.wanted || epoch !== this.epoch) return;
+      this.sessionsOpened++;
       this.caption = {};
       this.state('connected');
-      this.emit('session', { id: session.id, expiresAt: session.expires_at });
+      this.emit('session', { id: session.id, expiresAt: session.expires_at, renewable: capabilities.session_renewal === true });
       if (this.context) this.sendText(this.context);
       pc.onconnectionstatechange = () => {
         if (pc !== this.pc) return;
@@ -238,13 +241,32 @@ export class RealtimeAssistant extends EventTarget {
         if (pc.connectionState === 'failed') void this.reconnect();
         else if (pc.connectionState === 'disconnected') this.disconnectTimer = setTimeout(() => void this.reconnect(), 5000);
       };
+      let heartbeatPending = false, renewalFailed = false;
       this.heartbeat = setInterval(async () => {
-        try { await this.request(`/v1/realtime/sessions/${session.id}`, { timeout: 8000 }); }
+        if (heartbeatPending || !this.wanted || epoch !== this.epoch) return;
+        heartbeatPending = true;
+        try {
+          const info = await this.request(`/v1/realtime/sessions/${session.id}${capabilities.session_renewal === true ? '/renew' : ''}`, {
+            method: capabilities.session_renewal === true ? 'POST' : 'GET', timeout: 8000,
+          });
+          if (!this.wanted || epoch !== this.epoch) return;
+          if (capabilities.session_renewal === true) {
+            if (info.id !== session.id || !Number.isFinite(info.expires_at) || info.expires_at * 1000 <= Date.now()) throw new Error('语音续期返回异常');
+            session.expires_at = info.expires_at;
+            clearTimeout(this.expiryTimer);
+            this.expiryTimer = setTimeout(() => void this.reconnect(), info.expires_at * 1000 - Date.now());
+            if (renewalFailed) { renewalFailed = false; this.state('connected'); }
+          }
+        }
         catch (e) {
           if (!this.wanted || epoch !== this.epoch) return;
-          if (e.status === 401) { this.emit('error', e); await this.stop(); }
-          else void this.reconnect();
-        }
+          if (e.status === 401 || e.status === 403) { this.emit('error', e); await this.stop(); }
+          else if (capabilities.session_renewal === true && e.status !== 404 && e.status !== 410 && session.expires_at * 1000 > Date.now()) {
+            // A signaling hiccup must not tear down a healthy, unexpired web call.
+            renewalFailed = true;
+            this.emit('error', new Error('语音连接保持中，网关续期暂时失败，正在自动重试。'));
+          } else void this.reconnect();
+        } finally { heartbeatPending = false; }
       }, 20000);
       this.expiryTimer = setTimeout(() => void this.reconnect(), Math.max(0, session.expires_at * 1000 - Date.now()));
       this.stableTimer = setTimeout(() => { this.retries = 0; }, 60000);

@@ -1,0 +1,53 @@
+--- a/app/session_registry.py
++++ b/app/session_registry.py
+@@ -41,7 +41,7 @@
+                 raise GatewayError(429, 'session_limit', '请先关闭已有会话，再建立新连接。', True)
+             recent.append(now)
+             sid = 'vs_' + uuid.uuid4().hex
+-            item = dict(id=sid, device_id=owner, status='connecting', created_at=now, expires_at=now+ttl)
++            item = dict(id=sid, device_id=owner, status='connecting', created_at=now, expires_at=now+ttl, lease_seconds=ttl)
+             self.items[sid] = item
+             return dict(item)
+
+@@ -58,6 +58,16 @@
+             self.get(sid, owner)
+             self.items[sid]['status'] = 'active'
+             return dict(self.items[sid])
++
++    def renew(self, sid, owner):
++        """Extend the gateway lease without creating a new upstream voice session."""
++        with self.lock:
++            self.get(sid, owner)  # Expired or revoked ownership cannot be resurrected.
++            item = self.items[sid]
++            if item['status'] != 'active':
++                raise GatewayError(409, 'session_not_active', '语音连接尚未建立。')
++            item['expires_at'] = max(item['expires_at'], self.clock() + item['lease_seconds'])
++            return dict(item)
+
+     def list(self, owner):
+         with self.lock:
+--- a/app/integration_api.py
++++ b/app/integration_api.py
+@@ -123,6 +123,7 @@
+             'server_can_terminate_media': False, 'robot_action_execution': False,
+             'device_action_schema': '/static/sdk/device-action.schema.json',
+             'max_sessions': identity['max_sessions'], 'max_image_bytes': config.MAX_IMAGE_BYTES,
++            'session_renewal': True,
+         }
+
+     @router.post('/realtime/sessions', response_model=SessionCreated, status_code=201)
+@@ -149,6 +150,14 @@
+     @router.get('/realtime/sessions/{session_id}', response_model=SessionInfo)
+     def get_session(session_id: str, identity: Device, request: Request):
+         return request.app.state.sessions.get(session_id, identity['id'])
++
++    @router.post('/realtime/sessions/{session_id}/renew', response_model=SessionInfo)
++    def renew_session(session_id: str, identity: Device, request: Request, response: Response):
++        response.headers['Cache-Control'] = 'no-store'
++        item = request.app.state.sessions.renew(session_id, identity['id'])
++        # Keep image uploads bound to the same web account while media stays direct.
++        voice_service._bound_voice_session(session_id)
++        return item
+
+     @router.get('/realtime/sessions', response_model=list[SessionInfo])
+     def list_sessions(identity: Device, request: Request):

@@ -69,7 +69,8 @@ export default function AssistantSettings({area, voiceState}: {area:AssistantSet
       {['juniper', 'breeze', 'cove', 'ember', 'fathom', 'glimmer', 'maple', 'orbit', 'vale'].map(voice => <option key={voice} value={voice}>{voice[0].toUpperCase() + voice.slice(1)}</option>)}
     </select>
 
-    <p className="muted-copy">新对话会先保存历史、结束旧通话，再恢复语音。当前通过麦克风按钮开启，尚未启用唤醒词。</p>
+    <p className="muted-copy">对话持续保留，跨午夜也不自动新建。网页语音网关支持续期时保持当前连接；真正断线后从过去 24 小时记录接着聊。电脑需保持运行和联网，网页服务的额度或中断仍可能结束语音。</p>
+    <p className="muted-copy">只有点击“新对话”才另开聊天。麦克风按钮开启语音，尚未启用唤醒词。</p>
     </SettingsGroup>
     </div>
     <div hidden={area!=='memory'} className="settings-page connection-settings">

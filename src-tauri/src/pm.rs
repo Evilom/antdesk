@@ -76,7 +76,9 @@ pub fn pm_save_messages(
 #[tauri::command]
 pub fn pm_history(app: tauri::AppHandle) -> Result<Value, String> {
     let c = open(&app)?;
-    let conversation: String = c
+    let conversation: String = match crate::continuity::active_conversation(&c)? {
+        Some(id) => id,
+        None => c
         .query_row(
             "SELECT conversation FROM journal ORDER BY seq DESC LIMIT 1",
             [],
@@ -84,7 +86,8 @@ pub fn pm_history(app: tauri::AppHandle) -> Result<Value, String> {
         )
         .optional()
         .map_err(err)?
-        .unwrap_or_default();
+        .unwrap_or_default(),
+    };
     let mut s = c.prepare("SELECT message_id,role,text FROM journal WHERE seq IN (SELECT MAX(seq) FROM journal WHERE conversation=?1 GROUP BY message_id) ORDER BY seq DESC LIMIT 100").map_err(err)?;
     let mut messages = s.query_map([&conversation], |r| Ok(json!({"id":r.get::<_,String>(0)?,"role":r.get::<_,String>(1)?,"text":r.get::<_,String>(2)?}))).map_err(err)?.collect::<Result<Vec<_>,_>>().map_err(err)?;
     messages.reverse();

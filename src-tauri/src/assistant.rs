@@ -34,6 +34,8 @@ fn valid_voice_path(path: &str, method: &str) -> bool {
         ("POST", "/v1/realtime/sessions") => true,
         ("GET" | "DELETE", _) => path.strip_prefix("/v1/realtime/sessions/")
             .is_some_and(|id| !id.is_empty() && id.len() <= 160 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')),
+        ("POST", _) => path.strip_suffix("/renew")
+            .is_some_and(|session| valid_voice_path(session, "DELETE") && session != "/v1/realtime/sessions"),
         _ => false,
     }
 }
@@ -216,6 +218,10 @@ mod tests {
     #[test]
     fn voice_bridge_cannot_manage_devices_or_escape_paths() {
         assert!(valid_voice_path("/v1/realtime/sessions/abc-123", "DELETE"));
+        assert!(valid_voice_path("/v1/realtime/sessions/abc-123/renew", "POST"));
+        assert!(!valid_voice_path("/v1/realtime/sessions/../renew", "POST"));
+        assert!(!valid_voice_path("/v1/realtime/sessions/renew", "POST"));
+        assert!(!valid_voice_path("/v1/devices/abc/renew", "POST"));
         assert!(!valid_voice_path("/v1/devices", "POST"));
         assert!(!valid_voice_path("/v1/realtime/sessions/../devices", "GET"));
         assert!(!valid_voice_path("/v1/realtime/sessions/x?key=x", "GET"));

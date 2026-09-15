@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {projectEventState,changedProjectEvents,dailyBriefingKey,buildProjectBriefing} from '../lib/project-briefing.mjs';
 import DataSources from './DataSources';
+import ConversationDay from './ConversationDay';
+import {activateConversation,dayContext,recordObservations} from '../lib/continuity';
+import {formatDayContext,projectObservations} from '../lib/day-context.mjs';
 import {refreshProjectFeed} from '../lib/project-feed';
 import ProjectCockpit from './ProjectCockpit';
 import { linkedSources } from '../lib/cockpit';
@@ -25,6 +28,9 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
   const [messages, setMessages] = useState<Message[]>([]);
   const [memoryReady, setMemoryReady] = useState(false);
   const [memoryError, setMemoryError] = useState('');
+  const [continuityError,setContinuityError]=useState('');
+  const [dayOpen,setDayOpen]=useState(false);
+  const [renewable,setRenewable]=useState<boolean|null>(null);
   const [workOpen, setWorkOpen] = useState(false);
   const [work, setWork] = useState<CodexSnapshot | null>(null);
   const [workError, setWorkError] = useState('');
@@ -69,9 +75,11 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
 
   useEffect(() => {
     let active = true;
-    void loadHistory().then(saved => {
+    void loadHistory().then(async saved => {
       if (!active) return;
       if (saved.conversation) conversationRef.current = saved.conversation;
+      await activateConversation(conversationRef.current);
+      if (!active) return;
       setMessages(saved.messages); setMemoryReady(true);
     }).catch(e => { if (active) setMemoryError(`历史记录读取失败：${String(e)}。请先检查本机存储，避免新对话覆盖未读记录。`); });
     return ()=>{active=false;};
@@ -100,25 +108,54 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
   const publishedStatus = {state:voiceState,muted,error,caption:lastReply?.text||'',captionId:lastReply?.id||''};
   useEffect(()=>{void publish('pm:voice:status',publishedStatus);},[voiceState,muted,error,messages]);
 
+  const readDay = async (query='') => {
+    const conversation=conversationRef.current;
+    await saveMessages(conversation,messagesRef.current);
+    return dayContext(conversation,query);
+  };
+  const captureProjects = async () => {
+    const conversation=conversationRef.current;
+    const feed=await refreshProjectFeed();
+    if(conversation===conversationRef.current&&!switchingRef.current) {
+      try {await recordObservations(conversation,await projectObservations(feed));setContinuityError('');}
+      catch(e){setContinuityError(`项目全天记录未保存：${String(e)}`);}
+    }
+    return feed;
+  };
   const background = async (query='', includeWork=false) => {
-    const [pm,codex,cockpit]=await Promise.all([
+    const [pm,codex,cockpit,day]=await Promise.all([
       localContext(query).catch((e):LocalContext=>({error:String(e)})),
       (includeWork || /codex|工作|进度|任务|项目|状态|汇报/i.test(query)) ? codexStatus().catch(e=>({error:String(e)})) : Promise.resolve(null),
-      refreshProjectFeed().then(async f=>{
+      captureProjects().then(async f=>{
         const relevant=f.packages.filter(p=>query.toLowerCase().includes(p.title.toLowerCase())||query.includes(p.project.split(/[\\/]/).at(-1)||"\0")).slice(0,2);
         const evidence=await Promise.all(relevant.map(p=>linkedSources(p.id).then(rows=>({package:p.title,sources:rows.map(r=>({title:r.title,path:r.path,error:r.error,changed:r.changed,reason:r.reason,baseline:r.baseline?.excerpt.slice(0,500),current:r.current?.excerpt.slice(0,500)}))})).catch(e=>({package:p.title,error:String(e)}))));
-        return cockpitContext(f.engineeringError?null:f.snapshot,f.packagesError?[]:f.packages,query)+`\n采集错误：${f.engineeringError||f.packagesError||'无'}\n关联文档与决策：${packContext(evidence,1500)}`;}),
+        return {facts:cockpitContext(f.engineeringError?null:f.snapshot,f.packagesError?[]:f.packages,query),error:f.engineeringError||f.packagesError||'无',evidence:packContext(evidence,1500)};}),
+      readDay(query).then(value=>formatDayContext(value,2200)).catch(e=>`全天记录不可用：${String(e)}，不能推断今日活动。`),
     ]);
     const pet=petRef.current;
-    return `${ASSISTANT_PERSONA}\n${PM_INSTRUCTIONS}\n工程与工作包事实：${cockpit}\n日程：${context().slice(0,900)}\n长期记忆：${packContext(pm.recall?.memories||[],1000)}\n相关历史（历史回答不是已验证事实）：${packContext(pm.recall?.history||[],500)}\n已连接目录：${packContext(pm.directories||[],300)}\n目录片段及来源：${packContext(pm.files||[],1000)}\n记忆状态：${pm.error||pm.reason||'本机存储可用'}\nCodex：${packContext(codex,700)}\n宠物内部状态：${packContext(pet ? {...pet,stale:Date.now()-pet.observedAt>30000} : {available:false},500)}`;
+    const blocks=[`${ASSISTANT_PERSONA}\n${PM_INSTRUCTIONS}`,day,
+      `工程与工作包事实：${cockpit.facts}\n采集错误：${cockpit.error}`,
+      `长期记忆：${packContext(pm.recall?.memories||[],500)}`,
+      `日程：${context().slice(0,500)}`,
+      `关联文档与决策：${cockpit.evidence}`,
+      `目录片段及来源：${packContext(pm.files||[],800)}`,
+      `相关历史（历史回答不是已验证事实）：${packContext(pm.recall?.history||[],400)}`,
+      `已连接目录：${packContext(pm.directories||[],300)}\n记忆状态：${pm.error||pm.reason||'本机存储可用'}`,
+      `Codex：${packContext(codex,600)}`,
+      `宠物内部状态：${packContext(pet ? {...pet,stale:Date.now()-pet.observedAt>30000} : {available:false},300)}`];
+    let text='';let omitted=false;
+    for(const block of blocks){if(text.length+block.length<6900)text+=block+'\n';else omitted=true;}
+    return text+(omitted?'部分辅助来源因长度未带入；未提供的信息不能推断。':'');
   };
 
-  useEffect(()=>{if(!open&&!connected)return;void refreshProjectFeed();const timer=setInterval(()=>void refreshProjectFeed(),15000);return()=>clearInterval(timer);},[open,connected]);
+  useEffect(()=>{
+    if(!memoryReady||(!open&&!voiceActive))return;
+    let disposed=false,pending=false;
+    const check=async()=>{if(pending)return;pending=true;try{await captureProjects();}catch(e){if(!disposed)setContinuityError(`项目全天记录未保存：${String(e)}`);}finally{pending=false;}};
+    void check();const timer=setInterval(()=>void check(),30000);return()=>{disposed=true;clearInterval(timer);};
+  },[open,voiceActive,memoryReady]);
   useEffect(() => { onState(voiceState); }, [voiceState, onState]);
   useEffect(() => { transcriptRef.current?.scrollTo({top: transcriptRef.current.scrollHeight, behavior: 'instant'}); }, [messages, busy, open]);
-  useEffect(() => {
-    // getContext reads current data before each new WebRTC session.
-  }, [todos, projects, reports, notionConnected]);
   useEffect(() => {
     if (!open || !settings.knowledgeEnabled || knowledge) return;
     let active = true;
@@ -165,7 +202,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
           ? await searchKnowledge(caption.text).catch(e=>{setKnowledgeError(String(e));return [];}) : [];
         if (epoch !== voiceEpoch.current || !clientRef.current?.wanted) return;
         setSources(result);
-        if (saved || result.length || /目录|文件|codex|工作|状态|宠物|进度|记忆|记得|之前|以前|昨天|继续|上次|项目|汇报|节点|软著|番薯|构建|测试|git|ci|下一步|做到哪|接下来|进展|交付|完成了|最新情况/i.test(caption.text)) {
+        if (saved || result.length || /目录|文件|codex|工作|状态|宠物|进度|记忆|记得|之前|以前|昨天|继续|上次|项目|汇报|今天|早上|上午|下午|今晚|一天|刚才|节点|软著|番薯|构建|测试|git|ci|下一步|做到哪|接下来|进展|交付|完成了|最新情况/i.test(caption.text)) {
           clientRef.current.sendText(`${pm}\n${saved}\n相关知识：${knowledgeContext(result).slice(0,1500)}\n这是对大师刚才问题“${caption.text.slice(0,300)}”的补充资料，请据此回答；没有新信息时无需重复回答。`.slice(0,8000));
         }
         if (result.length) {
@@ -179,7 +216,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
     if (voiceTransition.current || switchingRef.current || clientRef.current?.wanted || !audioRef.current || operationBusy.current) return;
     if (!memoryReady) {setError('正在恢复记忆，请稍后再试；读取失败时请检查设置。');return;}
     operationBusy.current = true;
-    setError(''); setMuted(initiallyMuted); setPlaybackBlocked(false); setVoiceState('checking');
+    setError(''); setRenewable(null); setMuted(initiallyMuted); setPlaybackBlocked(false); setVoiceState('checking');
     const epoch = ++voiceEpoch.current;
     try {
       if (clientRef.current) { retiredClient.current = clientRef.current; clientRef.current = null; }
@@ -195,7 +232,8 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
         `${ASSISTANT_PERSONA}\n当前日程数据：${context()}\n${brief ? '请先为大师做一个简短的今日汇报。未同步时请说明还没有日程数据。' : '简短打个招呼，然后等待大师说话。'}`);
       clientRef.current = client;
       client.mute(initiallyMuted);
-      client.getContext=async()=>`${await background('',true)}\n近期对话（仅作衔接，不重复回答历史问题）：${packContext(messagesRef.current.slice(-6).map(m=>({role:m.role,text:m.text.slice(-250)})),1700)}\n${brief?'请做一个简短的今日汇报。':'继续陪伴大师，简短问候后等待说话。'}`.slice(0,8000);
+      client.getContext=async({resumed})=>`${await background('',true)}\n近期对话（仅作衔接，不重复回答历史问题）：${packContext(messagesRef.current.slice(-4).map(m=>({role:m.role,text:m.text.slice(-120)})),650)}\n${resumed?'这是同一条全天对话的语音断线续接。不要重新问候、不要重复汇报，等待大师继续说话。':brief?'请做一个简短的今日汇报。':messagesRef.current.length?'继续这条对话，等待大师说话，不重复问候。':'简短问候后等待大师说话。'}`;
+      client.addEventListener('session',event=>{if(clientRef.current===client)setRenewable((event as CustomEvent<{renewable:boolean}>).detail.renewable);});
       sentIds.current.clear();
       client.addEventListener('sent', event => { if (clientRef.current === client) sentIds.current.add((event as CustomEvent<{id: string}>).detail.id); });
       client.addEventListener('state', event => { if (clientRef.current === client) {const state=(event as CustomEvent<string>).detail;setVoiceState(state);if(state==='connected'){setError('');setMemoryNotice('');}} });
@@ -288,7 +326,9 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
     try {
       await stopVoice();
       await saveMessages(conversationRef.current,messagesRef.current);
-      conversationRef.current=crypto.randomUUID();messagesRef.current=[];setMessages([]);
+      const nextConversation=crypto.randomUUID();
+      await activateConversation(nextConversation);
+      conversationRef.current=nextConversation;messagesRef.current=[];setMessages([]);setDayOpen(false);
       setSources([]); setInput(''); setError(''); setWorkOpen(false); setKnowledgeOpen(false);
       setMemoryNotice(resumeVoice ? '已保存旧对话，正在为新对话接通语音。' : '已开始新对话，历史记录和长期记忆仍保留。');
       switched = true;
@@ -413,8 +453,8 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
         </div>}
       {knowledge && <details className="knowledge-status"><summary>本地索引状态</summary><pre>{knowledge.status}</pre></details>}
     </div> : <>
-      <DataSources voiceState={voiceState} knowledge={knowledge} knowledgeError={knowledgeError} memoryError={memoryError} onProjects={()=>setWorkOpen(true)} onSettings={onSettings} onKnowledge={()=>{setKnowledgeOpen(true);setKnowledge(null);}}/>
-      {workOpen ? <ProjectCockpit onClose={()=>setWorkOpen(false)} codex={work} codexError={workError}/> : !messages.length ? <div className="assistant-welcome">
+      <DataSources voiceState={voiceState} knowledge={knowledge} knowledgeError={knowledgeError} memoryError={memoryError||continuityError} onProjects={()=>{setDayOpen(false);setWorkOpen(true);}} onSettings={onSettings} onKnowledge={()=>{setKnowledgeOpen(true);setKnowledge(null);}}/>
+      {dayOpen ? <ConversationDay load={readDay} onClose={()=>setDayOpen(false)}/> : workOpen ? <ProjectCockpit onClose={()=>setWorkOpen(false)} codex={work} codexError={workError}/> : !messages.length ? <div className="assistant-welcome">
         <img src="/assets/assistant/pearl.png" alt="珠光玻璃助理" className={`assistant-orb ${connected ? 'is-live' : ''}`}/>
         <span className="eyebrow">A LITTLE SPACE, JUST FOR YOU</span><h3>大师，我在这里。</h3><p>聊聊想法，理清今天。<br/>让过去积累的知识，陪你一起往前。</p>
         <div className="assistant-prompts"><button onClick={() => void briefing()}><Headphones size={16}/>听今日汇报</button><button onClick={() => setKnowledgeOpen(true)}><BookOpen size={16}/>翻翻知识库</button></div>
@@ -423,12 +463,12 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
         {busy && <p className="muted-copy" role="status">正在整理资料…</p>}
       </div>}
       <footer className="assistant-composer">
-        {memoryError && <p className="inline-notice" role="alert">{memoryError}</p>}
+        {(memoryError||continuityError) && <p className="inline-notice" role="alert">{memoryError||continuityError}</p>}
         {memoryNotice && <p className="muted-copy" role="status">{memoryNotice}</p>}
         {knowledgeError && settings.knowledgeEnabled && <button className="knowledge-warning" onClick={() => setKnowledgeOpen(true)}><BookOpen size={13}/>知识库暂不可用，查看详情</button>}
         {error && <div className="inline-notice" role="alert">{error}<button className="text-button" onClick={onSettings}>打开设置</button></div>}
         {playbackBlocked && <button className="playback-button" onClick={() => audioRef.current?.play().then(() => setPlaybackBlocked(false)).catch(() => setError('声音尚未播放，请检查系统音频设置'))}><Volume2 size={16}/>点击播放助理声音</button>}
-        {voiceActive && <div className="voice-session-bar" role="status"><span className="live-dot"/>{VOICE_LABELS[voiceState]}{connected && <span>{muted ? '麦克风已静音' : '麦克风开启'}</span>}
+        {voiceActive && <div className="voice-session-bar" role="status"><span className="live-dot"/>{VOICE_LABELS[voiceState]}{connected && <span title={renewable?'网页连接自动续期，保持同一会话':'旧网关尚不支持续期，到期后恢复 AntDesk 对话上下文'}>{muted ? '麦克风已静音' : renewable?'同一网页会话 · 自动续期':'麦克风开启'}</span>}
           <button className="icon-button" disabled={!connected} aria-label={muted ? '打开麦克风' : '静音麦克风'} onClick={() => {clientRef.current?.mute(!muted); setMuted(!muted);}}>{muted ? <MicOff size={16}/> : <Mic size={16}/>}</button>
           <button className="icon-button" disabled={!connected} aria-label="打断助理" onClick={() => {try {clientRef.current?.interrupt();} catch {setError('通话已断开，请重新连接');}}}><Square size={13}/></button>
           <button className="icon-button hangup" disabled={voiceState==='stopping'} aria-label="结束通话" onClick={() => void stopVoice()}><PhoneOff size={16}/></button></div>}
@@ -436,7 +476,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
           <input aria-label="给助理发消息" value={input} onChange={e => setInput(e.target.value)} maxLength={4000} placeholder={connected ? '也可以打字给我…' : '有什么想和我聊的？'}/>
           {busy ? <button type="button" aria-label="停止回复" onClick={stopText}><Square size={15}/></button> : input.trim() ? <button type="submit" aria-label="发送消息"><ArrowUp size={19}/></button> : <button type="button" aria-label={voiceActive ? '语音通话中' : '开始语音对话'} disabled={voiceActive} onClick={() => void startVoice()}><Mic size={19}/></button>}
         </form>
-        <div className="composer-caption"><button onClick={() => setKnowledgeOpen(true)}><BookOpen size={12}/>知识</button><button onClick={()=>setWorkOpen(v=>!v)}>项目驾驶舱</button><span>{voiceActive ? '收起也可继续通话' : memoryReady ? (isTauri()?'记忆随对话保留':'桌面端可保存记忆') : '正在恢复记忆…'}</span></div>
+        <div className="composer-caption"><button onClick={() => setKnowledgeOpen(true)}><BookOpen size={12}/>知识</button><button onClick={()=>{setDayOpen(false);setWorkOpen(v=>!v);}}>项目</button><button onClick={()=>setDayOpen(v=>!v)}>全天记录</button><span>{voiceActive ? '收起也可继续通话' : memoryReady ? (isTauri()?'同一对话持续保留':'桌面端可保存记忆') : '正在恢复记忆…'}</span></div>
       </footer>
     </>}
     <audio ref={audioRef} autoPlay/>

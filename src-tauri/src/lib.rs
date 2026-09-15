@@ -6,6 +6,7 @@ mod desktop_surfaces;
 mod assistant;
 mod pm;
 mod cockpit;
+mod continuity;
 mod pet_input;
 
 #[derive(Default)]
@@ -787,6 +788,9 @@ pub fn run() {
             resize_pet_dialogue,
             pm::pm_save_messages,
             pm::pm_history,
+            continuity::pm_activate_conversation,
+            continuity::pm_record_observations,
+            continuity::pm_day_context,
             pm::pm_remember,
             pm::pm_directories,
             pm::pm_add_directory,

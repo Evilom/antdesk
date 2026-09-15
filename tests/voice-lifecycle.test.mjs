@@ -84,3 +84,67 @@ test('overlapping stop requests release one session and preserve unconfirmed cle
   await assert.rejects(client.start(),/尚未释放/);assert.equal(client.unreleased.size,1);
   client.request=async()=>{requests++;return null;};await client.stop();assert.equal(client.unreleased.size,0);assert.equal(requests,2);
 });
+
+test('24 hours of gateway renewal keep one web session, one microphone and no repeated greeting',async t=>{
+  const {tracks}=environment(t);
+  t.mock.timers.enable({apis:['Date','setTimeout','setInterval'],now:Date.UTC(2026,8,15,0)});
+  let created=0,renewals=0,deletes=0;const resumed=[];
+  const client=new RealtimeAssistant({...options(),maxReconnects:Infinity,transport:async(path,request)=>{
+    if(path==='/v1/capabilities')return {status:200,payload:{session_renewal:true,backend:'chatgpt_web'}};
+    if(path.endsWith('/renew')){renewals++;return {status:200,payload:{id:'same-web-session',expires_at:Date.now()/1000+1800}};}
+    if(request.method==='POST'){created++;return session('same-web-session');}
+    if(request.method==='DELETE'){deletes++;return {status:204,payload:null};}
+    throw new Error('unexpected '+path);
+  }});
+  client.getContext=async status=>{resumed.push(status.resumed);return '今天早上完成番薯工作包';};
+  t.after(()=>client.stop());client.mute(true);await client.start();
+  for(let i=0;i<4321;i++){t.mock.timers.tick(20000);await tick();}
+  assert.equal(created,1);assert.equal(renewals,4321);assert.equal(deletes,0);
+  assert.deepEqual(resumed,[false]);assert.equal(tracks.length,1);assert.equal(tracks[0].enabled,false);assert.equal(tracks[0].stopped,false);
+  await client.stop();assert.equal(deletes,1);assert.equal(tracks[0].stopped,true);
+  t.mock.timers.tick(3600000);await tick();assert.equal(renewals,4321);assert.equal(created,1);
+});
+
+test('a genuine web disconnect releases the old call before recovering fresh context and mute intent',async t=>{
+  const {peers,tracks}=environment(t);t.mock.timers.enable({apis:['setTimeout','setInterval']});
+  let created=0,active=0;const received=[],contexts=[];
+  const client=new RealtimeAssistant({...options(),maxReconnects:Infinity,transport:async(path,request)=>{
+    if(path==='/v1/capabilities')return {status:200,payload:{session_renewal:true}};
+    if(request.method==='DELETE'){active--;return {status:204,payload:null};}
+    if(request.method==='POST'){assert.equal(active,0);active++;created++;return session('web-'+created);}
+    return {status:200,payload:{}};
+  }});
+  client.getContext=async status=>{received.push(status.resumed);return contexts.length?'早上的工作包；下午新增构建结果':'早上的工作包';};
+  client.addEventListener('sent',()=>contexts.push(client.context));client.mute(true);t.after(()=>client.stop());await client.start();
+  peers[0].connectionState='failed';peers[0].onconnectionstatechange();await tick();
+  assert.equal(active,0);assert.equal(tracks[0].stopped,true);
+  t.mock.timers.tick(1000);await tick();assert.equal(created,2);assert.equal(active,1);
+  assert.deepEqual(received,[false,true]);assert.match(contexts[1],/下午新增构建结果/);assert.equal(tracks[1].enabled,false);
+});
+
+test('older gateways keep the expiration fallback and do not receive unsupported renewal requests',async t=>{
+  environment(t);t.mock.timers.enable({apis:['setTimeout','setInterval','Date'],now:Date.UTC(2026,8,15)});
+  let created=0;const methods=[];
+  const client=new RealtimeAssistant({...options(),maxReconnects:Infinity,transport:async(path,request)=>{
+    methods.push([path,request.method]);if(request.method==='POST'){created++;return session('legacy-'+created);}
+    return {status:request.method==='DELETE'?204:200,payload:{}};
+  }});
+  t.after(()=>client.stop());await client.start();t.mock.timers.tick(1800000);await tick();t.mock.timers.tick(1000);await tick();
+  assert.equal(created,2);assert.ok(methods.every(([path])=>!path.endsWith('/renew')));
+});
+
+test('a transient renewal failure keeps healthy media; late renewal after stop cannot rearm expiry',async t=>{
+  const {tracks}=environment(t);t.mock.timers.enable({apis:['setTimeout','setInterval','Date'],now:Date.UTC(2026,8,15)});
+  let posts=0,renewals=0;const late=deferred();
+  const client=new RealtimeAssistant({...options(),transport:async(path,request)=>{
+    if(path==='/v1/capabilities')return {status:200,payload:{session_renewal:true}};
+    if(path.endsWith('/renew')){renewals++;if(renewals===1)throw new Error('offline');return late.promise;}
+    if(request.method==='POST'){posts++;return session('one');}
+    return {status:204,payload:null};
+  }});
+  t.after(()=>client.stop());await client.start();t.mock.timers.tick(20000);await tick();
+  assert.equal(posts,1);assert.equal(tracks[0].stopped,false);assert.equal(client.wanted,true);
+  t.mock.timers.tick(20000);await tick();assert.equal(renewals,2);await client.stop();
+  late.resolve({status:200,payload:{id:'one',expires_at:Date.now()/1000+1800}});await tick();
+  t.mock.timers.tick(3600000);await tick();assert.equal(posts,1);assert.equal(client.wanted,false);assert.equal(tracks[0].stopped,true);
+});
