@@ -11,6 +11,8 @@ interface AppState {
   reports: Report[];
   projects: Project[];
   notionConnected: boolean;
+  notionSync: {at:number;error:string};
+  setNotionSync: (value:{at?:number;error:string})=>void;
 
   setTodos: (todos: Todo[]) => void;
   addTodo: (todo: Todo) => void;
@@ -47,6 +49,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   voiceName: "juniper",
   knowledgeEnabled: true,
   autoBriefing: false,
+  projectBriefingEvents: false,
+  projectBriefingTime: "",
   reduceMotion: false,
 };
 
@@ -78,6 +82,8 @@ export const useAppStore = create<AppState>((set) => ({
   reports: [],
   projects: [],
   notionConnected: false,
+  notionSync: {at:0,error:''},
+  setNotionSync: (value)=>set(state=>({notionSync:{...state.notionSync,...value}})),
 
   setTodos: (todos) => {
     set({ todos });

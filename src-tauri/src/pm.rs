@@ -11,7 +11,7 @@ use std::{
 };
 use tauri::Manager;
 
-fn now() -> i64 {
+pub(super) fn now() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -31,7 +31,7 @@ fn database(path: &Path) -> Result<Connection, String> {
       CREATE TABLE IF NOT EXISTS directories (path TEXT PRIMARY KEY);").map_err(err)?;
     Ok(c)
 }
-fn open(app: &tauri::AppHandle) -> Result<Connection, String> {
+pub(super) fn open(app: &tauri::AppHandle) -> Result<Connection, String> {
     let dir = app.path().app_data_dir().map_err(err)?.join("assistant");
     fs::create_dir_all(&dir).map_err(err)?;
     #[cfg(unix)]
@@ -103,7 +103,7 @@ pub fn pm_remember(app: tauri::AppHandle, text: String, source: String) -> Resul
         .map_err(err)?;
     Ok(())
 }
-fn roots(c: &Connection) -> Result<Vec<String>, String> {
+pub(super) fn roots(c: &Connection) -> Result<Vec<String>, String> {
     c.prepare("SELECT path FROM directories ORDER BY path")
         .map_err(err)?
         .query_map([], |r| r.get(0))
@@ -115,7 +115,7 @@ fn roots(c: &Connection) -> Result<Vec<String>, String> {
 pub fn pm_directories(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     roots(&open(&app)?)
 }
-fn excluded(path: &Path) -> bool {
+pub(super) fn excluded(path: &Path) -> bool {
     path.components().any(|c| {
         let s = c.as_os_str().to_string_lossy().to_lowercase();
         s.starts_with('.')
@@ -160,7 +160,7 @@ pub fn pm_remove_directory(app: tauri::AppHandle, path: String) -> Result<Vec<St
         .map_err(err)?;
     pm_directories(app)
 }
-fn terms(query: &str) -> HashSet<String> {
+pub(super) fn terms(query: &str) -> HashSet<String> {
     let q = query.to_lowercase();
     let mut out: HashSet<String> = q
         .split(|c: char| !c.is_alphanumeric())
@@ -175,7 +175,7 @@ fn terms(query: &str) -> HashSet<String> {
     }
     out
 }
-fn score(text: &str, terms: &HashSet<String>) -> usize {
+pub(super) fn score(text: &str, terms: &HashSet<String>) -> usize {
     let s = text.to_lowercase();
     terms.iter().filter(|t| s.contains(t.as_str())).count()
 }

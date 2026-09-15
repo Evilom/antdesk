@@ -60,5 +60,7 @@ export interface AppSettings {
   voiceName: string;
   knowledgeEnabled: boolean;
   autoBriefing: boolean;
+  projectBriefingEvents: boolean;
+  projectBriefingTime: string;
   reduceMotion: boolean;
 }

@@ -5,6 +5,7 @@ use tauri::Emitter;
 mod desktop_surfaces;
 mod assistant;
 mod pm;
+mod cockpit;
 mod pet_input;
 
 #[derive(Default)]
@@ -398,7 +399,7 @@ fn position_panel_next_to_pet(
         let pet_cx = px + pet_w / 2.0;
         let pet_cy = py + pet_h / 2.0;
 
-        let candidates = [
+        let mut candidates = [
             (
                 "right",
                 px + pet_w + gap,
@@ -425,6 +426,7 @@ fn position_panel_next_to_pet(
             ),
         ];
 
+        if label=="pet-dialogue" {candidates.rotate_left(2);}
         let (side, x, y, _) = candidates
             .iter()
             .find(|(_, _, _, fits)| *fits)
@@ -462,7 +464,25 @@ fn position_panel_next_to_pet(
     Ok(None)
 }
 
+#[tauri::command]
+fn resize_pet_dialogue(app: tauri::AppHandle, window: tauri::Window, height: f64) -> Result<(), String> {
+    if window.label() != "pet-dialogue" { return Err("Dialogue window only".into()); }
+    if !height.is_finite() { return Err("Invalid dialogue size".into()); }
+    let pet=app.get_webview_window("pet").ok_or("Pet unavailable")?;
+    let monitor=pet.current_monitor().map_err(|e| e.to_string())?;
+    let scale=monitor.as_ref().map(|m|m.scale_factor()).unwrap_or(1.0);
+    let available=monitor.as_ref().map(|m|m.size().height as f64/scale-100.0).unwrap_or(500.0).max(100.0);
+    let width=monitor.as_ref().map(|m|m.size().width as f64/scale-20.0).unwrap_or(340.0).min(340.0).max(160.0);
+    window.set_size(tauri::LogicalSize::new(width,height.clamp(100.0,available.min(480.0)))).map_err(|e|e.to_string())?;
+    position_panel_next_to_pet(&app,"pet-dialogue",width,height)?;
+    if !window.is_visible().unwrap_or(false) {window.show().map_err(|e|e.to_string())?;}
+    Ok(())
+}
+
 fn position_visible_companions(app: &tauri::AppHandle) -> Result<(), String> {
+    if let Some(d)=app.get_webview_window("pet-dialogue") {
+        if d.is_visible().unwrap_or(false) {position_panel_next_to_pet(app,"pet-dialogue",340.0,180.0)?;}
+    }
     if let Some(q) = app.get_webview_window("quick") {
         if q.is_visible().unwrap_or(false) {
             let _ = position_panel_next_to_pet(app, "quick", 300.0, 380.0)?;
@@ -525,6 +545,7 @@ async fn toggle_quick_panel(app: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 async fn open_full_panel(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(quick)=app.get_webview_window("quick") {let _=quick.hide();}
     expand_panel(app).await
 }
 
@@ -724,7 +745,10 @@ pub fn run() {
         .manage(AppState::default())
         .manage(assistant::AssistantState::default())
         .on_window_event(|window, event| {
-            if window.label() == "main" {
+            if window.label() == "pet" && matches!(event,tauri::WindowEvent::Moved(_)|tauri::WindowEvent::Resized(_)) {
+                let _=position_visible_companions(window.app_handle());
+            }
+            if window.label() == "main" || window.label() == "pet-dialogue" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = window.hide();
@@ -760,6 +784,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             pet_input::pet_primary_button_down,
+            resize_pet_dialogue,
             pm::pm_save_messages,
             pm::pm_history,
             pm::pm_remember,
@@ -768,6 +793,11 @@ pub fn run() {
             pm::pm_remove_directory,
             pm::pm_context,
             pm::pm_codex_status,
+            cockpit::pm_engineering,
+            cockpit::pm_work_packages,
+            cockpit::pm_save_work_package,
+            cockpit::pm_work_timeline,
+            cockpit::pm_linked_sources,
             assistant::set_voice_device_key,
             assistant::voice_key_ready,
             assistant::connect_local_voice,

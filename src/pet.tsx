@@ -312,10 +312,11 @@ export default function Pet() {
           {status}{count > 0 ? ` · ${count} 项待办` : ""}
         </span>
       </button>
-      {(voice.error || notice || (voiceActive && voice.caption) || hovered || dragging) && <div className="thought-bubble" role="status">
-        {voice.error || notice || (voiceActive && voice.caption) || hint}
+      {(notice || hovered || dragging) && <div className="thought-bubble" role="status">
+        {notice || hint}
       </div>}
       <div className="pet-voice-controls" aria-label="宠物语音助理">
+        {(voice.caption||voice.error)&&<button onClick={()=>void publish('pm:dialogue:show',null)} aria-label="查看助理完整回复">回复</button>}
         <button aria-label={voiceActive?(voice.muted?'取消静音':'静音麦克风'):'开启常驻语音'} aria-pressed={voiceActive&&!voice.muted} onClick={()=>voiceCommand(voiceActive?'mute':'toggle')} disabled={voiceActive&&voice.state!=='connected'}>{voice.muted?<MicOff size={14}/>:<Mic size={14}/>}</button>
         {voiceActive && <><button aria-label="打断助理" disabled={voice.state!=='connected'} onClick={()=>voiceCommand('interrupt')}><Square size={11}/></button><button aria-label="结束语音" onClick={()=>voiceCommand('stop')}><PhoneOff size={14}/></button></>}
         {voice.error && <button aria-label="打开助理设置" onClick={()=>{voiceCommand('settings');if(native)void invoke('open_full_panel');}}>设置</button>}

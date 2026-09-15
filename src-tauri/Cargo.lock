@@ -73,7 +73,7 @@ dependencies = [
 
 [[package]]
 name = "antdesk"
-version = "2.19.1"
+version = "2.19.2"
 dependencies = [
  "core-foundation 0.9.4",
  "core-graphics",
@@ -84,6 +84,7 @@ dependencies = [
  "security-framework",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",

@@ -1,6 +1,6 @@
 {
   "productName": "AntDesk",
-  "version": "2.19.1",
+  "version": "2.19.2",
   "identifier": "com.antdesk.app",
   "build": {
     "beforeDevCommand": "yarn dev",
@@ -84,6 +84,21 @@
         "skipTaskbar": true,
         "visible": false,
         "shadow": false
+      },
+      {
+        "label": "pet-dialogue",
+        "title": "AntDesk 助理回复",
+        "url": "/pet-dialogue.html",
+        "width": 340,
+        "height": 180,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "shadow": false,
+        "focus": false
       }
     ],
     "security": {

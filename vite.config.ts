@@ -11,6 +11,7 @@ export default defineConfig({
         fab: resolve(__dirname, "fab.html"),
         quick: resolve(__dirname, "quick.html"),
         pet: resolve(__dirname, "pet.html"),
+        dialogue: resolve(__dirname, "pet-dialogue.html"),
         notepad: resolve(__dirname, "notepad.html"),
         menu: resolve(__dirname, "menu.html"),
       },

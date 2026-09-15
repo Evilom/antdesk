@@ -21,7 +21,7 @@ const NAV_ITEMS = [
 ];
 
 export default function App() {
-  const { currentPage, setCurrentPage, setTodos, setReports, setProjects, setNotionConnected, updateSettings, notionConnected, settings } = useAppStore();
+  const { currentPage, setCurrentPage, setTodos, setReports, setProjects, setNotionConnected, setNotionSync, updateSettings, notionConnected, settings } = useAppStore();
   const [showSettings, setShowSettings] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showAssistant, setShowAssistant] = useState(false);
@@ -48,7 +48,7 @@ export default function App() {
       setLoading(true); setLoadError('');
       try {
         const token = settings.notionToken.trim() || (isTauri() ? await getNotionToken() : '');
-        if (!token) { setNotionConnected(false); return; }
+        if (!token) { setNotionConnected(false); setNotionSync({error:'尚未配置 Notion'}); return; }
         if (!settings.notionToken.trim()) updateSettings({notionToken: token});
         const results = await Promise.allSettled([fetchTodos(token), fetchReports(token), fetchProjects(token)]);
         if (results[0].status === 'fulfilled') setTodos(results[0].value);
@@ -56,8 +56,9 @@ export default function App() {
         if (results[2].status === 'fulfilled') setProjects(results[2].value);
         const failed = results.some(r => r.status === 'rejected');
         setNotionConnected(!failed);
+        setNotionSync(failed?{error:'部分日程数据同步失败，当前内容可能已过期'}:{at:Date.now(),error:''});
         if (failed) setLoadError('部分数据未能同步，已保留当前内容。请检查 Notion 连接后重试。');
-      } catch { setNotionConnected(false); setLoadError('暂时无法连接 Notion，请检查设置后重试。'); }
+      } catch { setNotionSync({error:'Notion 连接失败，请检查配置后重试'}); setNotionConnected(false); setLoadError('暂时无法连接 Notion，请检查设置后重试。'); }
       finally { setLoading(false); loadingRef.current = null; }
     };
     const promise = operation(); loadingRef.current = promise;
@@ -93,9 +94,10 @@ export default function App() {
   useEffect(() => {
     if (!isTauri()) return;
     let disposed = false;
-    let unlisten: (() => void) | undefined;
+    let unlisten: (() => void) | undefined; let assistantOff:(()=>void)|undefined;
+    void listen('pm:open-assistant',()=>{setShowSettings(false);setShowAssistant(true);void getCurrentWindow().show();void getCurrentWindow().setFocus();}).then(fn=>{if(disposed)fn();else assistantOff=fn;});
     void listen('open-settings', openSettings).then(fn => {if (disposed) fn(); else unlisten = fn;});
-    return () => {disposed = true; unlisten?.();};
+    return () => {disposed = true; unlisten?.();assistantOff?.();};
   }, [openSettings]);
   useEffect(() => {
     if (!isTauri()) return;

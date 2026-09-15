@@ -1,4 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {projectEventState,changedProjectEvents,dailyBriefingKey,buildProjectBriefing} from '../lib/project-briefing.mjs';
+import DataSources from './DataSources';
+import {refreshProjectFeed} from '../lib/project-feed';
+import ProjectCockpit from './ProjectCockpit';
+import { linkedSources } from '../lib/cockpit';
+import { cockpitContext } from '../lib/cockpit-data.mjs';
 import { isTauri } from '@tauri-apps/api/core';
 import { ArrowUp, BookOpen, ChevronLeft, Headphones, Mic, MicOff, PhoneOff, Search, Settings2, Sparkles, Square, Volume2, X } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
@@ -6,7 +12,7 @@ import { sendChatMessage } from '../lib/chat';
 import { ASSISTANT_PERSONA, agendaContext, briefingSignature, createVoiceClient, getKnowledgeStatus, hasVoiceKey, knowledgeContext, readKnowledge, searchKnowledge, type KnowledgeSource, type KnowledgeStatus } from '../lib/assistant';
 import type { Caption, RealtimeAssistant } from '../lib/vendor/realtime-client.mjs';
 import { useDialogFocus } from '../lib/useDialogFocus';
-import { codexStatus, loadHistory, localContext, packContext, PM_INSTRUCTIONS, publish, remember, saveMessages, subscribe, TASK_LABELS, type CodexSnapshot, type PetSnapshot, type LocalContext } from '../lib/pm';
+import { codexStatus, loadHistory, localContext, packContext, PM_INSTRUCTIONS, publish, remember, saveMessages, subscribe, type CodexSnapshot, type PetSnapshot, type LocalContext } from '../lib/pm';
 
 export const VOICE_LABELS: Record<string, string> = { idle: '随时聊聊', checking: '检查语音服务', microphone: '等待麦克风授权', connecting: '正在连接', connected: '正在通话', reconnecting: '正在重新连接', disconnected: '通话已结束' };
 interface Message { id: string; role: 'user' | 'assistant'; text: string; sources?: KnowledgeSource[] }
@@ -86,18 +92,24 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
     for (const subscription of subscriptions) void subscription.then(fn=>{if(disposed)fn();else unlisten.push(fn);});
     return ()=>{disposed=true;unlisten.forEach(fn=>fn());};
   }, []);
-  const publishedStatus = {state:voiceState,muted,error,caption:messages.filter(m=>m.role==='assistant').at(-1)?.text.slice(-180)||''};
+  const lastReply=messages.filter(m=>m.role==='assistant').at(-1);
+  const publishedStatus = {state:voiceState,muted,error,caption:lastReply?.text||'',captionId:lastReply?.id||''};
   useEffect(()=>{void publish('pm:voice:status',publishedStatus);},[voiceState,muted,error,messages]);
 
   const background = async (query='', includeWork=false) => {
-    const [pm,codex]=await Promise.all([
+    const [pm,codex,cockpit]=await Promise.all([
       localContext(query).catch((e):LocalContext=>({error:String(e)})),
       (includeWork || /codex|工作|进度|任务|项目|状态|汇报/i.test(query)) ? codexStatus().catch(e=>({error:String(e)})) : Promise.resolve(null),
+      refreshProjectFeed().then(async f=>{
+        const relevant=f.packages.filter(p=>query.toLowerCase().includes(p.title.toLowerCase())||query.includes(p.project.split(/[\\/]/).at(-1)||"\0")).slice(0,2);
+        const evidence=await Promise.all(relevant.map(p=>linkedSources(p.id).then(rows=>({package:p.title,sources:rows.map(r=>({title:r.title,path:r.path,error:r.error,changed:r.changed,reason:r.reason,baseline:r.baseline?.excerpt.slice(0,500),current:r.current?.excerpt.slice(0,500)}))})).catch(e=>({package:p.title,error:String(e)}))));
+        return cockpitContext(f.engineeringError?null:f.snapshot,f.packagesError?[]:f.packages,query)+`\n采集错误：${f.engineeringError||f.packagesError||'无'}\n关联文档与决策：${packContext(evidence,1500)}`;}),
     ]);
     const pet=petRef.current;
-    return `${ASSISTANT_PERSONA}\n${PM_INSTRUCTIONS}\n日程：${context().slice(0,900)}\n长期记忆：${packContext(pm.recall?.memories||[],1000)}\n相关历史（历史回答不是已验证事实）：${packContext(pm.recall?.history||[],800)}\n已连接目录：${packContext(pm.directories||[],300)}\n目录片段及来源：${packContext(pm.files||[],1500)}\n记忆状态：${pm.error||pm.reason||'本机存储可用'}\nCodex：${packContext(codex,1200)}\n宠物内部状态：${packContext(pet ? {...pet,stale:Date.now()-pet.observedAt>30000} : {available:false},500)}`;
+    return `${ASSISTANT_PERSONA}\n${PM_INSTRUCTIONS}\n工程与工作包事实：${cockpit}\n日程：${context().slice(0,900)}\n长期记忆：${packContext(pm.recall?.memories||[],1000)}\n相关历史（历史回答不是已验证事实）：${packContext(pm.recall?.history||[],500)}\n已连接目录：${packContext(pm.directories||[],300)}\n目录片段及来源：${packContext(pm.files||[],1000)}\n记忆状态：${pm.error||pm.reason||'本机存储可用'}\nCodex：${packContext(codex,700)}\n宠物内部状态：${packContext(pet ? {...pet,stale:Date.now()-pet.observedAt>30000} : {available:false},500)}`;
   };
 
+  useEffect(()=>{if(!open&&!connected)return;void refreshProjectFeed();const timer=setInterval(()=>void refreshProjectFeed(),15000);return()=>clearInterval(timer);},[open,connected]);
   useEffect(() => { onState(voiceState); }, [voiceState, onState]);
   useEffect(() => { transcriptRef.current?.scrollTo({top: transcriptRef.current.scrollHeight, behavior: 'instant'}); }, [messages, busy, open]);
   useEffect(() => {
@@ -109,7 +121,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
     getKnowledgeStatus().then(v => { if (active) { setKnowledge(v); setKnowledgeError(''); } })
       .catch(e => { if (active) setKnowledgeError(String(e instanceof Error ? e.message : e)); });
     return () => { active = false; };
-  }, [open, settings.knowledgeEnabled, knowledge]);
+  }, [open, settings.knowledgeEnabled, knowledge, knowledgeOpen]);
   useEffect(() => {
     const stop = () => { ++voiceEpoch.current; void saveMessages(conversationRef.current,messagesRef.current); clientRef.current?.stop(); abortRef.current?.abort(); };
     window.addEventListener('beforeunload', stop);
@@ -146,7 +158,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
           ? await searchKnowledge(caption.text).catch(e=>{setKnowledgeError(String(e));return [];}) : [];
         if (epoch !== voiceEpoch.current || !clientRef.current?.wanted) return;
         setSources(result);
-        if (saved || result.length || /目录|文件|codex|工作|状态|宠物|进度|记忆|记得|之前|以前|昨天|继续|上次|项目|汇报/i.test(caption.text)) {
+        if (saved || result.length || /目录|文件|codex|工作|状态|宠物|进度|记忆|记得|之前|以前|昨天|继续|上次|项目|汇报|节点|软著|番薯|构建|测试|git|ci|下一步|做到哪|接下来|进展|交付|完成了|最新情况/i.test(caption.text)) {
           clientRef.current.sendText(`${pm}\n${saved}\n相关知识：${knowledgeContext(result).slice(0,1500)}\n这是对大师刚才问题“${caption.text.slice(0,300)}”的补充资料，请据此回答；没有新信息时无需重复回答。`.slice(0,8000));
         }
         if (result.length) {
@@ -239,6 +251,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
     if (action==='briefing') void briefing();
     if (action==='status') void publish('pm:voice:status',publishedStatus);
     if (action==='settings') onSettings();
+    if (action==='transcript') {onClose();void publish('pm:open-assistant',null);}
   };
   const newConversation = async () => {
     if(!memoryReady || busy) return;
@@ -294,6 +307,35 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
     void check();const timer=setInterval(()=>void check(),30000);return ()=>{disposed=true;clearInterval(timer);};
   },[connected,settings.autoBriefing]);
 
+  const deliverBriefing=useRef((text:string)=>{});
+  deliverBriefing.current=(text:string)=>{
+    setMessages(old=>[...old,{id:`briefing:${crypto.randomUUID()}`,role:'assistant',text}]);
+    if(latest.current.settings.autoBriefing&&clientRef.current?.wanted&&connected&&!operationBusy.current) {
+      try{clientRef.current.sendText(`以下是客户端刚采集的项目简报，请简短播报，不添加未经确认的结果：\n${text}`);}catch{/* The durable text briefing remains visible during reconnects. */}
+    }
+  };
+  useEffect(()=>{
+    if(!isTauri()||!memoryReady||(!settings.projectBriefingEvents&&!settings.projectBriefingTime))return;
+    let disposed=false,polling=false,previous:Record<string,string>|null=null,pendingChange=false,lastSent=0;
+    const check=async()=>{
+      if(polling)return;polling=true;
+      try {
+        const f=await refreshProjectFeed();if(disposed||f.engineeringError||f.packagesError)return;
+        const next=projectEventState(f.snapshot,f.packages);
+        if(settings.projectBriefingEvents&&changedProjectEvents(previous,next).length)pendingChange=true;
+        previous=next;
+        const daily=dailyBriefingKey(new Date(),settings.projectBriefingTime);
+        const due=daily&&localStorage.getItem('antdesk_project_briefing_day')!==daily;
+        if(!operationBusy.current&&(due||(pendingChange&&Date.now()-lastSent>=120000))) {
+          deliverBriefing.current(buildProjectBriefing(f.snapshot,f.packages,due?'每日项目简报':'项目关键事件简报'));
+          if(due)localStorage.setItem('antdesk_project_briefing_day',daily);
+          pendingChange=false;lastSent=Date.now();
+        }
+      }finally{polling=false;}
+    };
+    void check();const timer=setInterval(()=>void check(),30000);return()=>{disposed=true;clearInterval(timer);};
+  },[memoryReady,settings.projectBriefingEvents,settings.projectBriefingTime]);
+
   const runSearch = async () => {
     if (!query.trim() || searching) return;
     setSearching(true); setKnowledgeError(''); setDocument(null);
@@ -322,12 +364,6 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
         <button className="icon-button" aria-label="收起助理" onClick={onClose}><X size={18}/></button>
       </div>
     </header>
-    {workOpen && !knowledgeOpen && <div className="pm-work-view">
-      <div className="pm-work-heading"><strong>Codex 工作记录</strong><button className="text-button" onClick={()=>setWorkOpen(false)}>收起</button></div>
-      <p className="muted-copy">每 15 秒读取本机记录；未确认的状态不会推断为运行中。</p>
-      {workError && <p role="status" className="inline-notice">{workError}</p>}
-      {work?.tasks.map(task=><div className="pm-task" key={task.id}><strong>{task.title}</strong><span>{TASK_LABELS[task.status]||'未知'} · {new Date(task.updatedAt*1000).toLocaleString()}{task.stale?' · 较早记录':''}</span>{task.progress&&<span>{task.progress}</span>}</div>)}
-    </div>}
     {knowledgeOpen ? <div className="knowledge-view">
       <button className="text-button" onClick={() => {setKnowledgeOpen(false); setDocument(null);}}><ChevronLeft size={15}/>返回对话</button>
       <p className="muted-copy">检索 Hermes 保存的资料，查看原文或带入对话。</p>
@@ -343,7 +379,8 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
         </div>}
       {knowledge && <details className="knowledge-status"><summary>本地索引状态</summary><pre>{knowledge.status}</pre></details>}
     </div> : <>
-      {!messages.length ? <div className="assistant-welcome">
+      <DataSources voiceState={voiceState} knowledge={knowledge} knowledgeError={knowledgeError} memoryError={memoryError} onProjects={()=>setWorkOpen(true)} onSettings={onSettings} onKnowledge={()=>{setKnowledgeOpen(true);setKnowledge(null);}}/>
+      {workOpen ? <ProjectCockpit onClose={()=>setWorkOpen(false)} codex={work} codexError={workError}/> : !messages.length ? <div className="assistant-welcome">
         <img src="/assets/assistant/pearl.png" alt="珠光玻璃助理" className={`assistant-orb ${connected ? 'is-live' : ''}`}/>
         <span className="eyebrow">A LITTLE SPACE, JUST FOR YOU</span><h3>大师，我在这里。</h3><p>聊聊想法，理清今天。<br/>让过去积累的知识，陪你一起往前。</p>
         <div className="assistant-prompts"><button onClick={() => void briefing()}><Headphones size={16}/>听今日汇报</button><button onClick={() => setKnowledgeOpen(true)}><BookOpen size={16}/>翻翻知识库</button></div>
@@ -365,7 +402,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
           <input aria-label="给助理发消息" value={input} onChange={e => setInput(e.target.value)} maxLength={4000} placeholder={connected ? '也可以打字给我…' : '有什么想和我聊的？'}/>
           {busy ? <button type="button" aria-label="停止回复" onClick={stopText}><Square size={15}/></button> : input.trim() ? <button type="submit" aria-label="发送消息"><ArrowUp size={19}/></button> : <button type="button" aria-label={voiceActive ? '语音通话中' : '开始语音对话'} disabled={voiceActive} onClick={() => void startVoice()}><Mic size={19}/></button>}
         </form>
-        <div className="composer-caption"><button onClick={() => setKnowledgeOpen(true)}><BookOpen size={12}/>知识</button><button onClick={()=>setWorkOpen(v=>!v)}>工作状态</button><span>{voiceActive ? '收起也可继续通话' : memoryReady ? (isTauri()?'记忆随对话保留':'桌面端可保存记忆') : '正在恢复记忆…'}</span></div>
+        <div className="composer-caption"><button onClick={() => setKnowledgeOpen(true)}><BookOpen size={12}/>知识</button><button onClick={()=>setWorkOpen(v=>!v)}>项目驾驶舱</button><span>{voiceActive ? '收起也可继续通话' : memoryReady ? (isTauri()?'记忆随对话保留':'桌面端可保存记忆') : '正在恢复记忆…'}</span></div>
       </footer>
     </>}
     <audio ref={audioRef} autoPlay/>

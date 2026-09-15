@@ -67,11 +67,17 @@ export default function AssistantSettings() {
     }}>检查知识库连接</button>
     {knowledgeStatus && <p role="status" className="service-status">{knowledgeStatus}</p>}
     <label className="setting-row"><div><strong>通话中主动汇报</strong><small>每两分钟同步日程，Codex 最近一轮完成或中断时简短提醒。</small></div><input type="checkbox" checked={settings.autoBriefing} onChange={e => updateSettings({autoBriefing: e.target.checked})}/></label>
+    <label className="setting-row"><div><strong>项目关键事件简报</strong><small>提交、检查结果或工作包变化后自动留一条简报；两分钟内合并提醒。</small></div><input type="checkbox" checked={settings.projectBriefingEvents} onChange={e=>updateSettings({projectBriefingEvents:e.target.checked})}/></label>
+    <label htmlFor="project-briefing-time">每日项目简报</label>
+    <input id="project-briefing-time" type="time" className="input-field" value={settings.projectBriefingTime} onChange={e=>updateSettings({projectBriefingTime:e.target.value})}/>
+    <button className="text-button" onClick={()=>updateSettings({projectBriefingTime:''})}>关闭定时简报</button>
+    <p className="muted-copy">按本机时间，在应用运行时生成文字简报；已开启主动汇报且正在通话时才播报。休眠或退出期间不唤醒电脑，超过半小时的错过简报不补发。</p>
+    <p className="muted-copy">当前没有后台唤醒词检测。点击宠物麦克风才开始通话，静音时不发送麦克风音频。</p>
     <details className="pm-settings" open>
       <summary>本机目录与长期记忆</summary>
       <p className="muted-copy mt-2">点宠物麦克风即可持续通话。断网后自动重连；新对话保留本机历史并按问题找回。账号额度耗尽或麦克风权限关闭时会停止。</p>
-      <label htmlFor="pm-directory">允许助理读取的目录</label>
-      <input id="pm-directory" className="input-field" placeholder="/Users/om/projects/具体项目" value={directory} onChange={e=>setDirectory(e.target.value)}/>
+      <label htmlFor="pm-directory">这台设备允许读取的项目或参考文件夹</label>
+      <input id="pm-directory" className="input-field" placeholder="安装后选择本设备的文件夹路径" value={directory} onChange={e=>setDirectory(e.target.value)}/>
       <button type="button" className="text-button" disabled={!isTauri()||!directory.trim()||pmBusy} onClick={async()=>{
         setPmBusy(true);try{setDirectories(await invoke('pm_add_directory',{path:directory}));setDirectory('');setPmStatus('目录已连接，相关文本片段会随提问提供给语音或文字服务。');}catch(e){setPmStatus(String(e));}finally{setPmBusy(false);}
       }}>连接目录</button>

@@ -3,7 +3,6 @@ name: Release
 on:
   push:
     tags:
-      - "AntDesk-v*"
       - "v*"
   workflow_dispatch:
 
@@ -17,6 +16,13 @@ jobs:
       version: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+      - name: Verify version and tag
+        run: node scripts/release-version.mjs --release
       - name: Get app version
         id: version
         run: echo "value=$(jq -r .version src-tauri/tauri.conf.json)" >> "$GITHUB_OUTPUT"
@@ -26,7 +32,7 @@ jobs:
         run: |
           TAG="v${{ steps.version.outputs.value }}"
           if ! gh release view "$TAG" --repo Evilom/antdesk >/dev/null 2>&1; then
-            gh release create "$TAG" --repo Evilom/antdesk --title "AntDesk $TAG" --notes "See the assets below to download and install."
+            gh release create "$TAG" --repo Evilom/antdesk --draft --title "AntDesk $TAG" --notes "See the assets below to download and install."
           fi
 
   publish:
@@ -69,12 +75,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "lts/*"
+          node-version: "26"
           cache: "yarn"
 
       - name: Install frontend dependencies
         run: yarn install --frozen-lockfile
 
+      - name: Validate version and behavior
+        run: |
+          node scripts/release-version.mjs
+          node --test tests/*.test.mjs
       - name: Build Tauri app
         id: build
         uses: tauri-apps/tauri-action@v0.6
@@ -86,7 +96,7 @@ jobs:
           tagName: v${{ needs.create-release.outputs.version }}
           releaseName: "AntDesk v${{ needs.create-release.outputs.version }}"
           releaseBody: "See the assets below to download and install."
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           includeUpdaterJson: false
           args: ${{ matrix.args }}
@@ -173,8 +183,8 @@ jobs:
               }
               print(f"OK: {key} -> {bundle_name}")
 
-          if not platforms:
-              print("ERROR: No platforms found!")
+          if len(platforms) != 4:
+              print("ERROR: Expected signed artifacts for all four platforms!")
               sys.exit(1)
 
           latest = {
@@ -196,8 +206,8 @@ jobs:
           VERSION=$(jq -r .version src-tauri/tauri.conf.json)
           TAG="v${VERSION}"
           echo "Uploading latest.json to $TAG..."
-          gh release upload "$TAG" latest.json --repo Evilom/antdesk --clobber || true
+          gh release upload "$TAG" latest.json --repo Evilom/antdesk --clobber
+          gh release edit "$TAG" --repo Evilom/antdesk --draft=false --latest
           echo "Updating updater release..."
-          gh release delete-asset updater latest.json --repo Evilom/antdesk --yes 2>/dev/null || true
           gh release upload updater latest.json --repo Evilom/antdesk --clobber
           echo "Done!"

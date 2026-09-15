@@ -1,7 +1,12 @@
 {
   "identifier": "default",
   "description": "Default capabilities for AntDesk",
-  "windows": ["main", "pet", "notepad"],
+  "windows": [
+    "main",
+    "pet",
+    "notepad",
+    "pet-dialogue"
+  ],
   "permissions": [
     "core:default",
     "core:window:default",
