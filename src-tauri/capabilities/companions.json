@@ -1,0 +1,10 @@
+{
+  "identifier": "companions",
+  "description": "Local menu and quick panel events, dismissal and content sizing",
+  "windows": ["fab-menu", "quick"],
+  "permissions": [
+    "core:event:default",
+    "core:window:allow-hide",
+    "core:window:allow-set-size"
+  ]
+}

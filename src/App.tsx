@@ -22,16 +22,19 @@ const NAV_ITEMS = [
 
 export default function App() {
   const { currentPage, setCurrentPage, setTodos, setReports, setProjects, setNotionConnected, setNotionSync, updateSettings, notionConnected, settings } = useAppStore();
-  const [showSettings, setShowSettings] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
-  const [showAssistant, setShowAssistant] = useState(false);
+  const [overlay, setOverlay] = useState<'settings' | 'search' | 'assistant' | null>(null);
+  const showSettings = overlay === 'settings', showSearch = overlay === 'search', showAssistant = overlay === 'assistant';
+  const settingsReturn = useRef<'assistant' | null>(null);
+  const [availableUpdate, setAvailableUpdate] = useState('');
   const [voiceState, setVoiceState] = useState('idle');
   const [briefingRequest, setBriefingRequest] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const loadingRef = useRef<Promise<void> | null>(null);
-  const settingsRef = useDialogFocus(showSettings, () => setShowSettings(false));
-  const openSettings = useCallback(() => { setShowAssistant(false); setShowSearch(false); setShowSettings(true); }, []);
+  const closeSettings = useCallback(() => setOverlay(settingsReturn.current), []);
+  const settingsRef = useDialogFocus(showSettings, closeSettings);
+  const openSettings = useCallback(() => { settingsReturn.current = null; setOverlay('settings'); }, []);
+  const openAssistantSettings = () => { settingsReturn.current = 'assistant'; setOverlay('settings'); };
   const voiceActive = !['idle', 'disconnected'].includes(voiceState);
 
   useEffect(() => {
@@ -80,14 +83,14 @@ export default function App() {
         if (await invoke<boolean>('is_development_build')) return;
         const { check } = await import('@tauri-apps/plugin-updater');
         const update = await check();
-        if (update?.available) { await update.downloadAndInstall(); const { relaunch } = await import('@tauri-apps/plugin-process'); await relaunch(); }
+        if (update?.available) setAvailableUpdate(update.version);
       } catch { /* Manual update remains available in Settings. */ }
     })();
   }, []);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setShowSearch(v => !v); setShowSettings(false); setShowAssistant(false); }
-      if (e.key === 'Escape' && !showAssistant && !showSettings) setShowSearch(false);
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setOverlay(current => current === 'search' ? null : 'search'); }
+      if (e.key === 'Escape' && !showAssistant && !showSettings) setOverlay(null);
     };
     window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler);
   }, [showAssistant, showSettings]);
@@ -95,7 +98,7 @@ export default function App() {
     if (!isTauri()) return;
     let disposed = false;
     let unlisten: (() => void) | undefined; let assistantOff:(()=>void)|undefined;
-    void listen('pm:open-assistant',()=>{setShowSettings(false);setShowAssistant(true);void getCurrentWindow().show();void getCurrentWindow().setFocus();}).then(fn=>{if(disposed)fn();else assistantOff=fn;});
+    void listen('pm:open-assistant',()=>{setOverlay('assistant');void getCurrentWindow().show();void getCurrentWindow().setFocus();}).then(fn=>{if(disposed)fn();else assistantOff=fn;});
     void listen('open-settings', openSettings).then(fn => {if (disposed) fn(); else unlisten = fn;});
     return () => {disposed = true; unlisten?.();assistantOff?.();};
   }, [openSettings]);
@@ -128,17 +131,18 @@ export default function App() {
           <div data-tauri-drag-region><strong>AntDesk</strong><span>{loading ? '正在同步' : notionConnected ? '日程已同步' : '你的桌面伙伴'}</span></div>
         </div>
         <div className="titlebar-actions">
-          <button className="icon-button" aria-label="全局搜索" title="搜索 ⌘K" onClick={() => setShowSearch(true)}><Search size={16}/></button>
+          <button className="icon-button" aria-label="全局搜索" title="搜索 ⌘K" onClick={() => setOverlay('search')}><Search size={16}/></button>
           <button className="icon-button" aria-label="设置" onClick={openSettings}><Settings2 size={16}/></button>
           {isTauri() && <><span className="toolbar-divider"/><button className="icon-button" aria-label="最小化" onClick={() => void getCurrentWindow().minimize()}><Minus size={16}/></button><button className="icon-button" aria-label="隐藏窗口" onClick={() => void getCurrentWindow().hide()}><X size={15}/></button></>}
         </div>
       </header>
       <main className="main-surface">
         <div className="main-scroll custom-scrollbar">
+          {availableUpdate && <div className="inline-notice" role="status">v{availableUpdate} 可更新<button className="text-button" onClick={openSettings}>打开设置</button></div>}
           {loadError && <div className="inline-notice" role="status">{loadError}<button className="text-button" disabled={loading} onClick={() => void loadData()}>重试</button></div>}
           {!settings.notionToken && !notionConnected && !loading && <button className="connection-banner" onClick={openSettings}><span className="connection-symbol"><Plus size={15}/></span><span><strong>连接你的日程</strong><small>在设置中连接 Notion，让助理了解你的安排</small></span><Maximize2 size={14}/></button>}
           <div className="page-content-wrapper">
-            {currentPage === 'agenda' && <Agenda onRefresh={() => void loadData()} onAssistant={() => setShowAssistant(true)} onBriefing={() => {setShowAssistant(true); setBriefingRequest(v => v + 1);}} refreshing={loading}/>}
+            {currentPage === 'agenda' && <Agenda onRefresh={() => void loadData()} onAssistant={() => setOverlay('assistant')} onBriefing={() => {setOverlay('assistant'); setBriefingRequest(v => v + 1);}} refreshing={loading}/>}
             {currentPage === 'reports' && <Reports/>}
             {currentPage === 'goals' && <ProjectView/>}
           </div>
@@ -149,11 +153,11 @@ export default function App() {
           <span className="nav-lens" style={{transform: `translateX(${NAV_ITEMS.findIndex(n => n.id === currentPage) * 100}%)`}}/>
           {NAV_ITEMS.map(({id, label, Icon}) => <button key={id} onClick={() => setCurrentPage(id)} aria-current={currentPage === id ? 'page' : undefined} className={`nav-item ${currentPage === id ? 'active' : ''}`}><Icon size={19}/><span className="nav-label">{label}</span></button>)}
         </nav>
-        <button className={`assistant-dock-button ${voiceActive ? 'is-live' : ''}`} aria-label={`打开助理：${VOICE_LABELS[voiceState]}`} onClick={() => setShowAssistant(true)}><img src="/assets/assistant/pearl.png" alt=""/>{voiceActive && <span className="live-dot"/>}</button>
+        <button className={`assistant-dock-button ${voiceActive ? 'is-live' : ''}`} aria-label={`打开助理：${VOICE_LABELS[voiceState]}`} onClick={() => setOverlay('assistant')}><img src="/assets/assistant/pearl.png" alt=""/>{voiceActive && <span className="live-dot"/>}</button>
       </footer>
     </div>
-    <AssistantPanel open={showAssistant} onClose={() => setShowAssistant(false)} onSettings={openSettings} onState={setVoiceState} requestBriefing={briefingRequest}/>
-    {showSettings && <div className="settings-backdrop" onClick={() => setShowSettings(false)}><section ref={settingsRef} className="settings-sheet" role="dialog" aria-modal="true" aria-label="设置" onClick={e => e.stopPropagation()}><header className="settings-heading"><div><h2>设置</h2></div><button className="icon-button" aria-label="关闭设置" onClick={() => setShowSettings(false)}><X size={18}/></button></header><Settings voiceState={voiceState}/></section></div>}
-    {showSearch && <SearchModal onClose={() => setShowSearch(false)}/>}
+    <AssistantPanel open={showAssistant} onClose={() => setOverlay(null)} onSettings={openAssistantSettings} onState={setVoiceState} requestBriefing={briefingRequest}/>
+    {showSettings && <div className="settings-backdrop" onClick={closeSettings}><section ref={settingsRef} className="settings-sheet" role="dialog" aria-modal="true" aria-label="设置" onClick={e => e.stopPropagation()}><header className="settings-heading"><div><h2>设置</h2></div><button className="icon-button" aria-label="关闭设置" onClick={closeSettings}><X size={18}/></button></header><Settings voiceState={voiceState}/></section></div>}
+    {showSearch && <SearchModal onClose={() => setOverlay(null)}/>}
   </div>;
 }

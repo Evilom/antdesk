@@ -613,7 +613,6 @@ async fn show_fab_context_menu(app: tauri::AppHandle) -> Result<(), String> {
     };
     let y = clamp(py + ah * 0.18, mon_top, mon_bottom - menu_h);
 
-    let _ = menu.hide();
     menu.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
         menu_w as u32,
         menu_h as u32,
@@ -749,7 +748,11 @@ pub fn run() {
             if window.label() == "pet" && matches!(event,tauri::WindowEvent::Moved(_)|tauri::WindowEvent::Resized(_)) {
                 let _=position_visible_companions(window.app_handle());
             }
-            if window.label() == "main" || window.label() == "pet-dialogue" {
+            // Transient menus must dismiss even if their webview is busy or fails.
+            if window.label() == "fab-menu" && matches!(event, tauri::WindowEvent::Focused(false)) {
+                let _ = window.hide();
+            }
+            if matches!(window.label(), "main" | "pet-dialogue" | "fab-menu" | "quick" | "notepad") {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = window.hide();

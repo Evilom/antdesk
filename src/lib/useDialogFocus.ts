@@ -9,7 +9,7 @@ export function useDialogFocus(open: boolean, onClose: () => void) {
     const previous = document.activeElement as HTMLElement | null;
     const root = ref.current;
     const focusables = () => [...(root?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') || [])].filter(el => el.getClientRects().length > 0);
-    focusables()[0]?.focus();
+    (root?.querySelector<HTMLElement>('[data-dialog-autofocus]') || focusables()[0])?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeRef.current(); }
       if (e.key !== 'Tab') return;
@@ -20,7 +20,7 @@ export function useDialogFocus(open: boolean, onClose: () => void) {
       else if (!e.shiftKey && (index === -1 || index === items.length - 1)) {e.preventDefault(); items[0].focus();}
     };
     window.addEventListener('keydown', onKey, true);
-    return () => {window.removeEventListener('keydown', onKey, true); previous?.focus();};
+    return () => {window.removeEventListener('keydown', onKey, true); if (previous?.isConnected && previous.getClientRects().length && !previous.closest('[inert], [hidden]')) previous.focus();};
   }, [open]);
   return ref;
 }

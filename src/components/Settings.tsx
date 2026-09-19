@@ -132,7 +132,9 @@ export default function Settings({voiceState='idle'}: {voiceState?:string}) {
 
   const isDev = import.meta.env.DEV;
 
+  const voiceActive = !['idle', 'disconnected'].includes(voiceState);
   const handleCheckUpdate = async () => {
+    if (voiceActive) { setUpdateStatus('请先结束通话，再更新应用。'); return; }
     if (isDev) {
       setUpdateStatus("开发模式下不支持自动更新");
       setTimeout(() => setUpdateStatus(""), 3000);
@@ -224,7 +226,7 @@ export default function Settings({voiceState='idle'}: {voiceState?:string}) {
         </SettingsGroup>
         <SettingsGroup title="应用">
           <SettingToggle title="开机自启动" checked={autostartEnabled} onChange={()=>void handleToggleAutostart()}/>
-          <div className="setting-row"><strong>应用更新</strong><button className="text-button" onClick={()=>void handleCheckUpdate()} disabled={checking}>{checking?'检查中…':'检查更新'}</button></div>
+          <div className="setting-row"><strong>应用更新</strong><button className="text-button" onClick={()=>void handleCheckUpdate()} disabled={checking || voiceActive}>{checking?'检查中…':voiceActive?'结束通话后更新':'检查更新'}</button></div>
           {updateStatus&&<p role="status" className="service-status">{updateStatus}</p>}
           <AppVersion/>
         </SettingsGroup>

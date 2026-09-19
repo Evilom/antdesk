@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -49,21 +49,21 @@ export default function FabContextMenu() {
   const [interactionMode, setInteractionMode] = useState<WindowInteractionMode>(() => readWindowInteractionMode());
   const [pendingAction, setPendingAction] = useState<MenuAction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const acting = useRef(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const hideSelf = useCallback(async () => {
-    try {
-      await getCurrentWindow().hide();
-    } catch {}
+    try { await invoke("hide_fab_context_menu"); }
+    catch (e) { setError(`无法关闭菜单：${String(e)}`); }
   }, []);
 
   const items = useMemo(() => {
-    const next = nextWindowInteractionMode(interactionMode);
     return [
       ...BASE_ITEMS.slice(0, 6),
       {
         type: "item" as const,
         id: "window-interaction" as const,
-        label: `宠物模式: ${WINDOW_INTERACTION_LABEL[interactionMode]}`,
-        hint: `切换到${WINDOW_INTERACTION_LABEL[next]}`,
+        label: "陪伴方式",
+        hint: WINDOW_INTERACTION_LABEL[interactionMode],
         Icon: IconWindow,
       },
       ...BASE_ITEMS.slice(6),
@@ -72,31 +72,42 @@ export default function FabContextMenu() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") hideSelf();
+      if (e.key === "Escape" || e.key === "Tab") { e.preventDefault(); void hideSelf(); return; }
+      const buttons = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') || [])];
+      if (!buttons.length || !["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+      e.preventDefault();
+      const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      const next = e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1 : (index + (e.key === "ArrowUp" ? -1 : 1) + buttons.length) % buttons.length;
+      buttons[next].focus();
     };
     window.addEventListener("keydown", onKey);
 
+    let disposed = false;
     let unlistenFocus: (() => void) | null = null;
     (async () => {
       try {
-        unlistenFocus = await getCurrentWindow().onFocusChanged(({ payload }) => {
+        const off = await getCurrentWindow().onFocusChanged(({ payload }) => {
           if (payload) {
             setInteractionMode(readWindowInteractionMode());
             setError(null);
+            menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
           }
           else hideSelf();
         });
-      } catch {}
+        if (disposed) off(); else unlistenFocus = off;
+      } catch (e) { setError(`菜单监听失败：${String(e)}`); }
     })();
 
     return () => {
+      disposed = true;
       window.removeEventListener("keydown", onKey);
       if (unlistenFocus) unlistenFocus();
     };
   }, [hideSelf]);
 
   const runAction = useCallback(async (action: MenuAction) => {
-    if (pendingAction) return;
+    if (acting.current) return;
+    acting.current = true;
     setPendingAction(action);
     setError(null);
     try {
@@ -135,17 +146,19 @@ export default function FabContextMenu() {
       setPendingAction(null);
       return;
     } finally {
-      if (action === "quit") setPendingAction(null);
+      acting.current = false;
+      setPendingAction(null);
     }
     setPendingAction(null);
-  }, [hideSelf, pendingAction]);
+  }, [hideSelf]);
 
   return (
-    <div className="fab-menu-shell">
+    <div className="fab-menu-shell" onClick={e => { if (e.target === e.currentTarget) void hideSelf(); }}>
       <div
+        ref={menuRef}
         className="fab-menu"
         role="menu"
-        aria-label="AntDesk FAB menu"
+        aria-label="宠物菜单"
       >
         {items.map((item, index) => {
           if (item.type === "sep") return <div key={`sep-${index}`} className="fab-menu-sep" />;

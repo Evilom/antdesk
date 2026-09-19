@@ -1,3 +1,4 @@
+import { useDialogFocus } from '../lib/useDialogFocus';
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useAppStore } from "../stores/appStore";
 import { IconCalendar, IconFolder, IconReport, IconSearch, IconX } from "./Icons";
@@ -20,6 +21,7 @@ const TYPE_LABELS: Record<SearchResult["type"], string> = {
 export default function SearchModal({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const dialogRef = useDialogFocus(true, onClose);
   const inputRef = useRef<HTMLInputElement>(null);
   const todos = useAppStore((s) => s.todos);
   const projects = useAppStore((s) => s.projects);
@@ -92,7 +94,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelectedIndex((i) => Math.min(i + 1, results.length - 1));
+      setSelectedIndex((i) => Math.max(0, Math.min(i + 1, results.length - 1)));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setSelectedIndex((i) => Math.max(i - 1, 0));
@@ -116,9 +118,11 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
+        ref={dialogRef as React.RefObject<HTMLDivElement>}
+        role="dialog" aria-modal="true" aria-label="全局搜索"
         className="rounded-xl overflow-hidden flex flex-col search-modal"
         style={{
-          width: 360,
+          width: "min(360px, calc(100% - 24px))",
           maxHeight: "60vh",
           background: "rgba(20, 20, 25, 0.92)",
           backdropFilter: "blur(40px) saturate(180%)",
@@ -136,15 +140,18 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
           <IconSearch size={15} className="text-text-muted" />
           <input
             ref={inputRef}
+            aria-label="搜索任务、项目、日报"
+            data-dialog-autofocus
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="搜索任务、项目、日报..."
-            className="flex-1 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-muted"
+            className="min-w-0 flex-1 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-muted"
           />
           <button
             onClick={onClose}
+            aria-label="关闭搜索"
             className="w-6 h-6 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-hover flex items-center justify-center transition-colors"
           >
             <IconX size={13} />

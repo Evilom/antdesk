@@ -40,8 +40,9 @@ html, body {
   flex-direction: column;
   padding: 10px;
   width: 276px;
-  max-height: calc(100vh - 24px);
-  overflow: hidden;
+  max-height: 560px;
+  overflow-y: auto;
+  overflow-x: hidden;
   background:
     linear-gradient(180deg, rgba(255,255,255,0.065), transparent 30%),
     radial-gradient(circle at 14% 0%, rgba(10,132,255,0.13), transparent 34%),
@@ -142,12 +143,8 @@ html, body {
   animation: quick-panel-slide-out-up 0.2s ease-in both;
 }
 
-/* Passthrough mode — locked, click-through */
-.quick-panel.passthrough {
-  opacity: 0.35;
-  pointer-events: none;
-  border-color: rgba(255, 200, 0, 0.15);
-}
+.quick-panel.tasks-locked .quick-list { opacity: 0.6; }
+.quick-panel .check:disabled { cursor: default; }
 
 @keyframes quick-panel-slide-up {
   0% {
@@ -615,3 +612,5 @@ html[data-platform="windows"] .quick-meta span,
 html[data-platform="windows"] .quick-meta i {
   color: rgba(255,255,255,0.55);
 }
+
+.quick-panel > * { flex-shrink: 0; }

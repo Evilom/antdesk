@@ -286,9 +286,9 @@ export default function Reports() {
       <div className="card overflow-hidden">
         {/* Month navigation */}
         <div className="flex items-center justify-between px-3.5 pt-3 pb-2">
-          <button onClick={prevMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-bg-hover transition-colors text-text-muted text-xs"><IconChevronLeft size={14} /></button>
+          <button aria-label="上个月" onClick={prevMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-bg-hover transition-colors text-text-muted text-xs"><IconChevronLeft size={14} /></button>
           <span className="text-[12px] font-semibold text-text-primary tracking-tight">{monthLabel}</span>
-          <button onClick={nextMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-bg-hover transition-colors text-text-muted text-xs"><IconChevronRight size={14} /></button>
+          <button aria-label="下个月" onClick={nextMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-bg-hover transition-colors text-text-muted text-xs"><IconChevronRight size={14} /></button>
         </div>
 
         {/* Week headers */}

@@ -33,10 +33,10 @@ export default function QuickPanel() {
   const [direction, setDirection] = useState<"above" | "below">("below");
   const [side, setSide] = useState<"left" | "right" | "top" | "bottom">("right");
   const [locked, setLocked] = useState(false);
-  const [hiding, setHiding] = useState(false);
+  const [actionError, setActionError] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
   const dataRef = useRef<{ todos: Todo[]; archived: Set<string> } | null>(null);
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
 
   // ── Transparency ──
   useEffect(() => {
@@ -50,46 +50,55 @@ export default function QuickPanel() {
       } catch {}
     };
     loadAlpha();
+    let disposed = false;
     let unlisten: (() => void) | null = null;
     (async () => {
       try {
-        unlisten = await listen<{ transparency: number }>("settings-changed", (e) => {
+        const off = await listen<{ transparency: number }>("settings-changed", (e) => {
           setBgAlpha((255 - (e.payload.transparency ?? 100)) / 255);
         });
+        if (disposed) off(); else unlisten = off;
       } catch {}
     })();
-    return () => { if (unlisten) unlisten(); };
+    return () => { disposed = true; if (unlisten) unlisten(); };
   }, []);
 
   // ── Direction (above/below) from Rust ──
   useEffect(() => {
+    let disposed = false;
     let unlisten: (() => void) | null = null;
     let unlistenPlacement: (() => void) | null = null;
     (async () => {
       try {
-        unlisten = await listen<string>("quick-panel-direction", (e) => {
+        const off = await listen<string>("quick-panel-direction", (e) => {
           setDirection(e.payload as "above" | "below");
         });
-        unlistenPlacement = await listen<{ side: "left" | "right" | "top" | "bottom"; vertical: "above" | "below" }>("companion-placement", (e) => {
+        if (disposed) off(); else unlisten = off;
+        const offPlacement = await listen<{ side: "left" | "right" | "top" | "bottom"; vertical: "above" | "below" }>("companion-placement", (e) => {
           setSide(e.payload.side);
           setDirection(e.payload.vertical);
         });
+        if (disposed) offPlacement(); else unlistenPlacement = offPlacement;
       } catch {}
     })();
-    return () => { if (unlisten) unlisten(); if (unlistenPlacement) unlistenPlacement(); };
+    return () => { disposed = true; if (unlisten) unlisten(); if (unlistenPlacement) unlistenPlacement(); };
   }, []);
 
   // ── ResizeObserver: auto-fit window height + reposition ──
   useEffect(() => {
     if (!panelRef.current) return;
+    let previousHeight = 0;
     const observer = new ResizeObserver(async (entries) => {
-      const rect = entries[0]?.target.getBoundingClientRect();
-      const h = rect?.height;
+      // Measure layout, not the animated transform; viewport-based caps create a shrink loop.
+      const h = entries[0]?.borderBoxSize?.[0]?.blockSize || panelRef.current?.offsetHeight;
       if (!h || h < 10) return;
+      const height = Math.ceil(h + 26);
+      if (height === previousHeight) return;
+      previousHeight = height;
       try {
         const { getCurrentWindow } = await import("@tauri-apps/api/window");
         const { LogicalSize } = await import("@tauri-apps/api/dpi");
-        await getCurrentWindow().setSize(new LogicalSize(300, Math.ceil(h + 26)));
+        await getCurrentWindow().setSize(new LogicalSize(300, height));
         // Reposition after resize so panel doesn't cover FAB
         await invoke("update_quick_panel_position").catch(() => {});
       } catch {}
@@ -157,16 +166,18 @@ export default function QuickPanel() {
   // ── Initial load + refresh on panel show ──
   useEffect(() => {
     fetchAll();
+    let disposed = false;
     let unlisten: (() => void) | null = null;
     (async () => {
       try {
-        unlisten = await listen("quick-panel-shown", () => {
-          setHiding(false);
+        const off = await listen("quick-panel-shown", () => {
+          setActionError("");
           fetchAll();
         });
+        if (disposed) off(); else unlisten = off;
       } catch {}
     })();
-    return () => { if (unlisten) unlisten(); };
+    return () => { disposed = true; if (unlisten) unlisten(); };
   }, [fetchAll]);
 
   // ── Client-side filter ──
@@ -182,41 +193,45 @@ export default function QuickPanel() {
 
   // ── Listen for pie menu filter ──
   useEffect(() => {
+    let disposed = false;
     let unlisten: (() => void) | null = null;
     (async () => {
       try {
-        unlisten = await listen<{ tag: string }>("pie-filter-changed", (e) => {
+        const off = await listen<{ tag: string }>("pie-filter-changed", (e) => {
           setFilterTag(e.payload.tag);
         });
+        if (disposed) off(); else unlisten = off;
       } catch {}
     })();
-    return () => { if (unlisten) unlisten(); };
+    return () => { disposed = true; if (unlisten) unlisten(); };
   }, []);
 
-  // ── Close with animation ──
   const handleClose = useCallback(async () => {
-    setHiding(true);
-    hideTimerRef.current = setTimeout(async () => {
-      try {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        await getCurrentWindow().hide();
-        setHiding(false);
-      } catch {}
-    }, 200);
+    try {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      await getCurrentWindow().hide();
+    } catch (e) { setActionError(`关闭失败：${String(e)}`); }
   }, []);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); void handleClose(); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [handleClose]);
 
   // ── NO auto-close on blur — DesktopAnt behavior: stay open until explicitly closed ──
   // Only close on explicit "close-panel" event from Rust
   useEffect(() => {
+    let disposed = false;
     let unlisten: (() => void) | null = null;
     (async () => {
       try {
-        unlisten = await listen("close-quick-panel", () => {
+        const off = await listen("close-quick-panel", () => {
           handleClose();
         });
+        if (disposed) off(); else unlisten = off;
       } catch {}
     })();
-    return () => { if (unlisten) unlisten(); };
+    return () => { disposed = true; if (unlisten) unlisten(); };
   }, [handleClose]);
 
   const handleOpenMain = useCallback(async () => {
@@ -233,40 +248,29 @@ export default function QuickPanel() {
     } catch {}
   }, [handleClose]);
 
-  // ── Toggle todo ──
+  // Keep the task visible until the save succeeds; failed requests remain retryable.
+  const completing = useRef(new Set<string>());
   const handleToggle = useCallback(async (id: string) => {
-    setExiting((prev) => new Set(prev).add(id));
-    setAllTodos((prev) => prev.filter((t) => t.id !== id));
-    setTimeout(() => {
-      setExiting((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-    }, 280);
+    if (completing.current.has(id)) return;
+    completing.current.add(id);
+    setExiting(new Set(completing.current)); setActionError("");
     try {
       const token = getLocalNotionToken();
-      if (!token) {
-        setError("未配置 Notion Token");
-        return;
-      }
+      if (!token) throw new Error("请先连接 Notion");
       await invoke("fetch_notion", {
-        path: `/v1/pages/${id}`,
-        method: "PATCH",
-        body: JSON.stringify({ properties: { Status: { checkbox: true } } }),
-        token,
+        path: `/v1/pages/${id}`, method: "PATCH",
+        body: JSON.stringify({ properties: { Status: { checkbox: true } } }), token,
       });
-    } catch (e) {
-      console.error("Toggle failed:", e);
-    }
+      setAllTodos(current => current.filter(todo => todo.id !== id));
+    } catch (e) { setActionError(`任务未完成，请重试：${String(e)}`); }
+    finally { completing.current.delete(id); setExiting(new Set(completing.current)); }
   }, []);
 
   const panelClasses = [
     "quick-panel",
     direction,
     side,
-    hiding ? "hiding" : "",
-    locked ? "passthrough" : "",
+    locked ? "tasks-locked" : "",
   ].filter(Boolean).join(" ");
 
   return (
@@ -289,7 +293,8 @@ export default function QuickPanel() {
           <button
             className={`quick-icon-btn ${locked ? "locked" : ""}`}
             onClick={() => setLocked(!locked)}
-            title={locked ? "解锁（恢复正常交互）" : "锁定（鼠标穿透）"}
+            title={locked ? "解锁任务" : "锁定任务（防止误操作）"}
+            aria-pressed={locked}
           >
             {locked ? <IconLock size={12} /> : <IconUnlock size={12} />}
           </button>
@@ -315,6 +320,7 @@ export default function QuickPanel() {
         </button>
       </div>
 
+      {actionError && <div className="quick-empty" role="status">{actionError}</div>}
       {loading ? (
         <div className="quick-skeleton">
           <span />
@@ -335,11 +341,13 @@ export default function QuickPanel() {
             return (
               <div
                 key={todo.id}
-                className={`quick-bubble ${isExiting ? "exit" : ""}`}
+                className="quick-bubble"
                 style={{ animationDelay: `${0.04 + index * 0.035}s` }}
               >
                 <button
                   className={`check ${todo.status ? "done" : ""}`}
+                  aria-label={`完成任务：${todo.name}`}
+                  disabled={locked || isExiting}
                   onClick={() => handleToggle(todo.id)}
                 />
                 <div className="quick-bubble-info">

@@ -59,7 +59,8 @@ body,
   transition: background 120ms ease, color 120ms ease, transform 120ms ease;
 }
 
-.fab-menu-item:hover {
+.fab-menu-item:hover,
+.fab-menu-item:focus-visible {
   color: rgba(255,255,255,0.96);
   background: rgba(255,255,255,0.075);
 }
@@ -114,7 +115,7 @@ body,
 }
 
 .fab-menu-hint {
-  color: rgba(255,255,255,0.34);
+  color: rgba(255,255,255,0.64);
   font-size: 9px;
   font-weight: 600;
   white-space: nowrap;
@@ -183,3 +184,5 @@ html[data-platform="windows"] .fab-menu-hint {
 html[data-platform="windows"] .fab-menu-item:hover {
   background: rgba(255,255,255,0.10);
 }
+
+.fab-menu-item:focus-visible { outline: 1px solid rgba(142,199,255,0.8); outline-offset: -1px; }
