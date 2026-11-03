@@ -282,9 +282,8 @@ export default function QuickPanel() {
     >
       <div className="quick-head">
         <div className="quick-title">
-          <em>Focus Queue</em>
-          <span>焦点行动</span>
-          <small>{filterTag === "all" ? "即时入口" : `${filterTag} 焦点`}</small>
+          <span>快捷待办</span>
+          <small>{filterTag === "all" ? "高优优先" : filterTag}</small>
         </div>
         <div className="quick-actions">
           <button className="quick-icon-btn" onClick={fetchAll} title="刷新">
@@ -305,8 +304,8 @@ export default function QuickPanel() {
       </div>
 
       <div className="quick-meta">
-        <span className={highCount > 0 ? "urgent" : ""}>{highCount > 0 ? `${highCount} 个高优先级` : "当前无高优先级"}</span>
-        <i>{side === "left" ? "左侧吸附" : side === "right" ? "右侧吸附" : side === "top" ? "上方吸附" : "下方吸附"}</i>
+        <span className={highCount > 0 ? "urgent" : ""}>{highCount > 0 ? `${highCount} 项高优` : "无高优事项"}</span>
+        <i>{side === "left" ? "左侧" : side === "right" ? "右侧" : side === "top" ? "顶部" : "底部"}</i>
       </div>
 
       <div className="quick-shortcuts">
@@ -365,7 +364,7 @@ export default function QuickPanel() {
 
       {allTodos.length > visibleCount && !loading && !error && (
         <button className="quick-foot" onClick={handleOpenMain}>
-          还有 {allTodos.length - visibleCount} 个任务在主面板处理
+          查看其余 {allTodos.length - visibleCount} 项
           <IconArrowRight size={11} />
         </button>
       )}

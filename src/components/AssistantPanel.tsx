@@ -10,19 +10,18 @@ import ProjectCockpit from './ProjectCockpit';
 import { linkedSources } from '../lib/cockpit';
 import { cockpitContext } from '../lib/cockpit-data.mjs';
 import { isTauri } from '@tauri-apps/api/core';
-import { ArrowUp, BookOpen, ChevronLeft, Headphones, Mic, MicOff, PhoneOff, Search, Settings2, Sparkles, Square, Volume2, X } from 'lucide-react';
+import { ArrowUp, Headphones, MessageSquare, Mic, MicOff, PhoneOff, Settings2, Square, Volume2, X } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
-import { sendChatMessage } from '../lib/chat';
-import { ASSISTANT_PERSONA, agendaContext, briefingSignature, createVoiceClient, getKnowledgeStatus, hasVoiceKey, knowledgeContext, readKnowledge, searchKnowledge, type KnowledgeSource, type KnowledgeStatus } from '../lib/assistant';
+import { ASSISTANT_PERSONA, agendaContext, briefingSignature, createVoiceClient, hasVoiceKey } from '../lib/assistant';
 import type { Caption, RealtimeAssistant } from '../lib/vendor/realtime-client.mjs';
 import { useDialogFocus } from '../lib/useDialogFocus';
 import { codexStatus, loadHistory, localContext, packContext, PM_INSTRUCTIONS, publish, remember, saveMessages, subscribe, type CodexSnapshot, type PetSnapshot, type LocalContext } from '../lib/pm';
 
-export const VOICE_LABELS: Record<string, string> = { idle: '随时聊聊', checking: '检查语音服务', microphone: '等待麦克风授权', connecting: '正在连接', connected: '正在通话', reconnecting: '正在重新连接', stopping: '正在释放旧通话…', disconnected: '通话已结束' };
-interface Message { id: string; role: 'user' | 'assistant'; text: string; sources?: KnowledgeSource[] }
-interface Props { open: boolean; onClose: () => void; onSettings: () => void; onState: (state: string) => void; requestBriefing: number; voiceClientFactory?: typeof createVoiceClient }
+export const VOICE_LABELS: Record<string, string> = { idle: '待机', checking: '检查语音服务', microphone: '等待麦克风授权', connecting: '正在连接', connected: '正在通话', reconnecting: '正在重连', stopping: '正在断开…', disconnected: '通话已结束' };
+interface Message { id: string; role: 'user' | 'assistant'; text: string }
+interface Props { open: boolean; onClose: () => void; onSettings: () => void; onAssistants?: () => void; onState: (state: string) => void; requestBriefing: number; voiceClientFactory?: typeof createVoiceClient }
 
-export default function AssistantPanel({ open, onClose, onSettings, onState, requestBriefing, voiceClientFactory = createVoiceClient }: Props) {
+export default function AssistantPanel({ open, onClose, onSettings, onAssistants, onState, requestBriefing, voiceClientFactory = createVoiceClient }: Props) {
   const { settings, todos, projects, reports, notionConnected } = useAppStore();
   const [voiceState, setVoiceState] = useState('idle');
   const [muted, setMuted] = useState(false);
@@ -45,14 +44,6 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
-  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
-  const [knowledge, setKnowledge] = useState<KnowledgeStatus | null>(null);
-  const [knowledgeError, setKnowledgeError] = useState('');
-  const [query, setQuery] = useState('');
-  const [semantic, setSemantic] = useState(false);
-  const [sources, setSources] = useState<KnowledgeSource[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [document, setDocument] = useState<{title: string; text: string} | null>(null);
   const clientRef = useRef<RealtimeAssistant | null>(null);
   const retiredClient = useRef<RealtimeAssistant | null>(null);
   const voiceTransition = useRef<Promise<void> | null>(null);
@@ -71,9 +62,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
   const voiceActive = !['idle', 'disconnected'].includes(voiceState);
   const connected = voiceState === 'connected';
   const dialogRef = useDialogFocus(open, () => {
-    if (document) setDocument(null);
-    else if (knowledgeOpen) setKnowledgeOpen(false);
-    else if (dayOpen) setDayOpen(false);
+    if (dayOpen) setDayOpen(false);
     else if (workOpen) setWorkOpen(false);
     else onClose();
   });
@@ -163,13 +152,6 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
   useEffect(() => { onState(voiceState); }, [voiceState, onState]);
   useEffect(() => { transcriptRef.current?.scrollTo({top: transcriptRef.current.scrollHeight, behavior: 'instant'}); }, [messages, busy, open]);
   useEffect(() => {
-    if (!open || !settings.knowledgeEnabled || knowledge) return;
-    let active = true;
-    getKnowledgeStatus().then(v => { if (active) { setKnowledge(v); setKnowledgeError(''); } })
-      .catch(e => { if (active) setKnowledgeError(String(e instanceof Error ? e.message : e)); });
-    return () => { active = false; };
-  }, [open, settings.knowledgeEnabled, knowledge, knowledgeOpen]);
-  useEffect(() => {
     const stop = () => { ++voiceEpoch.current; void saveMessages(conversationRef.current,messagesRef.current); clientRef.current?.stop(); abortRef.current?.abort(); };
     window.addEventListener('beforeunload', stop);
     return () => { window.removeEventListener('beforeunload', stop); stop(); voiceContextQueue.current.reset(); };
@@ -178,7 +160,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
   const pushCaption = (caption: Caption) => {
     if (!caption.text.trim()) return;
     // Context sent over the relay is echoed as a user message. Never display or
-    // retrieve against that echo, otherwise knowledge injection can loop.
+    // retrieve against that echo, otherwise context injection can loop.
     if (caption.role === 'user' && sentIds.current.has(caption.id)) return;
     const id = `voice:${caption.id || caption.role}`;
     setMessages(old => {
@@ -203,12 +185,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
       }
       const pm = await background(caption.text, false, false);
       if (!valid()) return null;
-      const result = latest.current.settings.knowledgeEnabled && /知识|以前|之前|资料|记得|文档|项目|hermes/i.test(caption.text)
-        ? await searchKnowledge(caption.text).catch(e => { if (valid()) setKnowledgeError(String(e)); return []; }) : [];
-      if (!valid()) return null;
-      setSources(result);
-      if (result.length) setMessages(old => old.map(m => m.id === id ? {...m, sources: result} : m));
-      return voiceLookupContext(caption.text, `${pm}\n相关知识：${knowledgeContext(result).slice(0, 1500)}`);
+      return voiceLookupContext(caption.text, pm);
     }, text => {
       if (epoch === voiceEpoch.current && client === clientRef.current && client?.wanted) client.sendText(text);
     }, e => setMemoryError(e instanceof Error ? e.message : String(e)));
@@ -271,11 +248,11 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
     return voiceTransition.current;
   };
 
-  const send = async (text: string, attached?: KnowledgeSource[]) => {
+  const send = async (text: string) => {
     if (!text.trim() || switchingRef.current || voiceTransition.current || operationBusy.current || !memoryReady) return;
     if (text.length > 4000) { setError('请将问题缩短到 4000 字以内'); return; }
     if (voiceActive && !connected) { setError('语音连接完成后即可发送'); return; }
-    if (!connected && !settings.aiEndpoint.trim()) { setError('请先开始语音对话，或在设置中连接文字 AI 服务。'); return; }
+    if (!connected) { setError('请先开始语音通话；文字对话和任务评审请使用助理工作区。'); return; }
     voiceContextQueue.current.cancel();
     operationBusy.current = true;
     setError(''); setInput(''); setBusy(true);
@@ -284,36 +261,19 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
     setMessages(old => [...old, user]);
     const controller = new AbortController(); abortRef.current = controller;
     try {
-      let matches = attached || [];
-      if (!attached && settings.knowledgeEnabled) {
-        try { matches = await searchKnowledge(text); }
-        catch (e) { setKnowledgeError(e instanceof Error ? e.message : String(e)); }
-      }
-      if (controller.signal.aborted || epoch !== requestEpoch.current) return;
-      setSources(matches);
       const memory=text.match(/^(?:请)?(?:帮我)?记住[：:，,\s]*(.+)/s);
       let saved='';
       if(memory && !/^(了吗|吗|了没)[？?。]*$/.test(memory[1])) {await remember(memory[1],`${conversationRef.current}:${user.id}`);saved='本机长期记忆已保存成功。';setMemoryNotice(saved);}
-      const prompt = `${await background(text)}\n${saved}\n引用资料：\n${knowledgeContext(matches).slice(0,1500) || '本次没有检索到相关资料。'}`;
+      const prompt = `${await background(text)}\n${saved}`;
       if (controller.signal.aborted || epoch !== requestEpoch.current) return;
-      if (connected) {
-        clientRef.current?.sendText(`${prompt.slice(0,7900-text.length)}\n大师的问题：${text}`);
-        return;
-      }
-      const id = crypto.randomUUID();
-      setMessages(old => [...old, {id, role: 'assistant', text: '', sources: matches}]);
-      let answer = '';
-      await sendChatMessage(settings.aiEndpoint, settings.aiModel,
-        [{role: 'system', content: prompt}, ...[...messages, user].slice(-12).map(m => ({role: m.role, content: m.text}))],
-        chunk => { if (epoch !== requestEpoch.current || controller.signal.aborted) return; answer += chunk; setMessages(old => old.map(m => m.id === id ? {...m, text: answer} : m)); }, controller.signal);
-      if (!answer) throw new Error('AI 服务没有返回内容，请稍后重试');
+      clientRef.current?.sendText(`${prompt.slice(0,7900-text.length)}\n用户问题：${text}`);
     } catch (e) {
       if (!controller.signal.aborted) setError(e instanceof Error ? e.message : String(e));
     } finally {
       if (epoch === requestEpoch.current) { setBusy(false); operationBusy.current = false; abortRef.current = null; }
     }
   };
-  const briefing = () => connected ? send('请结合当前真实任务，为我做一个简短的今日汇报。', []) : startVoice(true);
+  const briefing = () => connected ? send('请结合当前真实任务，为我做一个简短的今日汇报。') : startVoice(true);
   commandRef.current = action => {
     if (action==='toggle') {if(clientRef.current?.wanted)void stopVoice();else void startVoice();}
     if (action==='stop') void stopVoice();
@@ -335,7 +295,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
       const nextConversation=crypto.randomUUID();
       await activateConversation(nextConversation);
       conversationRef.current=nextConversation;messagesRef.current=[];setMessages([]);setDayOpen(false);
-      setSources([]); setInput(''); setError(''); setWorkOpen(false); setKnowledgeOpen(false);
+      setInput(''); setError(''); setWorkOpen(false);
       setMemoryNotice(resumeVoice ? '已保存旧对话，正在为新对话接通语音。' : '已开始新对话，历史记录和长期记忆仍保留。');
       switched = true;
     } catch(e) {setMemoryError(`尚未切换对话：${String(e)}`);}
@@ -365,7 +325,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
       if (signatureRef.current === null) { signatureRef.current = signature; return; }
       if (signature !== signatureRef.current && signature && !operationBusy.current) {
         signatureRef.current = signature;
-        try { clientRef.current?.sendText(`当前到期任务有变化，请简短提醒大师一次：${context()}`); }
+        try { clientRef.current?.sendText(`当前到期任务有变化，请简短提醒一次：${context()}`); }
         catch { /* A reconnect will establish a new baseline. */ }
       } else if (!signature) signatureRef.current = signature;
     };
@@ -381,7 +341,7 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
         const snapshot=await codexStatus();if(disposed)return;
         const changed=previous ? snapshot.tasks.filter(t=>previous!.has(t.id)&&previous!.get(t.id)!==t.status&&['completed','interrupted'].includes(t.status)&&!t.stale) : [];
         previous=new Map(snapshot.tasks.map(t=>[t.id,t.status]));
-        if(changed.length && !operationBusy.current) clientRef.current?.sendText(`Codex 本机记录出现以下变化，请简短提醒大师，说明是最近一轮状态，不将一轮完成等同于整个项目完成：${packContext(changed,1800)}`);
+        if(changed.length && !operationBusy.current) clientRef.current?.sendText(`Codex 本机记录出现以下变化，请简短提醒，说明是最近一轮状态，不将一轮完成等同于整个项目完成：${packContext(changed,1800)}`);
       }catch{/* A failed poll never fabricates a task status. */}finally{polling=false;}
     };
     void check();const timer=setInterval(()=>void check(),30000);return ()=>{disposed=true;clearInterval(timer);};
@@ -416,18 +376,6 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
     void check();const timer=setInterval(()=>void check(),30000);return()=>{disposed=true;clearInterval(timer);};
   },[memoryReady,settings.projectBriefingEvents,settings.projectBriefingTime]);
 
-  const runSearch = async () => {
-    if (!query.trim() || searching) return;
-    setSearching(true); setKnowledgeError(''); setDocument(null);
-    try { setSources(await searchKnowledge(query, semantic)); }
-    catch (e) { setKnowledgeError(e instanceof Error ? e.message : String(e)); }
-    finally { setSearching(false); }
-  };
-  const openSource = async (source: KnowledgeSource) => {
-    setKnowledgeOpen(true); setKnowledgeError(''); setDocument({title: source.title, text: '正在读取…'});
-    try { const content = await readKnowledge(source.file); setDocument({title: source.title, text: content}); }
-    catch (e) { setDocument(null); setKnowledgeError(e instanceof Error ? e.message : String(e)); }
-  };
   const stopText = useCallback(() => {
     abortRef.current?.abort();
     ++requestEpoch.current;
@@ -435,56 +383,41 @@ export default function AssistantPanel({ open, onClose, onSettings, onState, req
     setBusy(false);
   }, []);
 
-  return <section hidden={!open} className="assistant-layer" role="dialog" aria-modal="true" aria-label="私人助理" ref={dialogRef}>
+  return <section hidden={!open} className="assistant-layer" role="dialog" aria-modal="true" aria-label="语音助手" ref={dialogRef}>
     <header className="assistant-header">
-      <div><span className="eyebrow">ANTDESK ASSISTANT</span><h2>{knowledgeOpen ? 'Hermes 知识库' : '你的私人助理'}</h2></div>
+      <div><h2>语音助手</h2></div>
       <div className="assistant-header-actions">
         <button className="text-button" disabled={!memoryReady || switching || voiceState==='stopping'} onClick={()=>void newConversation()}>{switching ? '正在切换…' : '新对话'}</button>
         <button className="icon-button" aria-label="助理设置" onClick={onSettings}><Settings2 size={17}/></button>
         <button className="icon-button" aria-label="收起助理" onClick={onClose}><X size={18}/></button>
       </div>
     </header>
-    {knowledgeOpen ? <div className="knowledge-view">
-      <button className="text-button" onClick={() => {setKnowledgeOpen(false); setDocument(null);}}><ChevronLeft size={15}/>返回对话</button>
-      <p className="muted-copy">检索 Hermes 保存的资料，查看原文或带入对话。</p>
-      <form className="knowledge-search" onSubmit={e => {e.preventDefault(); void runSearch();}}>
-        <Search size={17}/><input aria-label="搜索 Hermes 知识" value={query} onChange={e => setQuery(e.target.value)} placeholder="搜索项目、想法、过去的记录" maxLength={500}/>
-        <button className="text-button" disabled={searching || !query.trim()}>{searching ? '检索中' : '搜索'}</button>
-      </form>
-      <label className="check-setting"><input type="checkbox" checked={semantic} onChange={e => setSemantic(e.target.checked)}/>深度语义检索<span>首次可能较慢</span></label>
-      {knowledgeError && <p role="status" className="inline-notice">{knowledgeError}</p>}
-      {document ? <article className="knowledge-document"><button className="text-button" onClick={() => setDocument(null)}>返回结果</button><h3>{document.title}</h3><pre>{document.text}</pre></article> :
-        <div className="knowledge-results">{sources.map(source => <article key={source.file} className="knowledge-result"><BookOpen size={18}/><div><h3>{source.title}</h3><p>{source.snippet}</p><small>{source.file}</small><div className="source-actions"><button onClick={() => void openSource(source)}>查看原文</button><button disabled={busy} onClick={() => {setKnowledgeOpen(false); void send(`请结合这份资料，帮我解读：${source.title}`, [source]);}}>带入对话</button></div></div></article>)}
-          {!searching && !sources.length && <div className="knowledge-empty"><BookOpen size={28}/><p>从一个关键词开始</p><span>找到的资料会保留来源，方便核对。</span></div>}
-        </div>}
-      {knowledge && <details className="knowledge-status"><summary>本地索引状态</summary><pre>{knowledge.status}</pre></details>}
-    </div> : <>
-      <DataSources voiceState={voiceState} knowledge={knowledge} knowledgeError={knowledgeError} memoryError={memoryError||continuityError} onProjects={()=>{setDayOpen(false);setWorkOpen(true);}} onSettings={onSettings} onKnowledge={()=>{setKnowledgeOpen(true);setKnowledge(null);}}/>
+    <>
+      <DataSources voiceState={voiceState} memoryError={memoryError||continuityError} onProjects={()=>{setDayOpen(false);setWorkOpen(true);}} onSettings={onSettings}/>
       {dayOpen ? <ConversationDay load={readDay} onClose={()=>setDayOpen(false)}/> : workOpen ? <ProjectCockpit onClose={()=>setWorkOpen(false)} codex={work} codexError={workError}/> : !messages.length ? <div className="assistant-welcome">
-        <img src="/assets/assistant/pearl.png" alt="珠光玻璃助理" className={`assistant-orb ${connected ? 'is-live' : ''}`}/>
-        <span className="eyebrow">A LITTLE SPACE, JUST FOR YOU</span><h3>大师，我在这里。</h3><p>聊聊想法，理清今天。<br/>让过去积累的知识，陪你一起往前。</p>
-        <div className="assistant-prompts"><button onClick={() => void briefing()}><Headphones size={16}/>听今日汇报</button><button onClick={() => setKnowledgeOpen(true)}><BookOpen size={16}/>翻翻知识库</button></div>
+        <img src="/assets/assistant/pearl.png" alt="语音助手" className={`assistant-orb ${connected ? 'is-live' : ''}`}/>
+        <h3>语音助手</h3><p>用语音讨论当前任务，听取项目简报。文字会话与任务评审在助理工作区进行。</p>
+        <div className="assistant-prompts"><button onClick={() => void briefing()}><Headphones size={16}/>今日汇报</button>{onAssistants && <button onClick={onAssistants}><MessageSquare size={16}/>助理工作区</button>}</div>
       </div> : <div className="assistant-transcript" ref={transcriptRef} role="log" aria-label="对话记录" aria-live="polite">
-        {messages.map(m => <article key={m.id} className={`assistant-message ${m.role}`}><span>{m.role === 'user' ? '你' : '助理'}</span><p>{m.text || (busy ? '正在思考…' : '这条回复未完成')}</p>{!!m.sources?.length && <div className="message-sources">{m.sources.map((s, i) => <button key={s.file} onClick={() => void openSource(s)}>[{i + 1}] {s.title}</button>)}</div>}</article>)}
-        {busy && <p className="muted-copy" role="status">正在整理资料…</p>}
+        {messages.map(m => <article key={m.id} className={`assistant-message ${m.role}`}><span>{m.role === 'user' ? '你' : '助理'}</span><p>{m.text || (busy ? '正在生成…' : '回复未完成')}</p></article>)}
+        {busy && <p className="muted-copy" role="status">正在处理…</p>}
       </div>}
       <footer className="assistant-composer">
         {(memoryError||continuityError) && <p className="inline-notice" role="alert">{memoryError||continuityError}</p>}
         {memoryNotice && <p className="muted-copy" role="status">{memoryNotice}</p>}
-        {knowledgeError && settings.knowledgeEnabled && <button className="knowledge-warning" onClick={() => setKnowledgeOpen(true)}><BookOpen size={13}/>知识库暂不可用，查看详情</button>}
         {error && <div className="inline-notice" role="alert">{error}<button className="text-button" onClick={onSettings}>打开设置</button></div>}
         {playbackBlocked && <button className="playback-button" onClick={() => audioRef.current?.play().then(() => setPlaybackBlocked(false)).catch(() => setError('声音尚未播放，请检查系统音频设置'))}><Volume2 size={16}/>点击播放助理声音</button>}
-        {voiceActive && <div className="voice-session-bar" role="status"><span className="live-dot"/>{VOICE_LABELS[voiceState]}{connected && <span title={renewable?'网页连接自动续期，保持同一会话':'旧网关尚不支持续期，到期后恢复 AntDesk 对话上下文'}>{muted ? '麦克风已静音' : renewable?'同一网页会话 · 自动续期':'麦克风开启'}</span>}
+        {voiceActive && <div className="voice-session-bar" role="status"><span className="live-dot"/>{VOICE_LABELS[voiceState]}{connected && <span title={renewable?'网页连接自动续期，保持同一会话':'旧网关尚不支持续期，到期后恢复 AntDesk 对话上下文'}>{muted ? '已静音' : renewable?'自动续期':'麦克风开启'}</span>}
           <button className="icon-button" disabled={!connected} aria-label={muted ? '打开麦克风' : '静音麦克风'} onClick={() => {clientRef.current?.mute(!muted); setMuted(!muted);}}>{muted ? <MicOff size={16}/> : <Mic size={16}/>}</button>
           <button className="icon-button" disabled={!connected} aria-label="打断助理" onClick={() => {try {clientRef.current?.interrupt();} catch {setError('通话已断开，请重新连接');}}}><Square size={13}/></button>
           <button className="icon-button hangup" disabled={voiceState==='stopping'} aria-label="结束通话" onClick={() => void stopVoice()}><PhoneOff size={16}/></button></div>}
         <form className="assistant-input" onSubmit={e => {e.preventDefault(); void send(input);}}>
-          <input data-dialog-autofocus aria-label="给助理发消息" value={input} onChange={e => setInput(e.target.value)} maxLength={4000} placeholder={connected ? '也可以打字给我…' : '有什么想和我聊的？'}/>
-          {busy ? <button type="button" aria-label="停止回复" onClick={stopText}><Square size={15}/></button> : input.trim() ? <button type="submit" aria-label="发送消息"><ArrowUp size={19}/></button> : <button type="button" aria-label={voiceActive ? '语音通话中' : '开始语音对话'} disabled={voiceActive} onClick={() => void startVoice()}><Mic size={19}/></button>}
+          <input data-dialog-autofocus={connected ? '' : undefined} aria-label="给助理发消息" value={input} onChange={e => setInput(e.target.value)} maxLength={4000} disabled={!connected} placeholder={connected ? '输入文字发送到当前通话…' : '点击麦克风开始语音通话…'}/>
+          {busy ? <button type="button" aria-label="停止回复" onClick={stopText}><Square size={15}/></button> : connected && input.trim() ? <button type="submit" aria-label="发送消息"><ArrowUp size={19}/></button> : <button type="button" data-dialog-autofocus={!voiceActive ? '' : undefined} aria-label={voiceActive ? '语音通话中' : '开始语音对话'} disabled={voiceActive} onClick={() => void startVoice()}><Mic size={19}/></button>}
         </form>
-        <div className="composer-caption"><button onClick={() => setKnowledgeOpen(true)}><BookOpen size={12}/>知识</button><button onClick={()=>{setDayOpen(false);setWorkOpen(v=>!v);}}>项目</button><button onClick={()=>setDayOpen(v=>!v)}>全天记录</button><span>{voiceActive ? '收起也可继续通话' : memoryReady ? (isTauri()?'同一对话持续保留':'桌面端可保存记忆') : '正在恢复记忆…'}</span></div>
+        <div className="composer-caption">{onAssistants && <button onClick={onAssistants}><MessageSquare size={12}/>助理工作区</button>}<button onClick={()=>{setDayOpen(false);setWorkOpen(v=>!v);}}>项目状态</button><button onClick={()=>setDayOpen(v=>!v)}>24h 记录</button><span>{voiceActive ? '收起面板仍保持通话' : memoryReady ? (isTauri()?'本地记忆已启用':'预览模式') : '正在读取记忆…'}</span></div>
       </footer>
-    </>}
+    </>
     <audio ref={audioRef} autoPlay/>
   </section>;
 }

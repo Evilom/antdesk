@@ -98,15 +98,15 @@ button:not(:disabled):active { transform: scale(.97); }
 .assistant-dock-button.is-live { box-shadow: var(--glass-shadow), 0 0 20px #66deb933; }
 .assistant-layer { position: absolute; inset: 0; z-index: 55; background: var(--sheet-bg); display: flex; flex-direction: column; animation: assistant-appear .35s var(--material-motion); }
 .assistant-layer[hidden] { display: none; }
-.assistant-header { padding: 24px 22px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.assistant-header h2, .settings-heading h2 { font-size: 19px; font-weight: 600; margin-top: 6px; letter-spacing: -.025em; }
+.assistant-header { padding: 16px 20px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--border-card); }
+.assistant-header h2, .settings-heading h2 { font-size: 16px; font-weight: 600; margin: 0; letter-spacing: -.02em; }
 .assistant-welcome { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: auto; text-align: center; padding: 0 20px 20px; }
-.assistant-orb { width: min(57vw, 220px); max-height: 30vh; aspect-ratio: 1; object-fit: contain; mix-blend-mode: screen; margin-bottom: 8px; animation: pearl-breathe 6s ease-in-out infinite; }
-[data-theme="light"] .assistant-orb { mix-blend-mode: normal; border-radius: 50%; width: min(40vw, 170px); margin-bottom: 24px; }
+.assistant-orb { width: 88px; max-height: 88px; aspect-ratio: 1; object-fit: contain; mix-blend-mode: screen; margin-bottom: 8px; animation: pearl-breathe 6s ease-in-out infinite; }
+[data-theme="light"] .assistant-orb { mix-blend-mode: normal; border-radius: 50%; width: 80px; margin-bottom: 12px; }
 .assistant-orb.is-live { animation-duration: 2.5s; }
-.assistant-welcome h3 { font-size: 25px; letter-spacing: -.04em; font-weight: 500; margin: 10px 0; }
-.assistant-welcome > p { color: var(--text-secondary); font-size: 12px; line-height: 1.9; }
-.assistant-prompts { display: flex; gap: 10px; margin-top: 26px; }
+.assistant-welcome h3 { font-size: 16px; letter-spacing: -.02em; font-weight: 600; margin: 6px 0; }
+.assistant-welcome > p { color: var(--text-secondary); font-size: 12px; line-height: 1.65; }
+.assistant-prompts { display: flex; gap: 10px; margin-top: 18px; }
 .assistant-prompts button { display: flex; align-items: center; gap: 7px; font-size: 11px; padding: 10px 13px; border: 1px solid var(--border-card); border-radius: 20px; background: var(--glass-control); color: var(--text-secondary); }
 .assistant-composer { padding: 12px 22px 19px; flex-shrink: 0; }
 .assistant-input { display: flex; align-items: center; gap: 8px; padding: 7px; border: 1px solid var(--glass-highlight); border-radius: 27px; background: var(--glass-control); box-shadow: var(--glass-shadow); }

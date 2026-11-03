@@ -12,8 +12,6 @@ import {
   nextWindowInteractionMode, readWindowInteractionMode, writeWindowInteractionMode,
   type WindowInteractionMode,
 } from "./lib/DesktopWorldBridge";
-import { KanbanBridge } from "./lib/kanbanBridge";
-import { useKanbanStore } from "./stores/kanbanStore";
 import { useAppStore } from "./stores/appStore";
 import { EmotionEngine } from "./lib/EmotionEngine";
 import { getLocalNotionToken } from "./lib/localSettings";
@@ -57,8 +55,6 @@ export default function Pet() {
   const pressedRef = useRef(false);
   const hoveringRef = useRef(false);
   const optionsRef = useRef({ locked, mode, reduceMotion });
-  const kanbanEndpoint = useKanbanStore(s => s.endpoint);
-  const kanbanStats = useKanbanStore(s => s.data.stats);
 
   useEffect(()=>{
     let disposed=false;let off:(()=>void)|undefined;
@@ -68,10 +64,10 @@ export default function Pet() {
   useEffect(()=>{
     const send=()=>{
       const runtime=runtimeRef.current;
-      void publish('pm:pet:snapshot',{observedAt:Date.now(),visualState,mode:petMode,locked,sleep:runtime?.sleep.getPhase()||'unknown',emotion:runtime?.emotion.getState()||null,tasks:{notionPending:pendingCount,kanban:kanbanStats}});
+      void publish('pm:pet:snapshot',{observedAt:Date.now(),visualState,mode:petMode,locked,sleep:runtime?.sleep.getPhase()||'unknown',emotion:runtime?.emotion.getState()||null,tasks:{notionPending:pendingCount}});
     };
     send();const timer=setInterval(send,5000);return ()=>clearInterval(timer);
-  },[visualState,petMode,locked,pendingCount,kanbanStats]);
+  },[visualState,petMode,locked,pendingCount]);
   const voiceCommand=(action:string)=>{void publish('pm:voice:command',action).catch(()=>runtimeRef.current?.notify('助理连接暂不可用'));};
 
   useEffect(() => {
@@ -141,7 +137,6 @@ export default function Pet() {
         if (next === "celebrate") emotion.emit("task_completed");
       },
       onNotify: notify,
-      onKanbanEvent: (_event, message) => notify(message),
     }, { autonomousBehavior: false });
     runtimeRef.current = { physics, brain, sleep, emotion, arbiter, syncMotion, notify };
     emotion.start();
@@ -205,23 +200,6 @@ export default function Pet() {
     const timer = setInterval(() => void refresh(), 60_000);
     return () => { disposed = true; clearInterval(timer); };
   }, [native]);
-
-  useEffect(() => {
-    if (!native) return;
-    let disposed = false;
-    const bridge = new KanbanBridge({
-      endpoint: kanbanEndpoint || undefined,
-      onData: data => {
-        if (disposed) return;
-        useKanbanStore.getState().setData(data);
-        useKanbanStore.getState().setConnected(true);
-        runtimeRef.current?.brain.updateKanban(data);
-      },
-      onError: error => { if (!disposed) useKanbanStore.getState().setError(error); },
-    });
-    bridge.start();
-    return () => { disposed = true; bridge.dispose(); };
-  }, [native, kanbanEndpoint]);
 
   useEffect(() => {
     const physics = runtimeRef.current?.physics;
@@ -288,7 +266,7 @@ export default function Pet() {
     if (value) runtimeRef.current?.sleep.wake();
     runtimeRef.current?.syncMotion();
   };
-  const count = pendingCount + kanbanStats.active + kanbanStats.blocked;
+  const count = pendingCount;
   const status = locked ? "位置已锁定" : WINDOW_INTERACTION_LABEL[mode];
   const hint = dragging ? "松开放在这里" : locked ? "点击打开 · 右键解锁" : "点击打开 · 拖动位置";
 

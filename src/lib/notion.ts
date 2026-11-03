@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { collectNotionPages } from "./notion-pagination.mjs";
 
 const NOTION_VERSION = "2022-06-28";
 
@@ -23,19 +24,23 @@ export async function getNotionToken(): Promise<string> {
 
 // ---- Todos ----
 
-export async function fetchTodos(token: string) {
-  const body = JSON.stringify({
-    sorts: [{ timestamp: "created_time", direction: "descending" }],
-    page_size: 100,
+async function queryDatabase(token: string, database: string, options: Record<string, unknown> = {}) {
+  return collectNotionPages<any>(async (cursor) => {
+    const raw = await notionFetch(
+      `/v1/databases/${database}/query`,
+      "POST",
+      JSON.stringify({...options, page_size: 100, ...(cursor ? {start_cursor: cursor} : {})}),
+      token
+    );
+    return JSON.parse(raw);
   });
-  const raw = await notionFetch(
-    `/v1/databases/${DB.todos}/query`,
-    "POST",
-    body,
-    token
-  );
-  const data = JSON.parse(raw);
-  return data.results
+}
+
+export async function fetchTodos(token: string) {
+  const pages = await queryDatabase(token, DB.todos, {
+    sorts: [{ timestamp: "created_time", direction: "descending" }],
+  });
+  return pages
     .filter((page: any) => !page.archived)
     .map((page: any) => {
       const tags: string[] =
@@ -121,18 +126,10 @@ export async function toggleTodoStatus(
 // ---- Reports ----
 
 export async function fetchReports(token: string) {
-  const body = JSON.stringify({
+  const pages = await queryDatabase(token, DB.reports, {
     sorts: [{ property: "Date", direction: "descending" }],
-    page_size: 10,
   });
-  const raw = await notionFetch(
-    `/v1/databases/${DB.reports}/query`,
-    "POST",
-    body,
-    token
-  );
-  const data = JSON.parse(raw);
-  return data.results.map((page: any) => ({
+  return pages.map((page: any) => ({
     id: page.id,
     date:
       page.properties.Date?.date?.start || page.created_time?.slice(0, 10),
@@ -147,15 +144,18 @@ export async function fetchReportContent(
   token: string,
   blockId: string
 ): Promise<string> {
-  // Try reading page blocks (children) first
-  const raw = await notionFetch(
-    `/v1/blocks/${blockId}/children?page_size=100`,
-    "GET",
-    undefined,
-    token
-  );
-  const data = JSON.parse(raw);
-  const blockContent = data.results
+  // Read every block page before publishing a complete result.
+  const blocks = await collectNotionPages<any>(async (cursor) => {
+    const query = cursor ? `&start_cursor=${encodeURIComponent(cursor)}` : "";
+    const raw = await notionFetch(
+      `/v1/blocks/${blockId}/children?page_size=100${query}`,
+      "GET",
+      undefined,
+      token
+    );
+    return JSON.parse(raw);
+  });
+  const blockContent = blocks
     .map((block: any) => {
       if (block.type === "paragraph") {
         return block.paragraph.rich_text
@@ -241,15 +241,10 @@ export async function createReport(
 // ---- Projects ----
 
 export async function fetchProjects(token: string) {
-  const body = JSON.stringify({ page_size: 50 });
-  const raw = await notionFetch(
-    `/v1/databases/${DB.projects}/query`,
-    "POST",
-    body,
-    token
-  );
-  const data = JSON.parse(raw);
-  return data.results.map((page: any) => ({
+  const pages = await queryDatabase(token, DB.projects, {
+    sorts: [{ timestamp: "created_time", direction: "descending" }],
+  });
+  return pages.map((page: any) => ({
     id: page.id,
     name: page.properties.Name?.title?.[0]?.plain_text || "",
     status: page.properties.Status?.status?.name || "",

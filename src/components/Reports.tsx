@@ -1,9 +1,8 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useAppStore } from "../stores/appStore";
 import { fetchReportContent, createReport, fetchReports } from "../lib/notion";
-import { sendChatMessage } from "../lib/chat";
 import { localDateString } from "../lib/date";
-import { IconBrain, IconChevronLeft, IconChevronRight, IconEdit, IconReport } from "./Icons";
+import { IconChevronLeft, IconChevronRight, IconEdit, IconReport } from "./Icons";
 import KamiReport from "./KamiReport";
 
 /* ── Markdown renderer for daily reports ── */
@@ -194,39 +193,6 @@ export default function Reports() {
     }
   }, [writeContent, saving, token, reportDate, setReports]);
 
-  // AI Draft
-  const [draftLoading, setDraftLoading] = useState(false);
-  const handleAIDraft = useCallback(async () => {
-    if (draftLoading) return;
-    setDraftLoading(true);
-    const completedToday = todos.filter((t) => t.status && t.dueDate === todayStr);
-    const pending = todos.filter((t) => !t.status);
-    const taskList = completedToday.map((t) => `- ${t.name}`).join("\n") || "- （暂无完成任务）";
-    const pendingList = pending.slice(0, 5).map((t) => `- ${t.name}（${t.priority}）`).join("\n");
-
-    const prompt = `请根据以下信息生成一份简洁的中文日报草稿，包含"今日完成"、"进行中"和"明日计划"三个部分：\n\n今日完成：\n${taskList}\n\n待办任务：\n${pendingList}`;
-
-    let result = "";
-    try {
-      const ac = new AbortController();
-      await sendChatMessage(
-        useAppStore.getState().settings.aiEndpoint,
-        useAppStore.getState().settings.aiModel,
-        [{ role: "user", content: prompt }],
-        (chunk) => { result += chunk; },
-        ac.signal
-      );
-      if (result) {
-        setWriteContent(result);
-        setShowWrite(true);
-      }
-    } catch (e) {
-      console.error("AI draft failed:", e);
-    } finally {
-      setDraftLoading(false);
-    }
-  }, [todos, todayStr, draftLoading]);
-
   const completedToday = useMemo(() => todos.filter((t) => t.status && t.dueDate === todayStr), [todos, todayStr]);
 
   return (
@@ -238,10 +204,6 @@ export default function Reports() {
           <p className="text-[10px] text-text-muted mt-0.5">{monthReportCount} 篇本月记录</p>
         </div>
         <div className="flex items-center gap-1.5">
-          <button onClick={handleAIDraft} disabled={draftLoading} className="btn-ghost text-[10px] px-2.5 py-1 disabled:opacity-40 inline-flex items-center gap-1.5">
-            <IconBrain size={12} />
-            {draftLoading ? "生成中..." : "AI 草稿"}
-          </button>
           <button onClick={() => setShowWrite(!showWrite)} className="btn-primary text-[11px] px-3 py-1.5 inline-flex items-center gap-1.5">
             <IconEdit size={12} />
             {showWrite ? "收起" : "写日报"}

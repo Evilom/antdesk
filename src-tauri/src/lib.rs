@@ -8,6 +8,11 @@ mod pm;
 mod cockpit;
 mod continuity;
 mod pet_input;
+mod drawer;
+mod task_hub;
+mod agent_jobs;
+mod assistant_chat;
+mod assistant_runtime;
 
 #[derive(Default)]
 struct AppState {
@@ -127,30 +132,19 @@ async fn fetch_kanban(url: Option<String>) -> Result<String, String> {
 
 #[tauri::command]
 async fn window_minimize(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(w) = app.get_webview_window("main") {
-        w.minimize().map_err(|e| e.to_string())?;
-    }
+    drawer::set_mode(&app, drawer::DrawerMode::Collapsed, None, false).await?;
     Ok(())
 }
 
 #[tauri::command]
 async fn window_maximize(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(w) = app.get_webview_window("main") {
-        if w.is_maximized().unwrap_or(false) {
-            w.unmaximize().map_err(|e| e.to_string())?;
-        } else {
-            w.maximize().map_err(|e| e.to_string())?;
-        }
-    }
+    drawer::set_mode(&app, drawer::DrawerMode::Expanded, None, true).await?;
     Ok(())
 }
 
 #[tauri::command]
 async fn window_close(app: tauri::AppHandle) -> Result<(), String> {
-    // Hide main panel, pet stays visible
-    if let Some(w) = app.get_webview_window("main") {
-        w.hide().map_err(|e| e.to_string())?;
-    }
+    drawer::set_mode(&app, drawer::DrawerMode::Collapsed, None, false).await?;
     Ok(())
 }
 
@@ -165,19 +159,14 @@ async fn is_maximized(app: tauri::AppHandle) -> Result<bool, String> {
 /// Show the main panel window
 #[tauri::command]
 async fn expand_panel(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(w) = app.get_webview_window("main") {
-        w.show().map_err(|e| e.to_string())?;
-        w.set_focus().map_err(|e| e.to_string())?;
-    }
+    drawer::set_mode(&app, drawer::DrawerMode::Expanded, None, true).await?;
     Ok(())
 }
 
-/// Hide the main panel window
+/// Fold the panel without destroying its voice/assistant session.
 #[tauri::command]
 async fn collapse_panel(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(w) = app.get_webview_window("main") {
-        w.hide().map_err(|e| e.to_string())?;
-    }
+    drawer::set_mode(&app, drawer::DrawerMode::Collapsed, None, false).await?;
     Ok(())
 }
 
@@ -337,9 +326,8 @@ fn get_platform() -> &'static str {
 /// Show settings on main panel
 #[tauri::command]
 async fn show_settings(app: tauri::AppHandle) -> Result<(), String> {
+    drawer::set_mode(&app, drawer::DrawerMode::Expanded, None, true).await?;
     if let Some(w) = app.get_webview_window("main") {
-        w.show().map_err(|e| e.to_string())?;
-        w.set_focus().map_err(|e| e.to_string())?;
         let _ = w.emit("open-settings", ());
     }
     Ok(())
@@ -633,19 +621,21 @@ async fn show_fab_context_menu(app: tauri::AppHandle) -> Result<(), String> {
 fn setup_tray(app: &tauri::App) {
     use tauri::image::Image;
     use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-    use tauri::tray::TrayIconBuilder;
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
     let handle = app.handle().clone();
 
-    let show_item = MenuItem::with_id(&handle, "show", "Show Panel", true, None::<&str>)
+    let show_item = MenuItem::with_id(&handle, "show", "展开安排", true, None::<&str>)
         .expect("failed to create show menu item");
-    let settings_item = MenuItem::with_id(&handle, "settings", "Settings", true, None::<&str>)
+    let collapse_item = MenuItem::with_id(&handle, "collapse", "收起", true, None::<&str>)
+        .expect("failed to create collapse menu item");
+    let settings_item = MenuItem::with_id(&handle, "settings", "设置", true, None::<&str>)
         .expect("failed to create settings menu item");
     let separator = PredefinedMenuItem::separator(&handle).expect("failed to create separator");
-    let quit_item = MenuItem::with_id(&handle, "quit", "Quit", true, None::<&str>)
+    let quit_item = MenuItem::with_id(&handle, "quit", "退出", true, None::<&str>)
         .expect("failed to create quit menu item");
 
-    let menu = Menu::with_items(&handle, &[&show_item, &settings_item, &separator, &quit_item])
+    let menu = Menu::with_items(&handle, &[&show_item, &collapse_item, &settings_item, &separator, &quit_item])
         .expect("failed to create tray menu");
 
     #[cfg(target_os = "macos")]
@@ -661,13 +651,26 @@ fn setup_tray(app: &tauri::App) {
         .icon(icon)
         .icon_as_template(cfg!(target_os = "macos"))
         .menu(&menu)
-        .tooltip("AntDesk")
+        .tooltip("AntDesk · 优先安排")
+        .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            if matches!(event, TrayIconEvent::Click {
+                button: MouseButton::Left, button_state: MouseButtonState::Up, ..
+            }) {
+                let app = tray.app_handle().clone();
+                tauri::async_runtime::spawn(async move { let _ = expand_panel(app).await; });
+            }
+        })
         .on_menu_event(move |app, event| {
             match event.id().as_ref() {
                 "quit" => app.exit(0),
                 "show" => {
                     let h = app.clone();
                     tauri::async_runtime::spawn(async move { let _ = expand_panel(h).await; });
+                }
+                "collapse" => {
+                    let h = app.clone();
+                    tauri::async_runtime::spawn(async move { let _ = collapse_panel(h).await; });
                 }
                 "settings" => {
                     let h = app.clone();
@@ -724,16 +727,24 @@ fn setup_menu_events(app: &tauri::App) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
-    // Register before all other plugins and before any pet window is created.
+    // Register first, so a second launch opens the existing drawer.
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
         if args.iter().any(|arg| arg == "--minimized") { return; }
-        if let Some(main) = app.get_webview_window("main") {
-            let _ = main.show();
-            let _ = main.unminimize();
-            let _ = main.set_focus();
-        }
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move { let _ = expand_panel(app).await; });
     }));
+    #[cfg(desktop)]
+    let builder = builder.plugin(
+        tauri_plugin_global_shortcut::Builder::new()
+            .with_handler(|app, _shortcut, event| {
+                if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move { let _ = drawer::toggle(&app).await; });
+                }
+            })
+            .build(),
+    );
     builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
@@ -744,7 +755,24 @@ pub fn run() {
         ))
         .manage(AppState::default())
         .manage(assistant::AssistantState::default())
+        .manage(drawer::DrawerController::default())
+        .manage(agent_jobs::AgentJobsState::default())
+        .manage(assistant_chat::ChatState::default())
         .on_window_event(|window, event| {
+            if window.label() == "main" {
+                match event {
+                    tauri::WindowEvent::CloseRequested { api, .. } => {
+                        api.prevent_close();
+                        let app = window.app_handle().clone();
+                        tauri::async_runtime::spawn(async move { let _ = collapse_panel(app).await; });
+                    }
+                    tauri::WindowEvent::ScaleFactorChanged { .. } => {
+                        drawer::queue_reflow(window.app_handle());
+                    }
+                    _ => {}
+                }
+                return;
+            }
             if window.label() == "pet" && matches!(event,tauri::WindowEvent::Moved(_)|tauri::WindowEvent::Resized(_)) {
                 let _=position_visible_companions(window.app_handle());
             }
@@ -752,7 +780,7 @@ pub fn run() {
             if window.label() == "fab-menu" && matches!(event, tauri::WindowEvent::Focused(false)) {
                 let _ = window.hide();
             }
-            if matches!(window.label(), "main" | "pet-dialogue" | "fab-menu" | "quick" | "notepad") {
+            if matches!(window.label(), "pet-dialogue" | "fab-menu" | "quick" | "notepad") {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = window.hide();
@@ -760,33 +788,43 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            task_hub::serve_agent_queue(app.handle().clone()).map_err(std::io::Error::other)?;
             setup_tray(app);
             setup_menu_events(app);
-
-            // Position pet at bottom-right of primary monitor
-            let app_handle = app.handle().clone();
-            if let Some(pet) = app_handle.get_webview_window("pet") {
-                let monitor = pet.current_monitor().ok().flatten();
-                let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
-                let (mon_right, mon_bottom) = if let Some(ref m) = monitor {
-                    let p = m.position();
-                    let s = m.size();
-                    (p.x as f64 + s.width as f64, p.y as f64 + s.height as f64)
-                } else {
-                    (1920.0 * scale, 1080.0 * scale)
-                };
-                let pet_w = 200.0 * scale;
-                let pet_h = 200.0 * scale;
-                let margin = 2.0 * scale;
-                let x = mon_right - pet_w - margin;
-                let y = mon_bottom - pet_h - margin;
-                let pos = tauri::Position::Physical(tauri::PhysicalPosition::new(x as i32, y as i32));
-                let _ = pet.set_position(pos);
-            }
+            agent_jobs::recover_interrupted(app.handle()).map_err(std::io::Error::other)?;
+            assistant_chat::recover_interrupted(app.handle()).map_err(std::io::Error::other)?;
+            #[cfg(desktop)]
+            drawer::setup_shortcut(app.handle());
+            drawer::initialize(app.handle()).map_err(std::io::Error::other)?;
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            drawer::drawer_get_state,
+            drawer::drawer_get_shortcut,
+            drawer::drawer_set_state,
+            drawer::drawer_set_item_count,
+            drawer::drawer_start_drag,
+            task_hub::task_hub_load,
+            task_hub::task_hub_save,
+            task_hub::task_hub_agent_queue,
+            assistant_runtime::assistant_runtime_request,
+            agent_jobs::assistant_set_queue_cache,
+            assistant_chat::assistant_chat_list_rooms,
+            assistant_chat::assistant_chat_set_members,
+            assistant_chat::assistant_chat_history,
+            assistant_chat::assistant_chat_send,
+            assistant_chat::assistant_chat_retry,
+            assistant_chat::assistant_chat_cancel,
+            assistant_chat::assistant_chat_sync,
+            agent_jobs::assistant_list_runs,
+            agent_jobs::assistant_start_run,
+            agent_jobs::assistant_cancel_run,
+            agent_jobs::assistant_review_run,
+            agent_jobs::assistant_set_credential,
+            agent_jobs::assistant_set_bridge_credential,
+            agent_jobs::assistant_probe_agent,
+            agent_jobs::assistant_sync_run,
             pet_input::pet_primary_button_down,
             resize_pet_dialogue,
             pm::pm_save_messages,

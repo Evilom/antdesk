@@ -33,14 +33,14 @@ const BASE_ITEMS: Array<
   | { type: "item"; id: MenuAction; label: string; hint?: string; danger?: boolean; Icon: typeof IconTarget }
   | { type: "sep" }
 > = [
-  { type: "item", id: "quick", label: "焦点行动", hint: "快捷入口", Icon: IconTarget },
-  { type: "item", id: "notepad", label: "便签记录", hint: "新增待办", Icon: IconEdit },
-  { type: "item", id: "panel", label: "主面板", hint: "打开 AntDesk", Icon: IconReport },
+  { type: "item", id: "quick", label: "快捷待办", Icon: IconTarget },
+  { type: "item", id: "notepad", label: "便签", Icon: IconEdit },
+  { type: "item", id: "panel", label: "打开主面板", Icon: IconReport },
   { type: "sep" },
-  { type: "item", id: "settings", label: "设置", hint: "账号与外观", Icon: IconSettings },
+  { type: "item", id: "settings", label: "设置", Icon: IconSettings },
   { type: "sep" },
-  { type: "item", id: "lock", label: "锁定/解锁宠物", hint: "位置状态", Icon: IconLock },
-  { type: "item", id: "hide", label: "隐藏宠物", hint: "保留后台", Icon: IconEyeOff },
+  { type: "item", id: "lock", label: "锁定位置", Icon: IconLock },
+  { type: "item", id: "hide", label: "隐藏桌宠", Icon: IconEyeOff },
   { type: "sep" },
   { type: "item", id: "quit", label: "退出 AntDesk", danger: true, Icon: IconPower },
 ];
@@ -62,7 +62,7 @@ export default function FabContextMenu() {
       {
         type: "item" as const,
         id: "window-interaction" as const,
-        label: "陪伴方式",
+        label: "桌面互动",
         hint: WINDOW_INTERACTION_LABEL[interactionMode],
         Icon: IconWindow,
       },

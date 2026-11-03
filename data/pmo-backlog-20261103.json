@@ -1,0 +1,1953 @@
+{
+  "version": 1,
+  "generatedAt": "2026-11-03T06:23:40.711697+00:00",
+  "scope": "基于用户已知项目、湃特蒙当前源码与历史报告；湃特蒙首轮仅承诺基线/范围/证据3项，31项业务收口先进入候选，4项长期扩展进入后续池。未访问账户后台或发送助理任务。",
+  "estimateNote": "每项均为初始工作预算，不是工期承诺；超过每日容量的工作须拆成可验收的小项或明确调整容量后才能开始。周容量先按20小时试行，每日原有4小时保持。",
+  "findings": [
+    {
+      "kind": "verified",
+      "title": "多个实际交付基线并存",
+      "detail": "根仓83cbf617，client b14d8ed1，server c7ca6ba；另有11/02UI候选395b1296/client73886437及11/03合并试玩树。当前product-docs有工作区修改。",
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon (root 83cbf617; client b14d8ed1; server c7ca6ba; product-docs 96b060c, 文档工作区有修改)",
+        "D:/projects/pm-ui-main-20261102 (root 395b1296; client 73886437)",
+        "D:/projects/pm-ui-merge-play-20261103 (root 395b1296; detached)"
+      ]
+    },
+    {
+      "kind": "implemented_not_signed_off",
+      "title": "库存/目标/经营打磨/启动页不能再列为从零开发",
+      "detail": "050 7/7、051 7/7、054 9/9、055 5/5技术任务已有完成交接，外部产品、数值、视觉及目标设备验收分别待定；本轮又核实对应正式C#/Go模块存在。",
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/050-inventory-item-flow/workflow.md",
+        "D:/projects/partnermoon/partnermoon/specs/051-business-goals/workflow.md",
+        "D:/projects/partnermoon/partnermoon/specs/054-gameplay-loop-polish/workflow.md",
+        "D:/projects/partnermoon/partnermoon/specs/055-startup-ui-refresh/workflow.md"
+      ]
+    },
+    {
+      "kind": "verified",
+      "title": "订单改为服务端权威动态数量",
+      "detail": "11/02客户端b14d8ed1接收权威快照，根采用记录明确远端三槽；旧六槽要求不能无条件恢复。",
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/040-order-system/increments/20261102-dynamic-client-board.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Model/Order/OrderProxy.Data.cs"
+      ]
+    },
+    {
+      "kind": "published_pending_acceptance",
+      "title": "Test 0.1.27已发布，真实设备签收未完成",
+      "detail": "10/31第19节状态PUBLISHED / MANUAL_ACCEPTANCE_PENDING。Full、AOT、云端地图、OSS与微信开发版本上传完成；MP体验版选择和真机回归待办。此为已读取历史回执，不是本轮重新访问发布后台。",
+      "sourceRefs": [
+        "D:/projects/pm-ui-main-20261102/specs/wechat-diagnostics/verification.md"
+      ]
+    },
+    {
+      "kind": "ready_to_finalize",
+      "title": "软著材料已成稿，不应重做截图与PDF",
+      "detail": "10/28稿为11页说明书、60页程序材料、21张真实截图，共71页渲染检查。该10/28回执记录当时官网上传、签章、提交未执行，日期待申请人确认；本轮未读取11/03平台受理状态。",
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/product-docs/current/deliverables/software-copyright/20261027-release/README.md"
+      ]
+    },
+    {
+      "kind": "needs_check",
+      "title": "水滴不是仅有浇水表现就算实现",
+      "detail": "当前正式代码有YardWateringEffect/Events；对Business及server/internal的Stamina/SpiritWater/灵泉/水滴/WaterCost关键词未命中。只记录需核定契约，不能从未命中推出绝对缺失。",
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Scene/Hometown/YardWateringEvents.cs",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Model/PlantProduction/PlantProductionProxy.cs"
+      ]
+    },
+    {
+      "kind": "scope_correction",
+      "title": "宠物旧派工范围已撤回",
+      "detail": "产品current/README的10/30复审撤回派工、劳动体力/资格、点地跟随等；自然生活、设施改善和真实经历仍保留。",
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/product-docs/current/README.md"
+      ]
+    },
+    {
+      "kind": "needs_check",
+      "title": "音频原生交付仍需核实推进",
+      "detail": "当前产品索引把REQ-023记为未实施、人工主责与AI协作，已有H5候选不等于原生可听。正式代码可见开关事件，不据此认定音乐已接。",
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/product-docs/current/README.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/UI/SoundSettingsGroup/SoundSettingsGroupCtrl.cs"
+      ]
+    },
+    {
+      "kind": "scope_correction",
+      "title": "新秘境先处理采用口径，后续池保留",
+      "detail": "已读总案10/21方向与用户10/31二合/探测反馈存在时间差；未取得正式Unity新秘境验收证据。首发冻结不自动吸收H5所有环境和玩法。",
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/00-游戏设计总案.md",
+        "用户2026-10-31玩法反馈"
+      ]
+    }
+  ],
+  "pmo": {
+    "enabled": true,
+    "weeklyCapacityMinutes": 1200,
+    "focusLimit": 3,
+    "projects": [
+      {
+        "id": "pmo:partnermoon",
+        "name": "PartnerMoon · 湃特蒙",
+        "role": "main",
+        "priority": "P0",
+        "weeklyBudgetMinutes": 960,
+        "goal": "先锁定发布基线、冻结首发范围、建立验收台账，再集中推进通过评审的交付项。",
+        "definitionOfDone": "首轮完成：唯一发布基线、一页首发范围及停止条件、开发/质量/发布三栏证据台账。之后的发布阶段以正式包新手闭环、阻断问题清零和真实设备验收为准。H5/UI Studio预览不等同正式包。",
+        "scopeFrozen": true,
+        "stage": "release",
+        "decisionReason": "按用户要求采用1个主线、最多2个辅助；初始预算供首周复盘调整，未填写主观评分。"
+      },
+      {
+        "id": "pmo:antdesk",
+        "name": "AntDesk",
+        "role": "support",
+        "priority": "P1",
+        "weeklyBudgetMinutes": 120,
+        "goal": "让主线每天有明确下一步、预算和验收，三个助理围绕同一份任务评审。",
+        "definitionOfDone": "真实项目待办可持久保存；聚焦/冻结/证据/评审闭环可用；原三个助理连接保留；仅修复阻碍使用的问题，不扩建Agent平台。",
+        "scopeFrozen": true,
+        "stage": "quality",
+        "decisionReason": "按用户要求采用1个主线、最多2个辅助；初始预算供首周复盘调整，未填写主观评分。"
+      },
+      {
+        "id": "pmo:agent-wrap",
+        "name": "Agent WRAP",
+        "role": "support",
+        "priority": "P2",
+        "weeklyBudgetMinutes": 120,
+        "goal": "每周只验证一组代表性样本能否稳定交付到现有美术链路。",
+        "definitionOfDone": "固定输入到输出可复现，列出通过/失败样本与时间；未达门槛保留报告并暂停扩张。",
+        "scopeFrozen": true,
+        "stage": "prototype",
+        "decisionReason": "按用户要求采用1个主线、最多2个辅助；初始预算供首周复盘调整，未填写主观评分。"
+      },
+      {
+        "id": "pmo:god-sim",
+        "name": "神明模拟器",
+        "role": "paused",
+        "priority": "P2",
+        "weeklyBudgetMinutes": 0,
+        "goal": "保留已有成果，等待主线阶段交付后选择一个可发布版本。",
+        "definitionOfDone": "只恢复现有核心观察、干预、演化与存档闭环；新增玩法单独候选，不混入首发。",
+        "scopeFrozen": true,
+        "stage": "release",
+        "decisionReason": "按用户要求采用1个主线、最多2个辅助；初始预算供首周复盘调整，未填写主观评分。"
+      },
+      {
+        "id": "pmo:qijiepai",
+        "name": "启界牌",
+        "role": "paused",
+        "priority": "P3",
+        "weeklyBudgetMinutes": 0,
+        "goal": "暂停大重构，归档可运行规则与美术基线。",
+        "definitionOfDone": "能定位当前可运行版本和已知缺口；重启前先确定单套规则与发布范围。",
+        "scopeFrozen": true,
+        "stage": "quality",
+        "decisionReason": "按用户要求采用1个主线、最多2个辅助；初始预算供首周复盘调整，未填写主观评分。"
+      },
+      {
+        "id": "pmo:engine",
+        "name": "自研3D引擎",
+        "role": "paused",
+        "priority": "P3",
+        "weeklyBudgetMinutes": 0,
+        "goal": "保留可构建技术基建，不继续扩充平台或引擎功能。",
+        "definitionOfDone": "可复现构建、测试场景、已知故障和依赖清单均有记录；主线无直接收益则不开工。",
+        "scopeFrozen": true,
+        "stage": "prototype",
+        "decisionReason": "按用户要求采用1个主线、最多2个辅助；初始预算供首周复盘调整，未填写主观评分。"
+      },
+      {
+        "id": "pmo:robot",
+        "name": "机器人",
+        "role": "paused",
+        "priority": "P3",
+        "weeklyBudgetMinutes": 0,
+        "goal": "进入技术探索池，只保留成本与原型可行性问题。",
+        "definitionOfDone": "重启前用一个低成本单关节原型验证驱动、结构与安全边界；不直接立项整机。",
+        "scopeFrozen": true,
+        "stage": "prototype",
+        "decisionReason": "按用户要求采用1个主线、最多2个辅助；初始预算供首周复盘调整，未填写主观评分。"
+      },
+      {
+        "id": "pmo:glasses",
+        "name": "AI眼镜",
+        "role": "paused",
+        "priority": "P3",
+        "weeklyBudgetMinutes": 0,
+        "goal": "保留官方扩展/调试入口研究，暂不占主线时间。",
+        "definitionOfDone": "核实设备版本、官方开发入口及一条语音助理闭环的可行性，再决定是否投入。",
+        "scopeFrozen": true,
+        "stage": "prototype",
+        "decisionReason": "按用户要求采用1个主线、最多2个辅助；初始预算供首周复盘调整，未填写主观评分。"
+      },
+      {
+        "id": "pmo:ereader",
+        "name": "电纸书AI工作台",
+        "role": "paused",
+        "priority": "P3",
+        "weeklyBudgetMinutes": 0,
+        "goal": "先回答是否真正改善阅读与待办查看，再决定是否做设备常驻。",
+        "definitionOfDone": "有可撤回的一屏阅读/待办试用、功耗与日常使用反馈；不重造整套系统。",
+        "scopeFrozen": true,
+        "stage": "prototype",
+        "decisionReason": "按用户要求采用1个主线、最多2个辅助；初始预算供首周复盘调整，未填写主观评分。"
+      },
+      {
+        "id": "pmo:watch",
+        "name": "手表语音助理",
+        "role": "paused",
+        "priority": "P3",
+        "weeklyBudgetMinutes": 0,
+        "goal": "仅保留设备兼容性和侧载可行性问题。",
+        "definitionOfDone": "确认型号、系统、麦克风/联网/电量约束，明确可行或停止结论。",
+        "scopeFrozen": true,
+        "stage": "prototype",
+        "decisionReason": "按用户要求采用1个主线、最多2个辅助；初始预算供首周复盘调整，未填写主观评分。"
+      },
+      {
+        "id": "pmo:art-course",
+        "name": "美术教学工具与课程",
+        "role": "paused",
+        "priority": "P3",
+        "weeklyBudgetMinutes": 0,
+        "goal": "保留现有课程资产，重启时只完成一节可用示范课。",
+        "definitionOfDone": "一节课包含明确目标、例图来源、过程示范、练习与反馈；其余课程先列库存。",
+        "scopeFrozen": true,
+        "stage": "quality",
+        "decisionReason": "按用户要求采用1个主线、最多2个辅助；初始预算供首周复盘调整，未填写主观评分。"
+      },
+      {
+        "id": "pmo:tool-research",
+        "name": "其他逆向与制作工具",
+        "role": "paused",
+        "priority": "P3",
+        "weeklyBudgetMinutes": 0,
+        "goal": "按主线实际收益重新排队，暂停横向复刻软件。",
+        "definitionOfDone": "每个探索有明确输入输出、时间上限和停止条件；仅排除主线阻塞的项目可申请恢复。",
+        "scopeFrozen": true,
+        "stage": "prototype",
+        "decisionReason": "按用户要求采用1个主线、最多2个辅助；初始预算供首周复盘调整，未填写主观评分。"
+      },
+      {
+        "id": "pmo:writing",
+        "name": "小说与写作",
+        "role": "paused",
+        "priority": "P3",
+        "weeklyBudgetMinutes": 0,
+        "goal": "保留已有大纲与故事线，先核实当前交接状态。",
+        "definitionOfDone": "已有大纲、人物关系、时间线和未决问题汇总为一份交接包，避免重启新版本。",
+        "scopeFrozen": true,
+        "stage": "quality",
+        "decisionReason": "按用户要求采用1个主线、最多2个辅助；初始预算供首周复盘调整，未填写主观评分。"
+      },
+      {
+        "id": "pmo:content",
+        "name": "项目内容与自媒体",
+        "role": "paused",
+        "priority": "P3",
+        "weeklyBudgetMinutes": 0,
+        "goal": "只从已经交付的项目成果取材，不为内容新增研发战线。",
+        "definitionOfDone": "核实既有每周计划是否仍运行；如继续，仅发布可验证的本周成果，不重复建立自动化。",
+        "scopeFrozen": true,
+        "stage": "quality",
+        "decisionReason": "按用户要求采用1个主线、最多2个辅助；初始预算供首周复盘调整，未填写主观评分。"
+      }
+    ],
+    "scopeChanges": [],
+    "reviewRecords": []
+  },
+  "tasks": [
+    {
+      "id": "local:pmo-20261103-pm-release-baseline",
+      "title": "锁定湃特蒙正式发布基线",
+      "projectId": "pmo:partnermoon",
+      "state": "ready",
+      "priority": "high",
+      "pmoPriority": "P0",
+      "scope": "committed",
+      "verification": "confirmed",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 60,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "记录本期唯一根仓/客户端/服务端/产品文档提交组合、构建目录和候选采用清单；明确哪些11/02 UI候选进入本期；不覆盖任何共享工作区修改。",
+      "evidence": "",
+      "description": "实时核实存在三组工作目录，主工作区在codex/lumi-ui-continue-20261028，UI候选另在codex/ui-main-review-20261102，客户端指针不同。先解决验收究竟针对哪份工程。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon (root 83cbf617; client b14d8ed1; server c7ca6ba; product-docs 96b060c, 文档工作区有修改)",
+        "D:/projects/pm-ui-main-20261102 (root 395b1296; client 73886437)",
+        "D:/projects/pm-ui-merge-play-20261103 (root 395b1296; detached)"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-release-scope",
+      "title": "冻结本期首发范围和停止打磨条件",
+      "projectId": "pmo:partnermoon",
+      "state": "ready",
+      "priority": "high",
+      "pmoPriority": "P0",
+      "scope": "committed",
+      "verification": "confirmed",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 60,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "产出一页首发范围：必交付经营链、主宠最小片段、明确排除项、可接受缺陷、质量门槛及发布条件；新增秘境环境、社交、长线养成仅进后续池。",
+      "evidence": "",
+      "description": "当前产品总案包含长期愿景，不能全部视作首发必须；H5试玩不能代表正式Unity交付。以本次用户要求收敛，任何扩项记录替换掉哪项和额外预算。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/00-游戏设计总案.md",
+        "D:/projects/partnermoon/partnermoon/product-docs/current/README.md",
+        "用户2026-11-03 AntDesk聚焦要求"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-acceptance-ledger",
+      "title": "建立开发完成、质量验收、发布三栏证据清单",
+      "projectId": "pmo:partnermoon",
+      "state": "ready",
+      "priority": "high",
+      "pmoPriority": "P0",
+      "scope": "committed",
+      "verification": "confirmed",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 90,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "逐项登记首发功能的源码/测试/产品与真机/已部署版本；将历史完成证据与当前需复验部分区分；选出当天最多3个有效行动。",
+      "evidence": "",
+      "description": "050库存7/7、051目标7/7、054经营打磨9/9、055启动5/5已有技术交付；不能被产品索引中的旧“未实施”段落覆盖。0.1.27已发布但真机签收待办。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-release-scope"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/050-inventory-item-flow/workflow.md",
+        "D:/projects/partnermoon/partnermoon/specs/051-business-goals/workflow.md",
+        "D:/projects/partnermoon/partnermoon/specs/054-gameplay-loop-polish/workflow.md",
+        "D:/projects/partnermoon/partnermoon/specs/055-startup-ui-refresh/workflow.md",
+        "D:/projects/pm-ui-main-20261102/specs/wechat-diagnostics/verification.md"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-ui-candidate-integration",
+      "title": "收口11/02 UI候选与正式客户端差异",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 480,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "只整合本期采用的共享顶部资源栏、主界面入口动效与图片寻址改动；核对与动态订单、当前地图的冲突；给出实际主界面截图和变更清单。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 正式client b14d8ed1与候选73886437不同，不能直接把候选截图标成主工程成果；本任务先定向比较再修复，不重建UI体系。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-release-scope"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon (root 83cbf617; client b14d8ed1; server c7ca6ba; product-docs 96b060c, 文档工作区有修改)",
+        "D:/projects/pm-ui-main-20261102 (root 395b1296; client 73886437)",
+        "D:/projects/pm-ui-merge-play-20261103 (root 395b1296; detached)",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/UI/MainUIPanel/MainHudIconIdleState.cs"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-new-player-smoke",
+      "title": "用正式候选跑通新号首轮体验",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P0",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 360,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "从启动/协议/真实登录到入院、种植收获、首次订单、奖励与下一目标连续完成；记录一段完整操作录像和各阻塞复验结果；不使用GM跳过。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 055启动与登录已有4项EditMode、2项PlayMode和真实Go登录记录，独立确认页已移除。本次验证发布基线的新号真实路径，不重复开发登录页。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-acceptance-ledger"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/055-startup-ui-refresh/workflow.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/UI/DevelopmentLoginUIPanel/DevelopmentLoginUIPanel.Startup.cs",
+        "D:/projects/partnermoon/partnermoon/specs/054-gameplay-loop-polish/workflow.md"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-terms-login-content",
+      "title": "确认正式登录协议正文与账号异常提示",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P0",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 开发 / 法务或发行对接",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "产品确认正式协议文本与适用链接；在当前客户端验证协议选择、拒绝/重试、错误账号、失效会话和退出返回；保存采用文本来源与界面证据。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 055已接通原生表单与门槛，但当前交接明确正式协议内容、目标设备下载与最终签收待验；先核实是否已有新交付。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-acceptance-ledger"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/055-startup-ui-refresh/workflow.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/UI/DevelopmentLoginUIPanel/DevelopmentLoginUIPanel.Startup.cs"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-runtime-endpoints",
+      "title": "核对候选环境、HTTPS与小游戏域名配置",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P0",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "列出本次候选实际Portal、Game、CDN和环境开关；核验目标渠道允许的连接与域名配置、非Development冷启动和失败重试；不以本地连通替代目标包连通。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 0.1.27历史构建记录仍出现HTTP Portal；这只是需要核实的环境证据，不能据此认定当前线上一定同配置。发布前明确Test与Production差异。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-acceptance-ledger"
+      ],
+      "sourceRefs": [
+        "D:/projects/pm-ui-main-20261102/specs/wechat-diagnostics/verification.md",
+        "D:/projects/partnermoon/partnermoon/specs/037-test-public-wechat-release/verification.md"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-core-loop-acceptance",
+      "title": "签收正式经营小循环而非重做现有系统",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P0",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 480,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "在冻结候选以零金币新号完成种收→订单→主动日奖→购料→培育→手领→新花种收；逐笔对账并同号重登；仅修复本轮真实阻塞。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 054已有9/9技术交付，含3/6/12单、60秒培育、Mongo冷恢复和04:00边界；目前缺的是当前版本产品/数值/手机签收。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-acceptance-ledger"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/054-gameplay-loop-polish/workflow.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Scene/Hometown/YardHarvestController.cs",
+        "D:/projects/partnermoon/partnermoon/server/internal/gameplay/yard/planting.go"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-orders-dynamic",
+      "title": "验收权威订单槽位、动态布局与交付恢复",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 360,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "用实际服务端快照验证订单数量变化、详情/需求物品、交付/放弃/冷却补货及结果未知恢复；客户端不硬编码六槽，记录自然运行证据。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 11/02最新client b14d8ed1已按权威快照动态接收槽位，根记录明确当前远端三槽。旧六客户增量不能覆盖当前口径。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-acceptance-ledger"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/040-order-system/increments/20261102-dynamic-client-board.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Model/Order/OrderProxy.Data.cs",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/UI/OrderBoardUIPanel/OrderBoardUIPanel.cs",
+        "D:/projects/partnermoon/partnermoon/server/internal/gameplay/order/usecase/operations.go"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-daily-rewards",
+      "title": "签收每日订单奖励与跨日边界",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 360,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "验证累计进度、主动领奖、已领状态、跨日刷新、奖励数量与断线重进；同一领取只结算一次；低频/常规两组自然会话给出数值采用结论。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 053已到T007交接；当前客户端有DailyOrderRewardApplicationService，服务端有daily_rewards规则与故事测试。不要重新建日奖系统。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-orders-dynamic"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/053-daily-order-rewards/workflow.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Application/Order/DailyOrderRewardApplicationService.cs",
+        "D:/projects/partnermoon/partnermoon/server/internal/gameplay/playerstate/daily_order_rewards_story_test.go"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-cultivation-acceptance",
+      "title": "签收育花台材料、等待、手领与当前取消口径",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 360,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "核实采用后的入口和取消行为；自然获得材料、合法开工、倒计时、手动领取、解锁及重登状态一致；缺料提示能返回真实来源。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 客户端/服务端培育代码已存在，054自然经营已有实测；11/02又有育花台取消入口采用记录，必须按新口径验收，不能恢复旧按钮。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-core-loop-acceptance"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/049-flower-cultivation-unlock/increments/20261102-cancel-entry-hidden.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Application/Cultivation/CultivationApplicationService.cs",
+        "D:/projects/partnermoon/partnermoon/server/internal/gameplay/cultivation/usecase/operations.go",
+        "D:/projects/partnermoon/partnermoon/specs/054-gameplay-loop-polish/workflow.md"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-inventory-acceptance",
+      "title": "签收行囊分类、用途导航和返回状态",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 300,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "验证四分类、分页、物品选择、精确数量、用途跳转和返回；从订单/培育等不同来源进入后保留正确选择；真机无内容丢失和遮挡。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 050全部7/7已完成，含真实网络SceneFlow及Grid返回修复。当前源码存在InventoryProxy和用途导航，任务定位为发布候选签收。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-acceptance-ledger"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/050-inventory-item-flow/workflow.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Model/Inventory/InventoryProxy.cs",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/UI/WarehouseUIPanel/InventoryNavigationIntent.cs"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-goals-acceptance",
+      "title": "签收首批五目标与渐进开放",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "以新号验证目标达成、追踪、领奖、入口开放及目标来源往返；玩家能辨认下一步；不增加新的目标体系。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 051七项技术任务已完成，已有正式UI、真实账号/来源与五目标实景记录；产品理解和多设备签收仍分开。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-new-player-smoke"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/051-business-goals/workflow.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Application/Goals/GoalApplicationService.cs",
+        "D:/projects/partnermoon/partnermoon/server/internal/gameplay/goals/usecase/tracking.go"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-catalog-growth",
+      "title": "签收图鉴、花卉成长与新花画面一致性",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "检查已解锁/未解锁、成长消耗、标本选择与来源返回；采用花种均有正确三阶段画面和图标；不扩充图鉴种类。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 054已修第七花经营有结果但场景缺画面的配置消费，并完成变体回归；当前代码有PlantCatalog与PlantGrowth页面。验证最终发布资产，不重复造页面。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-core-loop-acceptance"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/054-gameplay-loop-polish/workflow.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/UI/PlantCatalogUIPanel/PlantCatalogUIPanel.cs",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/UI/PlantGrowthUIPanel/PlantGrowthUIPanel.cs"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-map-layout",
+      "title": "验收正式地图摆放、扩地与相机缩放",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 480,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "在实际地图完成移动/旋转/确认/收纳、边界阻挡、扩地区域和缩放拖动；退出重登位置一致；不把H5固定格数当正式地图规范。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 当前总案明确地图决定空间范围，生产地块ID与空间面积分开；客户端已有BuildingLayout和MapLayoutSession，server近期有地图更新。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-acceptance-ledger"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/00-游戏设计总案.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Application/BuildingLayout/BuildingLayoutApplicationService.cs",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Scene/Map/MapLayoutSession.cs",
+        "D:/projects/partnermoon/partnermoon/server (c7ca6ba, recent map commits)"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-water-contract",
+      "title": "核定灵泉水滴实现与首发资源约束",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "从正式配置、双端交易和实际新号确认水滴产出/上限/消耗/恢复是否存在；记录已实现、缺口及首发采用决定；若缺失先拆独立最小任务，不自动新增完整体力系统。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 用户此前明确关心体力水滴；本轮限定源码搜索未找到对应Stamina/SpiritWater/灵泉/水滴契约，但浇水表现代码存在。搜索未命中不能当缺失已证实。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-release-scope"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Scene/Hometown/YardWateringEvents.cs",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Scene/Hometown/YardWateringEffect.cs",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Model/PlantProduction/PlantProductionProxy.cs",
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/00-游戏设计总案.md",
+        "用户2026-10-18体力水滴需求"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-economy-adoption",
+      "title": "采用首发经济预算并检查免费可持续性",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 360,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "根据真实配置计算免费/常规会话产消、等待和成长天数；验证订单主产出、材料/成长消耗与日奖；明确一版数值和复评条件，不靠新增奖励掩盖卡点。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 已有054自然账目和零金币循环证据，不能把它当玩家接受当前节奏的签收；水滴边界须先明确。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-core-loop-acceptance",
+        "local:pmo-20261103-pm-water-contract"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/054-gameplay-loop-polish/workflow.md",
+        "D:/projects/partnermoon/partnermoon/server/internal/gameplay/order/daily_rewards_rules.go",
+        "D:/projects/partnermoon/partnermoon/server/internal/gameplay/inventory/exchange.go"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-audio-loop",
+      "title": "推进既有REQ-023原生可听经营闭环",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "开发 / 音频或TA / 制作人",
+      "estimateMinutes": 480,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "核对既有音频工单实际状态；复用可采用素材完成首页BGM/环境声与关键种收/订单反馈、音量开关和前后台恢复；分别提交技术验证与人工听感签收。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 产品当前索引仍将REQ-023记为未开始、人工主责/AI协作；H5有16份候选不等于原生已接。代码可见SoundSettings事件，尚不能证明已可听。复用原工单t100248，不自动重建或改变AI领取。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-release-scope"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/product-docs/current/README.md",
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/requirements/需求案-023-背景音乐环境声与操作音效.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/UI/SoundSettingsGroup/SoundSettingsGroupCtrl.cs"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-pet-minimum",
+      "title": "确定并签收主宠最小共同生活片段",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "选择首发必须的一条自然生活链及一次玩家互动，在正式院子连续观察、互动、退出再入；记录状态连续性和可见反馈；剩余养成进入后续池。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 当前客户端有PetNaturalBehaviorGoalPresenter；产品索引10/30已撤回派工、劳动体力/资格和点地跟随新模式。不能重新把这些旧设计加入首发。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-release-scope"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Pets/FreeRoam/PetNaturalBehaviorGoalPresenter.cs",
+        "D:/projects/partnermoon/partnermoon/product-docs/current/README.md",
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/requirements/需求案-009-主宠生活互动与再进入连续性.md"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-feifei-art",
+      "title": "收口首发腓腓模型、动画与场景显示缺陷",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "medium",
+      "pmoPriority": "P2",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 480,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "只处理首发片段中的穿透、朝向/脚底、眼神、呼吸与动作切换等可列举缺陷；采用同一模型/动画版本，给对照录像；达到冻结标准即停止。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 用户此前多次打磨腓腓资产，当前主宠相关代码与软著宠物画面已存在。具体缺陷本轮未看当前实景，必须先录屏定位，不能假定每项仍有问题。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-pet-minimum"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Pets/FreeRoam/PetNaturalBehaviorGoalPresenter.cs",
+        "D:/projects/partnermoon/partnermoon/product-docs/current/deliverables/software-copyright/20261027-release/README.md",
+        "用户既往腓腓原生表现审核"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-ui-blockers",
+      "title": "关闭首发路径的遮挡、切片和点击阻塞",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 480,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "限定登录/首页/订单/行囊/培育/目标页面，逐项修复当前复现的遮挡、九宫切片、按钮锚点、返回、滚动与窄屏问题；形成问题前后对照；每项有复验。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 已有UI与正式业务接线，用户历史反馈不能直接变成当前未修列表；先在冻结候选真实截图标注。避免继续重做全套美术系统。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-ui-candidate-integration",
+        "local:pmo-20261103-pm-new-player-smoke"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/054-gameplay-loop-polish/workflow.md",
+        "D:/projects/partnermoon/partnermoon/specs/055-startup-ui-refresh/workflow.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/UI/OrderBoardUIPanel/OrderBoardUIPanel.cs",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/UI/MainUIPanel/MainUIPanel.cs"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-wechat-input-device",
+      "title": "完成0.1.27多指修复的真实手机回归",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / QA / 开发",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "在目标Android/iOS各记录四指长按、分批松手不缩放、单指恢复、双指缩放、切后台返回；记录设备/版本/视频与真实结果；不把模拟事件算真机。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 0.1.27报告为PUBLISHED / MANUAL_ACCEPTANCE_PENDING；正式触点修复、Full、OSS、微信开发版已交付，该报告把体验版和真实设备列为待办；先核实之后是否已有验收视频或后台记录，已有有效证据则归档，不机械重跑。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-acceptance-ledger"
+      ],
+      "sourceRefs": [
+        "D:/projects/pm-ui-main-20261102/specs/wechat-diagnostics/verification.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Host/Infrastructure/WeChat/WeChatSdkCompatibility.jslib"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-performance-baseline",
+      "title": "测量首发包发热、帧耗时和内存基线",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 480,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "在非Development目标包记录冷启动、院子静置/连续操作/页面往返20分钟的帧耗时、内存和发热；注明设备与画质；只据实测瓶颈开优化任务。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 历史用户反馈高发热，当前11/02已恢复远端微信默认画质；诊断功能不提供完整性能结论，不能把日志接通当性能过关。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-ui-blockers"
+      ],
+      "sourceRefs": [
+        "D:/projects/pm-ui-main-20261102/specs/wechat-diagnostics/verification.md",
+        "D:/projects/partnermoon/partnermoon/client (353ae745 恢复远端微信默认画质设置)",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/UI/MainUIPanel/MainUIPanel.cs",
+        "用户2026-10-16发热排查请求"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-resource-budget",
+      "title": "核对首发包体、资源驻留和切页释放",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 480,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "统计首发实际包/下载资源、重复纹理和最大驻留项；检查首页与五个主要页面往返后的内存变化；按预算修复最大一至三项并复测。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 0.1.27正式记录主包文件69/CDN文件320，只是构建清单而不是内存/包体预算；当前有大量UI与动效资源，需看实际采用包。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-performance-baseline"
+      ],
+      "sourceRefs": [
+        "D:/projects/pm-ui-main-20261102/specs/wechat-diagnostics/verification.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/UI/LumiPanelArt",
+        "D:/projects/partnermoon/partnermoon/client (1922e980 动效地址规范化)"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-recovery-regression",
+      "title": "复验断网、重登和交易结果未知恢复",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 360,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "对订单/领奖/培育各做一次结果未知、断网重进、切账号晚回调与后台恢复；原操作不重结算、资产不丢、不串号；保留请求和账目证据。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 050/054已有真实网络、原handle、operationId、Mongo冷恢复与账号隔离证据，当前只复查发布整合后的受影响路径。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-core-loop-acceptance"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/specs/050-inventory-item-flow/workflow.md",
+        "D:/projects/partnermoon/partnermoon/specs/054-gameplay-loop-polish/workflow.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Online/Session/OnlineSession.cs",
+        "D:/projects/partnermoon/partnermoon/server/internal/gameplay/playerstate/order_receipt.go"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-server-deployment",
+      "title": "建立实际部署服务端与客户端配对回执",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "核实候选对应的实际运行镜像/源码、配置生成版本、数据库变更和备份恢复入口；保存可复查部署清单；不能用本地HEAD代替线上服务版本。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 本机server为c7ca6ba，最近有地图/配置变化；历史发布文档记录不同时间的服务端，不代表当前部署事实。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-runtime-endpoints"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/server (c7ca6ba)",
+        "D:/projects/partnermoon/partnermoon/specs/037-test-public-wechat-release/verification.md",
+        "D:/projects/pm-ui-main-20261102/specs/wechat-diagnostics/verification.md"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-production-diagnostics",
+      "title": "完成微信后台真实错误和内存告警验收",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "在目标包核对真实日志的build/账号/时间/去重，分别记录Android系统告警和iOS异常的实际可验证范围；清理只属于测试的可见入口。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 现有诊断报告区分开发者工具模拟、后台接收和真机；用户模拟level15链路通过不等于后台和真实系统警告已验收。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-server-deployment"
+      ],
+      "sourceRefs": [
+        "D:/projects/pm-ui-main-20261102/specs/wechat-diagnostics/verification.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Host/Infrastructure/Diagnostics"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-copyright-submission",
+      "title": "收口软著申请日期、签章、上传和回执",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 公司申请人",
+      "estimateMinutes": 180,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "核对软件名/版本/权利人/完成日期；采用10/28最终两份PDF与现有截图；完成申请人审核后按官方流程提交并记录回执/补正状态。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 已有11页说明书、60页程序材料、21张真实截图及71页渲染检查；10/28材料回执记录当时官网未上传、未签章/提交，完成日期2026-10-27待确认；11/03实际受理状态需先核实，已提交则改为跟踪回执，不重复提交。不要重做整套材料。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/product-docs/current/deliverables/software-copyright/20261027-release/README.md"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-release-qualification",
+      "title": "核实小游戏发布路径、资质和隐私必需项",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P0",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 公司负责人 / 发行对接",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "由发行/公司负责人列出目标发布路径要求、已持凭证、缺项负责人和截止；核对账号主体、协议/隐私与数据使用披露；依据当前官方要求形成可发布判断。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 产品总案有研发资质申报路线，但本轮未核实实际平台后台或受理状态。不得把软著材料齐全当送审/上线资格全部通过。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-release-scope"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/13-产品研发资质申报与发行路线图.md",
+        "用户首发/送审目标"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-commerce-first-test",
+      "title": "确定首轮商业化验证的一项假设",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "只选一个与已冻结首发内容匹配的付费或激励验证点；写明用户价值、免费路径、指标、样本和停止条件；评审是否需要真实交易接入，未批准不扩商城。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 当前总案商业化属于方向，不能当支付/商品/对账已实现；优先验证经营留存和可玩性，不把所有长期外观方案并入首发。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-economy-adoption",
+        "local:pmo-20261103-pm-release-qualification"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/00-游戏设计总案.md",
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/23-建造装饰与外观商业化规划.md",
+        "用户2026-10-27资方商业化讨论"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-investor-status",
+      "title": "更新资方现状、剩余投入和阶段验证材料",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "用真实版本和证据说明已可玩内容、未验证项、当前人力、下阶段成本/周期、商业化假设与风险；与首发范围表一致，不把原型或规划算已开发。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 用户此前明确资方视角问题与商业化规划。会议时间已过，本项是当前进展更新，不伪造新的会议截止或融资结果。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-acceptance-ledger",
+        "local:pmo-20261103-pm-commerce-first-test"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/00-游戏设计总案.md",
+        "用户2026-10-27资方问题与规划请求",
+        "D:/projects/partnermoon/partnermoon/specs/054-gameplay-loop-polish/workflow.md"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-release-candidate",
+      "title": "制作唯一候选包并完成发布签收",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 360,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "从冻结提交组合生成候选；配对AOT/资源/版本并保存回执；完成主线真机清单和发布条件核对，再由有权负责人选择体验/送审/发布；保留回退点。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 0.1.27已有公网交付；本项只在新的冻结增量通过验收后制作下一候选，不重发或覆盖历史固定版本。当前不代用户操作平台发布。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-core-loop-acceptance",
+        "local:pmo-20261103-pm-ui-blockers",
+        "local:pmo-20261103-pm-wechat-input-device",
+        "local:pmo-20261103-pm-performance-baseline",
+        "local:pmo-20261103-pm-release-qualification",
+        "local:pmo-20261103-pm-server-deployment"
+      ],
+      "sourceRefs": [
+        "D:/projects/pm-ui-main-20261102/specs/wechat-diagnostics/verification.md",
+        "D:/projects/partnermoon/partnermoon/specs/037-test-public-wechat-release/verification.md"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-shanhai-scope-later",
+      "title": "收拢二合与腓腓探测玩法为一个后续切片",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "medium",
+      "pmoPriority": "P2",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 480,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "统一最新用户二合+探测意图、H5实测和旧REQ-006口径；明确单环境、一次回院使用的最小切片与采用标准；未经首发取舍不启动正式移植。",
+      "evidence": "",
+      "description": "现行总案/REQ仍保留10/21短线+一次深入方向，用户后续已探索二合/迷雾/围捕。H5与文档存在时间差，需要采用决策，不能静默回退旧案或把多环境原型算Unity完成。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-release-scope"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/00-游戏设计总案.md",
+        "D:/projects/partnermoon/partnermoon/product-docs/current/README.md",
+        "D:/projects/partnermoon/partnermoon/product-docs/realm-gameplay-lab",
+        "用户2026-10-31二合盘与腓腓探测反馈"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-pet-life-later",
+      "title": "把完整宠物养成拆成一个可验收后续生活链",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "medium",
+      "pmoPriority": "P2",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 960,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "从REQ-009当前有效A—F故事中仅选一条设施改善→自然行为→再进入连续性的片段；列明复用代码与新缺口；先演示再决定下一批。",
+      "evidence": "",
+      "description": "保留完整主宠方向但退出首发强制清单；10/30已撤回派工、劳动资格和点地跟随等旧设计，复用已有自然行为与建筑。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-pet-minimum"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/product-docs/current/README.md",
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/requirements/需求案-009-主宠生活互动与再进入连续性.md",
+        "D:/projects/partnermoon/partnermoon/client/Assets/PartnerMoon/Business/Pets/FreeRoam/PetNaturalBehaviorGoalPresenter.cs"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-long-term-feature-pool",
+      "title": "归档多环境、来访、社交与外观扩展",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "把多环境秘境、来访生态、社交/花友会、外观装饰分别记录收益假设、依赖和解冻条件；不分配执行Agent或消耗本期资源。",
+      "evidence": "",
+      "description": "总案和当前索引明确长期方向与原型职责，社交/外观规划不代表正式实现。用户本次要求控制项目和范围，本任务完成标准是整理候选池。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-release-scope"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/00-游戏设计总案.md",
+        "D:/projects/partnermoon/partnermoon/product-docs/current/README.md",
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/23-建造装饰与外观商业化规划.md"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-trademark-regions",
+      "title": "复核图形商标国内与海外布局待办",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "medium",
+      "pmoPriority": "P2",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人 / 公司负责人 / 商标代理",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "核对已申请标识/类别/主体与计划发行地域；由专业代理给出缺口和分期预算；只提交明确采用地区，保留回执。",
+      "evidence": "",
+      "description": "这是用户2026-10-27明确提出的公司待办，现阶段未读取商标受理资料，不能预填已完成或建议无依据的全部地区注册。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-release-scope"
+      ],
+      "sourceRefs": [
+        "用户2026-10-27图形商标海外注册优先地域请求"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-minimal-analytics",
+      "title": "补齐首轮试玩的最小数据回收",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 执行Agent",
+      "estimateMinutes": 480,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "定义并验证启动/入院、关键漏斗、会话完成、首单/首日关键目标等最少事件；列明数据使用范围与查询方法；用内部测试数据验证可回答流失点。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 现有微信诊断报告明确业务埋点与运营SDK后移，错误日志不等同于经营数据。先确认已有平台数据可否回答问题，再补必要缺口，不新建运营中台。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-release-scope",
+        "local:pmo-20261103-pm-release-qualification"
+      ],
+      "sourceRefs": [
+        "D:/projects/pm-ui-main-20261102/specs/wechat-diagnostics/verification.md",
+        "D:/projects/partnermoon/partnermoon/product-docs/current/product/00-游戏设计总案.md"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-pm-asset-provenance",
+      "title": "核对首发采用素材与参考资源边界",
+      "projectId": "pmo:partnermoon",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "candidate",
+      "verification": "needs_check",
+      "owner": "制作人 / 美术或TA",
+      "estimateMinutes": 240,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "为首发实际打包的图片/音频/字体/模型登记来源、授权或制作记录；识别仅供研究的参考素材是否被误打包，并按责任处理；不扫全库重做资产系统。",
+      "evidence": "",
+      "description": "候选交付项：先核对当前证据，再由冻结范围与三助理评审决定是否纳入本轮。 工程有大量参考/H5/Studio资源，根规范将reference快照列为只读参考。当前是否混用尚未核实，本任务是发布采用清单核对，不预设侵权结论。 初始估时为工作预算，非完成承诺；实际执行前按冻结范围复核。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline",
+        "local:pmo-20261103-pm-release-scope"
+      ],
+      "sourceRefs": [
+        "D:/projects/partnermoon/partnermoon/AGENTS.md",
+        "D:/projects/partnermoon/partnermoon/product-docs/current/deliverables/software-copyright/20261027-release/README.md",
+        "D:/projects/partnermoon/partnermoon/product-docs/current/README.md"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-ad-daily-trial",
+      "title": "实用验收：用真实湃特蒙事项跑完一次聚焦与验收",
+      "projectId": "pmo:antdesk",
+      "state": "ready",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "committed",
+      "verification": "confirmed",
+      "owner": "制作人",
+      "estimateMinutes": 60,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "从项目页选择本轮任务，开始、记录实际耗时、补验收证据后完成；重启后顺序和证据不丢；只记录阻碍日常使用的问题。",
+      "evidence": "",
+      "description": "PMO核心已在本轮开发，待制作人实际试用。请勿再做一套项目管理系统。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-scope"
+      ],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "D:/projects/antdesk/src/lib/pmo-model.mjs",
+        "D:/projects/antdesk/src/components/planner/PlannerDrawer.tsx"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-ad-review-three",
+      "title": "三助理首轮评审：范围、风险、交付顺序",
+      "projectId": "pmo:antdesk",
+      "state": "ready",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "committed",
+      "verification": "confirmed",
+      "owner": "制作人",
+      "estimateMinutes": 60,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "用户检查并发送同一份主线快照；Muse/Grok/原omdot各给证据和建议；合并为最多3个必须处理问题和一个用户决定。无回复记为阻塞，不伪造共识。",
+      "evidence": "",
+      "description": "使用项目页“准备评审”生成草稿，用户发出后再执行。本次盘点未替你发送。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-baseline"
+      ],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "D:/projects/antdesk/src/lib/pmo-model.mjs",
+        "D:/projects/antdesk/src/components/planner/PlannerDrawer.tsx"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-ad-channel-acceptance",
+      "title": "验收原三个助理：群聊、@指派、私聊隔离",
+      "projectId": "pmo:antdesk",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 90,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "用户分别确认Muse AI/Grok Bot/原GPT omdot身份；用一条明确测试消息验证@单人和群聊回执、私聊隔离；记录结果。",
+      "evidence": "",
+      "description": "现有登录检查已就绪，真实对话验收由用户开始。保留现有账号与会话，不新增Muse Code或替身Dot。",
+      "dependencies": [],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "D:/projects/antdesk/assistant-bridge/runtime/dots-channel.mjs"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-ad-dock-acceptance",
+      "title": "实用验收：四边贴靠、钢琴悬停与长按优先级",
+      "projectId": "pmo:antdesk",
+      "state": "inbox",
+      "priority": "high",
+      "pmoPriority": "P1",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 60,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "左/右/上/下各测一次自动贴边与展开收起，悬停突出、长按拖拽不误触；同层排序保存，P0主线不被辅助项目挤掉。",
+      "evidence": "",
+      "description": "既有动效与停靠能力保留；只修实际复现的问题。",
+      "dependencies": [],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "D:/projects/antdesk/src/lib/pmo-model.mjs",
+        "D:/projects/antdesk/src/components/planner/PlannerDrawer.tsx"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-wrap-benchmark",
+      "title": "固定一组WRAP样本，给出可交付或暂停结论",
+      "projectId": "pmo:agent-wrap",
+      "state": "ready",
+      "priority": "medium",
+      "pmoPriority": "P2",
+      "scope": "committed",
+      "verification": "needs_check",
+      "owner": "执行Agent；制作人验收",
+      "estimateMinutes": 120,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "选固定基准头模与男女代表样本，记录眼口鼻、颈接缝、肤色、时间与失败点；产出重复运行结果和最多3项阻塞，不扩算法。",
+      "evidence": "",
+      "description": "辅助项目每周仅120分钟。历史管线问题先确认当前是否仍可复现。",
+      "dependencies": [
+        "local:pmo-20261103-pm-release-scope"
+      ],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-wrap-bake",
+      "title": "核查烘焙接缝、黑边与局部修补链路",
+      "projectId": "pmo:agent-wrap",
+      "state": "inbox",
+      "priority": "medium",
+      "pmoPriority": "P2",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 180,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "固定样本展示前后对比，定位一个主要根因；现有手绘/雕刻修补流程可重现；其余缺口入池。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [
+        "local:pmo-20261103-wrap-benchmark"
+      ],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-wrap-groom",
+      "title": "核查眉毛、胡须与Groom输出边界",
+      "projectId": "pmo:agent-wrap",
+      "state": "inbox",
+      "priority": "medium",
+      "pmoPriority": "P2",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 180,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "确认当前支持项、可导出样例和缺失项；先只通过一种代表输出，不新增全毛发系统。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [
+        "local:pmo-20261103-wrap-benchmark"
+      ],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-wrap-ue-export",
+      "title": "核查MetaHuman/UE目标版本的实际导入",
+      "projectId": "pmo:agent-wrap",
+      "state": "inbox",
+      "priority": "medium",
+      "pmoPriority": "P2",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 180,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "用现有输出完成一次目标UE工程导入，保存版本、步骤、变形/材质检查截图；不把预览成功记为导出成功。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [
+        "local:pmo-20261103-wrap-benchmark"
+      ],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-god-baseline",
+      "title": "锁定神明模拟器可发布基线和停止扩张清单",
+      "projectId": "pmo:god-sim",
+      "state": "inbox",
+      "priority": "medium",
+      "pmoPriority": "P2",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 90,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "找出唯一可运行构建；列出观察、干预、演化的首发闭环及不做内容；重启开发必须先有阶段出口。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-god-observable",
+      "title": "核查居民劳动、反馈和玩家干预是否可观察",
+      "projectId": "pmo:god-sim",
+      "state": "inbox",
+      "priority": "medium",
+      "pmoPriority": "P2",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 180,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "录制一个完整周期，说明玩家操作如何改变世界并能读懂反馈；只登记可复现阻断。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [
+        "local:pmo-20261103-god-baseline"
+      ],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-god-save",
+      "title": "核查长时间运行、存档恢复和性能",
+      "projectId": "pmo:god-sim",
+      "state": "inbox",
+      "priority": "medium",
+      "pmoPriority": "P2",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 180,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "固定种子运行、保存、退出、恢复并对照世界状态；记录卡死/丢档/明显性能退化证据。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [
+        "local:pmo-20261103-god-baseline"
+      ],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-god-release",
+      "title": "收敛发布材料与体验验收",
+      "projectId": "pmo:god-sim",
+      "state": "inbox",
+      "priority": "medium",
+      "pmoPriority": "P2",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 180,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "在基线通过后核查新手理解、操作反馈、商店材料与可分发包；阻断清零后由制作人决定发布或继续暂停。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [
+        "local:pmo-20261103-god-observable",
+        "local:pmo-20261103-god-save"
+      ],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-qj-baseline",
+      "title": "归档当前启界牌规则、工程和可玩构建",
+      "projectId": "pmo:qijiepai",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 90,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "核实最新工程路径/版本，不采用旧聊天中的版本号作为现状；保存规则、样例对局和缺口清单。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-qj-rule-regression",
+      "title": "核查召唤、目标选择与响应窗口",
+      "projectId": "pmo:qijiepai",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 180,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "用固定牌组复现一轮完整对局，列出规则期望与当前表现；历史问题已修复则标记证据，禁止先行推倒重做。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [
+        "local:pmo-20261103-qj-baseline"
+      ],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-qj-presentation",
+      "title": "清点卡面、牌组、大厅与商店现有成果",
+      "projectId": "pmo:qijiepai",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 120,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "汇总已有资产、可用入口、动画反馈和待接入项；冻结视觉大改，只保留首发必要缺口。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [
+        "local:pmo-20261103-qj-baseline"
+      ],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-engine-baseline",
+      "title": "封存自研引擎构建、测试场景与已知问题",
+      "projectId": "pmo:engine",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 120,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "记录各目标平台的最后可运行版本、构建方式、测试场景和明确失败项；没有验证的平台标待核实。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-engine-value-gate",
+      "title": "评估引擎工作对湃特蒙的直接收益",
+      "projectId": "pmo:engine",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 60,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "逐项写出阻塞主线的具体问题、现有引擎替代方案与最多一次验证预算；没有直接收益的功能继续暂停。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [
+        "local:pmo-20261103-engine-baseline"
+      ],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-robot-single-joint",
+      "title": "保留机器人单关节原型的成本与验证方案",
+      "projectId": "pmo:robot",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 120,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "列出电机/驱动/供电/打印结构的可得方案与测量目标；重启前先决定预算，不能直接扩大为整机复刻。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-glasses-official-entry",
+      "title": "核查AI眼镜官方扩展与一条语音闭环",
+      "projectId": "pmo:glasses",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 90,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "确认自有设备型号/版本、官方可用开发入口与恢复方式；给可行或停止结论，不绕过设备验证。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-ereader-value",
+      "title": "核查电纸书待办/阅读工作台的实际价值",
+      "projectId": "pmo:ereader",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 90,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "先定义一屏要解决的问题，核对现有应用或网页能否满足；如需试验只做可撤回展示，记录功耗和刷新体验。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-watch-feasibility",
+      "title": "核查手表语音助理侧载与续航可行性",
+      "projectId": "pmo:watch",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 90,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "确认自有设备型号、侧载支持和麦克风/网络权限；列出测试证据与停止条件，未证实前不开发客户端。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-art-inventory",
+      "title": "清点美术课程、12张板书和现有素材",
+      "projectId": "pmo:art-course",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 90,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "逐项区分已完成、待修和未开始；核实历史“已完成”与文件一致，不重新生成已有合格成果。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-art-one-lesson",
+      "title": "收敛一节可用示范课：讲解、练习、反馈",
+      "projectId": "pmo:art-course",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 180,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "选一个明确技巧，整理合法可用例图/过程演示、字幕、练习和反馈标准；制作人能按课程完成练习。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [
+        "local:pmo-20261103-art-inventory"
+      ],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-tools-benefit-sort",
+      "title": "重排逆向与工具探索：只保留明确收益",
+      "projectId": "pmo:tool-research",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 90,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "对NinjaRipper类制作工具、NBA2K离线分析、Skyrim工具等逐个核实当前成果与主线收益；每项给暂停/归档/限时验证结论。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-tools-evidence-handoff",
+      "title": "归档已有工具工程、复现方法和未决问题",
+      "projectId": "pmo:tool-research",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 120,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "已有可运行样例与版本、依赖、已知失败均可定位；禁止把历史成功宣称当当前验证。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [
+        "local:pmo-20261103-tools-benefit-sort"
+      ],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-writing-handoff",
+      "title": "核实小说大纲与多故事线的交接状态",
+      "projectId": "pmo:writing",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 120,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "汇总当前唯一版本的人物关系、时间线、因果冲突和未决点；先确认已有交接稿是否完整，不另起新稿。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    },
+    {
+      "id": "local:pmo-20261103-content-weekly-check",
+      "title": "核查既有每周内容计划，只取材本周交付成果",
+      "projectId": "pmo:content",
+      "state": "inbox",
+      "priority": "low",
+      "pmoPriority": "P3",
+      "scope": "later",
+      "verification": "needs_check",
+      "owner": "制作人",
+      "estimateMinutes": 60,
+      "spentMinutes": 0,
+      "acceptanceCriteria": "确认原有每周安排是否仍有效；如继续，选一条有截图/演示证据的项目成果形成发布稿，避免重复建立提醒或自动化。",
+      "evidence": "",
+      "description": "历史记录中仍需收口的工作；先确认是否已经完成，不重复实现。",
+      "dependencies": [],
+      "sourceRefs": [
+        "2026-11-03 用户项目清单、PMO改造要求与交付复盘（本轮对话）",
+        "既往对话项目记录（历史线索，当前实现未复核）"
+      ],
+      "createdAt": "2026-11-03T06:00:00.000Z",
+      "updatedAt": "2026-11-03T06:00:00.000Z"
+    }
+  ]
+}

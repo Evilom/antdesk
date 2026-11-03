@@ -92,7 +92,7 @@ export default function Agenda({ onRefresh, onAssistant, onBriefing, refreshing 
     const highList = highPriority.map((t) => `- [高优] ${t.name}`).join("\n");
     const taskSummary = [overdueList, dueList, highList].filter(Boolean).join("\n") || "（暂无紧急任务）";
 
-    const prompt = `根据以下任务状态，给出今天的工作建议（简洁，2-3句话，估算处理时间）：\n${taskSummary}`;
+    const prompt = `根据以下任务列表，给出精简的今日工作建议（2-3句话，点出优先推进项与预估耗时，文风干练，避免AI套话）：\n${taskSummary}`;
 
     abortRef.current = new AbortController();
     let result = "";
@@ -136,8 +136,8 @@ export default function Agenda({ onRefresh, onAssistant, onBriefing, refreshing 
       <div className="agenda-hero anim-card" style={{ animationDelay: delay() }}>
         <div className="agenda-hero-main">
           <span className="agenda-kicker">{formatChineseDate(todayDate)}</span>
-          <h1 className="agenda-date">把今天，过得从容。</h1>
-          <p>{!notionConnected ? '先聊聊想法，再一起安排今天。' : pendingCount > 0 ? `有 ${pendingCount} 件事，等你慢慢完成。` : '今天没有未完成的待办，留一点时间给自己。'}</p>
+          <h1 className="agenda-date">今日工作总览</h1>
+          <p>{!notionConnected ? '随时记录想法，规划今日待办。' : pendingCount > 0 ? `当前有 ${pendingCount} 项待办，保持节奏稳步推进。` : '今日待办已全部完成，休息一下吧。'}</p>
         </div>
         <button
           onClick={onRefresh}
@@ -152,7 +152,7 @@ export default function Agenda({ onRefresh, onAssistant, onBriefing, refreshing 
 
       <div className="assistant-invitation">
         <img src="/assets/assistant/pearl.png" alt="珠光玻璃助理"/>
-        <div><span className="eyebrow">ALWAYS BY YOUR SIDE</span><h2>你的助理，就在身边。</h2><p>实时聊聊，也听听今天的安排。</p><div className="invitation-actions"><button onClick={onAssistant}>和我聊聊<ArrowUpRight size={14}/></button><button onClick={onBriefing}><AudioLines size={14}/>听汇报</button></div></div>
+        <div><span className="eyebrow">SMART ASSISTANT</span><h2>你的随身工作助理</h2><p>随时对话沟通，或听取今日工作简报。</p><div className="invitation-actions"><button onClick={onAssistant}>和我聊聊<ArrowUpRight size={14}/></button><button onClick={onBriefing}><AudioLines size={14}/>听简报</button></div></div>
       </div>
 
       <div className="metrics-strip grid grid-cols-3 gap-2 anim-card" style={{ animationDelay: delay() }}>
@@ -243,7 +243,7 @@ export default function Agenda({ onRefresh, onAssistant, onBriefing, refreshing 
             <div>
               <p className="text-body leading-relaxed">{suggestion}</p>
               <button onClick={handleAdopt} className="mt-2.5 px-3 py-1 text-[11px] bg-accent-blue/10 text-accent-blue rounded-lg hover:bg-accent-blue/20 transition-colors font-medium">
-                采纳 → 查看任务
+                采纳建议
               </button>
             </div>
           ) : null}

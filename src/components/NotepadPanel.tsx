@@ -291,8 +291,8 @@ export default function NotepadPanel() {
         </div>
       ) : todos.length === 0 ? (
         <div className="notepad-empty">
-          <div className="notepad-empty-title">{activeTag ? `${activeTag} 已清空` : "全部完成"}</div>
-          <div className="notepad-empty-hint">下面可以继续捕获新任务</div>
+          <div className="notepad-empty-title">{activeTag ? `${activeTag} 暂无待办` : "全部完成"}</div>
+          <div className="notepad-empty-hint">可在下方添加新待办</div>
         </div>
       ) : (
         <div className="notepad-list">

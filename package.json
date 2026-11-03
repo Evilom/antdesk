@@ -1,17 +1,25 @@
 {
   "name": "antdesk",
   "private": true,
-  "version": "2.19.5",
+  "version": "2.19.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "bridge:init": "node assistant-bridge/cli.mjs init",
+    "bridge:start": "node assistant-bridge/cli.mjs start",
+    "bridge:status": "node assistant-bridge/cli.mjs status",
+    "bridge:public-url": "node assistant-bridge/cli.mjs set-public-url",
+    "bridge:key": "node assistant-bridge/cli.mjs key",
+    "test:bridge": "node --test assistant-bridge/tests/*.test.mjs",
+    "bridge:install": "node assistant-bridge/install-runtimes.mjs",
+    "bridge:verify": "node assistant-bridge/install-runtimes.mjs --check"
   },
   "dependencies": {
     "@esotericsoftware/spine-webgl": "4.2.119",
-    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/api": "2.12.4",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-shell": "^2.0.0",
     "@tauri-apps/plugin-updater": "^2.10.1",
